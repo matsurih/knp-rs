@@ -76,3 +76,11 @@ perl/pm_to_blib
 
 # flag file to skip make
 *.skip
+
+
+# Added by cargo
+
+/target
+.idea/
+compile_commands.json
+dict-bin/ebcf/case_soto.txt
