@@ -1,11 +1,10 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
+use libc;
 
-use crate::ctools::Outfp;
+use crate::{fprintf, restrict_matrix, Revised_para_num};
+use crate::ctools::{fputc, Outfp};
 use crate::lib_print::print_matrix;
-use crate::{restrict_matrix, Revised_para_num};
 use crate::para_dpnd::{_check_para_d_struct, D_found_array};
 use crate::structs::CDB_FILE;
 use crate::tools::OptDisplay;
@@ -23,22 +22,22 @@ pub static mut EtcRuleArray: *mut libc::c_void = 0 as *const libc::c_void as *mu
 pub static mut CurEtcRuleSize: libc::c_int = 0;
 static mut judge_matrix: [[libc::c_int; 4]; 4] =
     [[1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
-     [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
-     [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int],
-     [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int,
-      0 as libc::c_int]];
+        [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
+        [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int],
+        [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int,
+            0 as libc::c_int]];
 static mut judge_matrix_pos_str: [[libc::c_int; 4]; 4] =
     [[0 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
-     [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
-     [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int],
-     [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int,
-      0 as libc::c_int]];
+        [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
+        [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int],
+        [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int,
+            0 as libc::c_int]];
 static mut judge_matrix_pre_str: [[libc::c_int; 4]; 4] =
     [[0 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
-     [0 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
-     [0 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int],
-     [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int,
-      0 as libc::c_int]];
+        [0 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int, 1 as libc::c_int],
+        [0 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int, 0 as libc::c_int],
+        [1 as libc::c_int, 1 as libc::c_int, 0 as libc::c_int,
+            0 as libc::c_int]];
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn print_restrict_matrix(mut sp: *mut SENTENCE_DATA, mut key_pos: libc::c_int) {
@@ -139,7 +138,7 @@ pub unsafe extern "C" fn set_restrict_matrix(mut sp: *mut SENTENCE_DATA, mut a1:
                 b1 += 1
             }
         }
-        _ => { }
+        _ => {}
     }
     /* 出力 */
     if OptDisplay == 3 as libc::c_int {
@@ -172,11 +171,11 @@ pub unsafe extern "C" fn revise_para_rel(mut sp: *mut SENTENCE_DATA, mut pre: li
     b3 = (*ptr2).jend_pos;
     /* 後だけ強並列 -> 前を修正 */
     if (*ptr1).status as libc::c_int != 's' as i32 &&
-           (*ptr2).status as libc::c_int == 's' as i32 {
+        (*ptr2).status as libc::c_int == 's' as i32 {
         set_restrict_matrix(sp, a1, a2, a3, b1, b2, b3, 1 as libc::c_int);
         Revised_para_num = pre
     } else if (*ptr1).status as libc::c_int == 's' as i32 &&
-                  (*ptr2).status as libc::c_int != 's' as i32 {
+        (*ptr2).status as libc::c_int != 's' as i32 {
         set_restrict_matrix(sp, a1, a2, a3, b1, b2, b3, 2 as libc::c_int);
         Revised_para_num = pos
     } else if (*ptr1).max_score <= (*ptr2).max_score {

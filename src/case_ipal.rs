@@ -1,23 +1,24 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, ptr_wrapping_offset_from, register_tool)]
 
-use crate::{_FEATURE, BNST_DATA, case_analysis, current_sentence_data, FEATURE, MRPH_DATA, TAG_DATA, tnode_b, TOTAL_MGR};
+
+use libc;
+
+use crate::{_FEATURE, atof, atoi, BNST_DATA, Class, fclose, FEATURE, fopen, fprintf, fputs, free, memset, MRPH_DATA, sprintf, sscanf, strcat, strchr, strcmp, strcpy, strdup, strlen, strncmp, strstr, TAG_DATA, tnode_b, TOTAL_MGR};
 use crate::case_analysis::{CF_MatchPP, get_dist_from_work_mgr, init_case_frame, MatchPP, MatchPP2, pp_code_to_kstr, pp_kstr_to_code, realloc_cmm};
 use crate::case_data::set_pred_voice;
 use crate::case_match::{cf_match_element, sms_match};
 use crate::case_print::EX_PRINT_NUM;
 use crate::configfile::open_dict;
 use crate::consts::{VERBOSE1, VERBOSE2, VERBOSE3};
-use crate::ctools::{assign_cfeature, check_dict_filename, check_feature, exit, get_mrph_rep_from_f, Language, malloc_data, OptAnalysis, Outfp, realloc, stderr, read};
+use crate::ctools::{assign_cfeature, cdb_unpack, check_dict_filename, check_feature, current_sentence_data, exit, exp, fread, fseek, fseeko, ftell, get_mrph_rep_from_f, Language, log, malloc, malloc_data, OptAnalysis, Outfp, read, realloc, stderr, strncat, strncpy, strtok};
 use crate::db::{db_close, db_get, db_read_open};
 use crate::feature::{check_category, check_str_type};
 use crate::lib_sm::{code2sm, sm2code};
 use crate::read_data::{get_bnst_head_canonical_rep, get_mrph_rep, get_mrph_rep_length, make_mrph_rn};
-use crate::structs::{CDB_FILE, CF_ALIGNMENT};
+use crate::structs::{CDB_FILE, CF_ALIGNMENT, CF_CASE_SLOT, cf_frame_def};
 use crate::thesaurus::get_str_code;
 use crate::tools::{DICT, hash, OptAnaphora, OptCaseFlag, OptDisplay, OptEllipsis, OptGeneralCF, OptParaFix, OptParaNoFixFlag, OptUseCF, OptUseCPNCF, OptUseNCF, realloc_data, smlist, Thesaurus, VerboseLevel};
-use crate::types::{__off_t, CASE_FRAME, CF_PRED_MGR, CF_ptr, CKY, DBM_FILE, FILE, SENTENCE_DATA, size_t, SMLIST};
+use crate::types::{__off_t, CASE_FRAME, CF_FRAME, CF_PRED_MGR, CF_ptr, CKY, DBM_FILE, FILE, SENTENCE_DATA, size_t, SMLIST};
 
 #[no_mangle]
 pub static mut sm_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
@@ -77,33 +78,30 @@ pub static mut db_buf: *mut libc::c_char =
 #[no_mangle]
 pub static mut db_buf_size: libc::c_int = 0 as libc::c_int;
 #[no_mangle]
-pub static mut CF_frame: CF_FRAME =
-    CF_FRAME{address: 0,
-             yomi: 0 as *const libc::c_char as *mut libc::c_char,
-             hyoki: 0 as *const libc::c_char as *mut libc::c_char,
-             feature: 0 as *const libc::c_char as *mut libc::c_char,
-             pred_type: [0; 4],
-             voice: 0,
-             etcflag: 0,
-             casenum: 0,
-             cs:
-                 [CF_CASE_SLOT{kaku_keishiki:
-                                   0 as *const libc::c_char as
-                                       *mut libc::c_char,
-                               meishiku:
-                                   0 as *const libc::c_char as
-                                       *mut libc::c_char,
-                               imisosei:
-                                   0 as *const libc::c_char as
-                                       *mut libc::c_char,}; 20],
-             samecase: [[0; 2]; 24],
-             cf_align:
-                 [CF_ALIGNMENT{cf_id:
-                                   0 as *const libc::c_char as
-                                       *mut libc::c_char,
-                               aligned_case: [[0; 2]; 24],}; 5],
-             DATA: 0 as *const libc::c_uchar as *mut libc::c_uchar,
-             next: 0 as *const cf_frame_def as *mut cf_frame_def,};
+pub static mut CF_frame: CF_FRAME = CF_FRAME {
+    address: 0,
+    cyomi: 0 as *const libc::c_char as *mut libc::c_char,
+    hyoki: 0 as *const libc::c_char as *mut libc::c_char,
+    feature: 0 as *const libc::c_char as *mut libc::c_char,
+    pred_type: [0; 4],
+    voice: 0,
+    etcflag: 0,
+    casenum: 0,
+    cs: [CF_CASE_SLOT {
+        kaku_keishiki: 0 as *const libc::c_char as *mut libc::c_char,
+        meishiku: 0 as *const libc::c_char as *mut libc::c_char,
+        imisosei: 0 as *const libc::c_char as *mut libc::c_char,
+    }; 20],
+    samecase: [[0; 2]; 24],
+    cf_align: [CF_ALIGNMENT {
+        cf_id: 0 as *const libc::c_char as *mut libc::c_char,
+        aligned_case: [[0; 2]; 24],
+    };
+        5
+    ],
+    DATA: 0 as *const libc::c_uchar as *mut libc::c_uchar,
+    next: 0 as *const cf_frame_def as *mut cf_frame_def,
+};
 #[no_mangle]
 pub static mut MAX_cf_frame_length: libc::c_int = 0 as libc::c_int;
 #[no_mangle]
@@ -151,25 +149,25 @@ pub static mut static_buffer: [libc::c_char; 5120] = [0; 5120];
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn init_cf_structure(mut p: *mut CASE_FRAME,
-                                           mut size: libc::c_int) 
- /*==================================================================*/
- {
+                                           mut size: libc::c_int)
+/*==================================================================*/
+{
     memset(p as *mut libc::c_void, 0 as libc::c_int,
            (::std::mem::size_of::<CASE_FRAME>() as
-                libc::c_ulong).wrapping_mul(size as libc::c_ulong));
+               libc::c_ulong).wrapping_mul(size as libc::c_ulong));
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn realloc_cf() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn realloc_cf()
+/*==================================================================*/
+{
     Case_frame_array =
         realloc_data(Case_frame_array as *mut libc::c_void,
                      (::std::mem::size_of::<CASE_FRAME>() as
-                          libc::c_ulong).wrapping_mul((MAX_Case_frame_num +
-                                                           1024 as
-                                                               libc::c_int) as
-                                                          libc::c_ulong),
+                         libc::c_ulong).wrapping_mul((MAX_Case_frame_num +
+                         1024 as
+                             libc::c_int) as
+                         libc::c_ulong),
                      b"realloc_cf\x00" as *const u8 as *const libc::c_char as
                          *mut libc::c_char) as *mut CASE_FRAME;
     init_cf_structure(Case_frame_array.offset(MAX_Case_frame_num as isize),
@@ -178,15 +176,15 @@ pub unsafe extern "C" fn realloc_cf()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_cf() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_cf()
+/*==================================================================*/
+{
     let mut index_db_filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut data_filename: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(*DICT.as_mut_ptr().offset(7 as libc::c_int as isize)).is_null() {
         data_filename =
             check_dict_filename(*DICT.as_mut_ptr().offset(7 as libc::c_int as
-                                                              isize),
+                isize),
                                 (0 as libc::c_int == 0) as libc::c_int)
     } else {
         data_filename =
@@ -197,7 +195,7 @@ pub unsafe extern "C" fn init_cf()
     if !(*DICT.as_mut_ptr().offset(6 as libc::c_int as isize)).is_null() {
         index_db_filename =
             check_dict_filename(*DICT.as_mut_ptr().offset(6 as libc::c_int as
-                                                              isize),
+                isize),
                                 (0 as libc::c_int == 0) as libc::c_int)
     } else {
         index_db_filename =
@@ -299,9 +297,9 @@ pub unsafe extern "C" fn init_cf()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_mrph2id() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_mrph2id()
+/*==================================================================*/
+{
     /* 形態素IDマップDB (mrph2id.db) */
     mrph2id_db =
         open_dict(38 as libc::c_int,
@@ -310,15 +308,15 @@ pub unsafe extern "C" fn init_mrph2id()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_soto_txt() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_soto_txt()
+/*==================================================================*/
+{
     /* 外の関係ファイル (case_soto.txt) */
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(*DICT.as_mut_ptr().offset(39 as libc::c_int as isize)).is_null() {
         filename =
             check_dict_filename(*DICT.as_mut_ptr().offset(39 as libc::c_int as
-                                                              isize),
+                isize),
                                 (0 as libc::c_int == 0) as libc::c_int)
     } else {
         filename =
@@ -337,15 +335,15 @@ pub unsafe extern "C" fn init_soto_txt()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_noun_cf() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_noun_cf()
+/*==================================================================*/
+{
     let mut index_db_filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut data_filename: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(*DICT.as_mut_ptr().offset(15 as libc::c_int as isize)).is_null() {
         data_filename =
             check_dict_filename(*DICT.as_mut_ptr().offset(15 as libc::c_int as
-                                                              isize),
+                isize),
                                 (0 as libc::c_int == 0) as libc::c_int)
     } else {
         data_filename =
@@ -356,7 +354,7 @@ pub unsafe extern "C" fn init_noun_cf()
     if !(*DICT.as_mut_ptr().offset(14 as libc::c_int as isize)).is_null() {
         index_db_filename =
             check_dict_filename(*DICT.as_mut_ptr().offset(14 as libc::c_int as
-                                                              isize),
+                isize),
                                 (0 as libc::c_int == 0) as libc::c_int)
     } else {
         index_db_filename =
@@ -404,9 +402,9 @@ pub unsafe extern "C" fn init_noun_cf()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn clear_mgr_cf(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn clear_mgr_cf(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     i = 0 as libc::c_int;
@@ -414,25 +412,25 @@ pub unsafe extern "C" fn clear_mgr_cf(mut sp: *mut SENTENCE_DATA)
         j = 0 as libc::c_int;
         while j < 24 as libc::c_int {
             free((*(*sp).Best_mgr).cpm[i as usize].cf.ex[j as usize] as
-                     *mut libc::c_void);
+                *mut libc::c_void);
             (*(*sp).Best_mgr).cpm[i as usize].cf.ex[j as usize] =
                 0 as *mut libc::c_char;
             free((*(*sp).Best_mgr).cpm[i as usize].cf.sm[j as usize] as
-                     *mut libc::c_void);
+                *mut libc::c_void);
             (*(*sp).Best_mgr).cpm[i as usize].cf.sm[j as usize] =
                 0 as *mut libc::c_char;
             free(*(*(*sp).Best_mgr).cpm[i as
-                                            usize].cf.ex_list[j as
-                                                                  usize].offset(0
-                                                                                    as
-                                                                                    libc::c_int
-                                                                                    as
-                                                                                    isize)
-                     as *mut libc::c_void);
+                usize].cf.ex_list[j as
+                usize].offset(0
+                as
+                libc::c_int
+                as
+                isize)
+                as *mut libc::c_void);
             free((*(*sp).Best_mgr).cpm[i as usize].cf.ex_list[j as usize] as
-                     *mut libc::c_void);
+                *mut libc::c_void);
             free((*(*sp).Best_mgr).cpm[i as usize].cf.ex_freq[j as usize] as
-                     *mut libc::c_void);
+                *mut libc::c_void);
             j += 1
         }
         i += 1
@@ -440,30 +438,30 @@ pub unsafe extern "C" fn clear_mgr_cf(mut sp: *mut SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_mgr_cf(mut tmp: *mut TOTAL_MGR) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_mgr_cf(mut tmp: *mut TOTAL_MGR)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 64 as libc::c_int {
         init_case_frame(&mut (*(*tmp).cpm.as_mut_ptr().offset(i as
-                                                                  isize)).cf);
+            isize)).cf);
         i += 1
     };
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_case_analysis_cpm(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_case_analysis_cpm(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     if OptAnalysis == 1 as libc::c_int || OptAnalysis == 6 as libc::c_int ||
-           OptUseNCF != 0 {
+        OptUseNCF != 0 {
         /* 格フレーム領域確保 */
         Case_frame_array =
             malloc_data((::std::mem::size_of::<CASE_FRAME>() as
-                             libc::c_ulong).wrapping_mul(1024 as libc::c_int
-                                                             as
-                                                             libc::c_ulong),
+                libc::c_ulong).wrapping_mul(1024 as libc::c_int
+                as
+                libc::c_ulong),
                         b"init_case_analysis_cpm\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut CASE_FRAME;
@@ -474,13 +472,13 @@ pub unsafe extern "C" fn init_case_analysis_cpm(mut sp: *mut SENTENCE_DATA)
         /* 名詞-意味素HASHの初期化 */
         memset(smlist.as_mut_ptr() as *mut libc::c_void, 0 as libc::c_int,
                (::std::mem::size_of::<SMLIST>() as
-                    libc::c_ulong).wrapping_mul(1024 as libc::c_int as
-                                                    libc::c_ulong));
+                   libc::c_ulong).wrapping_mul(1024 as libc::c_int as
+                   libc::c_ulong));
         /* 格フレームcacheのHASHの初期化 */
         memset(CFcache.as_mut_ptr() as *mut libc::c_void, 0 as libc::c_int,
                (::std::mem::size_of::<*mut CF_FRAME>() as
-                    libc::c_ulong).wrapping_mul(1024 as libc::c_int as
-                                                    libc::c_ulong));
+                   libc::c_ulong).wrapping_mul(1024 as libc::c_int as
+                   libc::c_ulong));
         /* 格フレームすべてをメモリに読み込む場合 */
         if OptCaseFlag & 16384 as libc::c_int != 0 {
             list_db_and_register_caseframe(cf_db, 1 as libc::c_int);
@@ -489,9 +487,9 @@ pub unsafe extern "C" fn init_case_analysis_cpm(mut sp: *mut SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn close_cf() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn close_cf()
+/*==================================================================*/
+{
     if CFExist == (0 as libc::c_int == 0) as libc::c_int {
         fclose(cf_fp);
         db_close(cf_db);
@@ -499,9 +497,9 @@ pub unsafe extern "C" fn close_cf()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn close_noun_cf() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn close_noun_cf()
+/*==================================================================*/
+{
     if CFNounExist == (0 as libc::c_int == 0) as libc::c_int {
         fclose(cf_noun_fp);
         db_close(cf_noun_db);
@@ -511,23 +509,23 @@ pub unsafe extern "C" fn close_noun_cf()
 #[no_mangle]
 pub unsafe extern "C" fn get_ipal_address(mut word: *mut libc::c_uchar,
                                           mut flag: libc::c_int)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                          -> *mut libc::c_char
+/*==================================================================*/
+{
     return if flag == 1 as libc::c_int {
-        if CFExist == 0 as libc::c_int { return 0 as *mut libc::c_char }
+        if CFExist == 0 as libc::c_int { return 0 as *mut libc::c_char; }
         db_get(cf_db, word as *mut libc::c_char)
     } else {
-        if CFNounExist == 0 as libc::c_int { return 0 as *mut libc::c_char }
+        if CFNounExist == 0 as libc::c_int { return 0 as *mut libc::c_char; }
         db_get(cf_noun_db, word as *mut libc::c_char)
     };
 }
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_cf_alignment(mut str: *mut libc::c_char,
-                                          mut cf_aligned_num: libc::c_int) 
- /*==================================================================*/
- {
+                                          mut cf_aligned_num: libc::c_int)
+/*==================================================================*/
+{
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -549,9 +547,9 @@ pub unsafe extern "C" fn get_cf_alignment(mut str: *mut libc::c_char,
             c1 = pp_kstr_to_code(token);
             c2 =
                 pp_kstr_to_code(cp.offset(strlen(b"\xef\xbc\x9d\x00" as
-                                                     *const u8 as
-                                                     *const libc::c_char) as
-                                              isize));
+                    *const u8 as
+                    *const libc::c_char) as
+                    isize));
             if c1 == -(10 as libc::c_int) {
                 /* c2はNILのときEND_Mになる */
                 if OptDisplay == 3 as libc::c_int {
@@ -562,18 +560,18 @@ pub unsafe extern "C" fn get_cf_alignment(mut str: *mut libc::c_char,
             } else if count < 24 as libc::c_int - 1 as libc::c_int {
                 /* 溢れチェック */
                 CF_frame.cf_align[cf_aligned_num as
-                                      usize].aligned_case[count as
-                                                              usize][0 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         usize]
+                    usize].aligned_case[count as
+                    usize][0 as
+                    libc::c_int
+                    as
+                    usize]
                     = c1;
                 CF_frame.cf_align[cf_aligned_num as
-                                      usize].aligned_case[count as
-                                                              usize][1 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         usize]
+                    usize].aligned_case[count as
+                    usize][1 as
+                    libc::c_int
+                    as
+                    usize]
                     = c2;
                 count += 1
             }
@@ -584,22 +582,22 @@ pub unsafe extern "C" fn get_cf_alignment(mut str: *mut libc::c_char,
     }
     free(buf as *mut libc::c_void);
     CF_frame.cf_align[cf_aligned_num as
-                          usize].aligned_case[count as
-                                                  usize][0 as libc::c_int as
-                                                             usize] =
+        usize].aligned_case[count as
+        usize][0 as libc::c_int as
+        usize] =
         -(10 as libc::c_int);
     CF_frame.cf_align[cf_aligned_num as
-                          usize].aligned_case[count as
-                                                  usize][1 as libc::c_int as
-                                                             usize] =
+        usize].aligned_case[count as
+        usize][1 as libc::c_int as
+        usize] =
         -(10 as libc::c_int);
 }
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn copy_cf_frame(mut dst: *mut CF_FRAME,
-                                       mut src: *mut CF_FRAME) 
- /*==================================================================*/
- {
+                                       mut src: *mut CF_FRAME)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     (*dst).address = (*src).address;
@@ -627,8 +625,8 @@ pub unsafe extern "C" fn copy_cf_frame(mut dst: *mut CF_FRAME,
         (*dst).samecase[i as usize][1 as libc::c_int as usize] =
             (*src).samecase[i as usize][1 as libc::c_int as usize];
         if (*src).samecase[i as usize][0 as libc::c_int as usize] ==
-               -(10 as libc::c_int) {
-            break ;
+            -(10 as libc::c_int) {
+            break;
         }
         i += 1
     }
@@ -636,46 +634,46 @@ pub unsafe extern "C" fn copy_cf_frame(mut dst: *mut CF_FRAME,
     while i < 5 as libc::c_int {
         if (*src).cf_align[i as usize].cf_id.is_null() {
             (*dst).cf_align[i as usize].cf_id = 0 as *mut libc::c_char;
-            break ;
+            break;
         } else {
             (*dst).cf_align[i as usize].cf_id =
                 strdup((*src).cf_align[i as usize].cf_id);
             j = 0 as libc::c_int;
             while j < 5 as libc::c_int {
                 (*dst).cf_align[i as
-                                    usize].aligned_case[j as
-                                                            usize][0 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       usize]
+                    usize].aligned_case[j as
+                    usize][0 as
+                    libc::c_int
+                    as
+                    usize]
                     =
                     (*src).cf_align[i as
-                                        usize].aligned_case[j as
-                                                                usize][0 as
-                                                                           libc::c_int
-                                                                           as
-                                                                           usize];
+                        usize].aligned_case[j as
+                        usize][0 as
+                        libc::c_int
+                        as
+                        usize];
                 (*dst).cf_align[i as
-                                    usize].aligned_case[j as
-                                                            usize][1 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       usize]
+                    usize].aligned_case[j as
+                    usize][1 as
+                    libc::c_int
+                    as
+                    usize]
                     =
                     (*src).cf_align[i as
-                                        usize].aligned_case[j as
-                                                                usize][1 as
-                                                                           libc::c_int
-                                                                           as
-                                                                           usize];
+                        usize].aligned_case[j as
+                        usize][1 as
+                        libc::c_int
+                        as
+                        usize];
                 if (*src).cf_align[i as
-                                       usize].aligned_case[j as
-                                                               usize][0 as
-                                                                          libc::c_int
-                                                                          as
-                                                                          usize]
-                       == -(10 as libc::c_int) {
-                    break ;
+                    usize].aligned_case[j as
+                    usize][0 as
+                    libc::c_int
+                    as
+                    usize]
+                    == -(10 as libc::c_int) {
+                    break;
                 }
                 j += 1
             }
@@ -689,9 +687,9 @@ pub unsafe extern "C" fn copy_cf_frame(mut dst: *mut CF_FRAME,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn register_caseframe(mut address: libc::c_ulonglong,
-                                            mut i_ptr: *mut CF_FRAME) 
- /*==================================================================*/
- {
+                                            mut i_ptr: *mut CF_FRAME)
+/*==================================================================*/
+{
     let mut num: libc::c_int = 0;
     let mut cfcmpp: *mut *mut CF_FRAME = 0 as *mut *mut CF_FRAME;
     let mut key: [libc::c_char; 128] = [0; 128];
@@ -714,9 +712,9 @@ pub unsafe extern "C" fn register_caseframe(mut address: libc::c_ulonglong,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn lookup_caseframe(mut address: libc::c_ulonglong)
- -> *mut CF_FRAME 
- /*==================================================================*/
- {
+                                          -> *mut CF_FRAME
+/*==================================================================*/
+{
     let mut num: libc::c_int = 0;
     let mut cfcmp: *mut CF_FRAME = 0 as *mut CF_FRAME;
     let mut key: [libc::c_char; 128] = [0; 128];
@@ -727,7 +725,7 @@ pub unsafe extern "C" fn lookup_caseframe(mut address: libc::c_ulonglong)
              strlen(key.as_mut_ptr()) as libc::c_int);
     cfcmp = CFcache[num as usize];
     while !cfcmp.is_null() {
-        if address == (*cfcmp).address { return cfcmp }
+        if address == (*cfcmp).address { return cfcmp; }
         cfcmp = (*cfcmp).next
     }
     return 0 as *mut CF_FRAME;
@@ -737,9 +735,9 @@ pub unsafe extern "C" fn lookup_caseframe(mut address: libc::c_ulonglong)
 pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
                                         mut size: libc::c_int,
                                         mut flag: libc::c_int)
- -> *mut CF_FRAME 
- /*==================================================================*/
- {
+                                        -> *mut CF_FRAME
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut c1: libc::c_int = 0;
     let mut c2: libc::c_int = 0;
@@ -752,22 +750,22 @@ pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
         MAX_cf_frame_length +=
             1024 as libc::c_int *
                 ((size - MAX_cf_frame_length) / 1024 as libc::c_int +
-                     1 as libc::c_int);
+                    1 as libc::c_int);
         CF_frame.DATA =
             realloc_data(CF_frame.DATA as *mut libc::c_void,
                          (::std::mem::size_of::<libc::c_uchar>() as
-                              libc::c_ulong).wrapping_mul(MAX_cf_frame_length
-                                                              as
-                                                              libc::c_ulong),
+                             libc::c_ulong).wrapping_mul(MAX_cf_frame_length
+                             as
+                             libc::c_ulong),
                          b"get_ipal_frame\x00" as *const u8 as
                              *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_uchar;
         cf_str_buf =
             realloc_data(cf_str_buf as *mut libc::c_void,
                          (::std::mem::size_of::<libc::c_uchar>() as
-                              libc::c_ulong).wrapping_mul(MAX_cf_frame_length
-                                                              as
-                                                              libc::c_ulong),
+                             libc::c_ulong).wrapping_mul(MAX_cf_frame_length
+                             as
+                             libc::c_ulong),
                          b"get_ipal_frame\x00" as *const u8 as
                              *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_uchar
@@ -775,7 +773,7 @@ pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
     fseeko(fp, address as __off_t, 0 as libc::c_int);
     if fread(CF_frame.DATA as *mut libc::c_void, size as libc::c_ulong,
              1 as libc::c_int as libc::c_ulong, fp) <
-           1 as libc::c_int as libc::c_ulong {
+        1 as libc::c_int as libc::c_ulong {
         fprintf(stderr,
                 b";; Error in fread.\n\x00" as *const u8 as
                     *const libc::c_char);
@@ -787,52 +785,52 @@ pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
     i = 0 as libc::c_int;
     while i < size - 1 as libc::c_int {
         if *CF_frame.DATA.offset(i as isize) as libc::c_int == '\u{0}' as i32
-           {
+        {
             if count == 0 as libc::c_int {
                 CF_frame.yomi =
                     CF_frame.DATA.offset(i as
-                                             isize).offset(1 as libc::c_int as
-                                                               isize) as
+                        isize).offset(1 as libc::c_int as
+                        isize) as
                         *mut libc::c_char
             } else if count == 1 as libc::c_int {
                 CF_frame.hyoki =
                     CF_frame.DATA.offset(i as
-                                             isize).offset(1 as libc::c_int as
-                                                               isize) as
+                        isize).offset(1 as libc::c_int as
+                        isize) as
                         *mut libc::c_char
             } else if count == 2 as libc::c_int {
                 CF_frame.feature =
                     CF_frame.DATA.offset(i as
-                                             isize).offset(1 as libc::c_int as
-                                                               isize) as
+                        isize).offset(1 as libc::c_int as
+                        isize) as
                         *mut libc::c_char
             } else if count % 3 as libc::c_int == 0 as libc::c_int {
                 CF_frame.cs[(count / 3 as libc::c_int - 1 as libc::c_int) as
-                                usize].kaku_keishiki =
+                    usize].kaku_keishiki =
                     CF_frame.DATA.offset(i as
-                                             isize).offset(1 as libc::c_int as
-                                                               isize) as
+                        isize).offset(1 as libc::c_int as
+                        isize) as
                         *mut libc::c_char;
                 if CF_frame.casenum + 1 as libc::c_int > 20 as libc::c_int {
                     fprintf(stderr,
                             b";; # of cases is more than MAX (%d) for %llu.\n\x00"
                                 as *const u8 as *const libc::c_char,
                             20 as libc::c_int, address);
-                    break ;
+                    break;
                 } else { CF_frame.casenum += 1 }
             } else if count % 3 as libc::c_int == 1 as libc::c_int {
                 CF_frame.cs[(count / 3 as libc::c_int - 1 as libc::c_int) as
-                                usize].meishiku =
+                    usize].meishiku =
                     CF_frame.DATA.offset(i as
-                                             isize).offset(1 as libc::c_int as
-                                                               isize) as
+                        isize).offset(1 as libc::c_int as
+                        isize) as
                         *mut libc::c_char
             } else if count % 3 as libc::c_int == 2 as libc::c_int {
                 CF_frame.cs[(count / 3 as libc::c_int - 1 as libc::c_int) as
-                                usize].imisosei =
+                    usize].imisosei =
                     CF_frame.DATA.offset(i as
-                                             isize).offset(1 as libc::c_int as
-                                                               isize) as
+                        isize).offset(1 as libc::c_int as
+                        isize) as
                         *mut libc::c_char
             }
             count += 1
@@ -893,15 +891,15 @@ pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
                               b"\xe6\xa0\xbc\xe3\x83\x95\xe3\x83\xac\xe3\x83\xbc\xe3\x83\xa0\xe5\xaf\xbe\xe5\xbf\x9c:\x00"
                                   as *const u8 as *const libc::c_char,
                               strlen(b"\xe6\xa0\xbc\xe3\x83\x95\xe3\x83\xac\xe3\x83\xbc\xe3\x83\xa0\xe5\xaf\xbe\xe5\xbf\x9c:\x00"
-                                         as *const u8 as *const libc::c_char))
-                          == 0 {
+                                  as *const u8 as *const libc::c_char))
+                == 0 {
                 if cf_aligned_num < 5 as libc::c_int - 1 as libc::c_int {
                     let fresh0 = cf_aligned_num;
                     cf_aligned_num = cf_aligned_num + 1;
                     get_cf_alignment(token.offset(strlen(b"\xe6\xa0\xbc\xe3\x83\x95\xe3\x83\xac\xe3\x83\xbc\xe3\x83\xa0\xe5\xaf\xbe\xe5\xbf\x9c:\x00"
-                                                             as *const u8 as
-                                                             *const libc::c_char)
-                                                      as isize), fresh0);
+                        as *const u8 as
+                        *const libc::c_char)
+                        as isize), fresh0);
                 }
             } else {
                 /* merged cases */
@@ -913,19 +911,19 @@ pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
                     buf = strdup(token);
                     cp =
                         buf.offset(cp.wrapping_offset_from(token) as
-                                       libc::c_long as isize);
+                            libc::c_long as isize);
                     *cp = '\u{0}' as i32 as libc::c_char;
                     /* if (!strncmp(buf+strlen(buf)-2, "格", 2)) *(buf+strlen(buf)-2) = '\0';
 		if (!strncmp(cp+strlen(cp+2), "格", 2)) *(cp+strlen(cp+2)) = '\0'; */
                     c1 = pp_kstr_to_code(buf);
                     c2 =
                         pp_kstr_to_code(cp.offset(strlen(b"\xef\xbc\x9d\x00"
-                                                             as *const u8 as
-                                                             *const libc::c_char)
-                                                      as isize));
+                            as *const u8 as
+                            *const libc::c_char)
+                            as isize));
                     free(buf as *mut libc::c_void);
                     if c1 == -(10 as libc::c_int) ||
-                           c2 == -(10 as libc::c_int) {
+                        c2 == -(10 as libc::c_int) {
                         if OptDisplay == 3 as libc::c_int {
                             fprintf(stderr,
                                     b";; Can\'t understand <%s> as merged cases\n\x00"
@@ -937,18 +935,18 @@ pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
                         /* 数が小さい格を前に入れる */
                         if c1 > c2 {
                             CF_frame.samecase[count as
-                                                  usize][0 as libc::c_int as
-                                                             usize] = c2;
+                                usize][0 as libc::c_int as
+                                usize] = c2;
                             CF_frame.samecase[count as
-                                                  usize][1 as libc::c_int as
-                                                             usize] = c1
+                                usize][1 as libc::c_int as
+                                usize] = c1
                         } else {
                             CF_frame.samecase[count as
-                                                  usize][0 as libc::c_int as
-                                                             usize] = c1;
+                                usize][0 as libc::c_int as
+                                usize] = c1;
                             CF_frame.samecase[count as
-                                                  usize][1 as libc::c_int as
-                                                             usize] = c2
+                                usize][1 as libc::c_int as
+                                usize] = c2
                         }
                         count += 1
                     }
@@ -962,14 +960,14 @@ pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
     }
     CF_frame.cf_align[cf_aligned_num as usize].cf_id = 0 as *mut libc::c_char;
     CF_frame.cf_align[cf_aligned_num as
-                          usize].aligned_case[0 as libc::c_int as
-                                                  usize][0 as libc::c_int as
-                                                             usize] =
+        usize].aligned_case[0 as libc::c_int as
+        usize][0 as libc::c_int as
+        usize] =
         -(10 as libc::c_int);
     CF_frame.cf_align[cf_aligned_num as
-                          usize].aligned_case[0 as libc::c_int as
-                                                  usize][1 as libc::c_int as
-                                                             usize] =
+        usize].aligned_case[0 as libc::c_int as
+        usize][1 as libc::c_int as
+        usize] =
         -(10 as libc::c_int);
     CF_frame.samecase[count as usize][0 as libc::c_int as usize] =
         -(10 as libc::c_int);
@@ -997,22 +995,22 @@ pub unsafe extern "C" fn get_ipal_frame(mut address: libc::c_ulonglong,
 pub unsafe extern "C" fn extract_ipal_str(mut dat: *mut libc::c_uchar,
                                           mut ret: *mut libc::c_uchar,
                                           mut flag: libc::c_int)
- -> *mut libc::c_uchar 
- /*==================================================================*/
- {
+                                          -> *mut libc::c_uchar
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     // let mut freq: libc::c_int = 0;
     /* flag == TRUE: 頻度付きで返す */
     if *dat as libc::c_int == '\u{0}' as i32 ||
-           strcmp(dat as *const libc::c_char,
-                  b"\xef\xbc\x8a\x00" as *const u8 as *const libc::c_char) ==
-               0 {
-        return 0 as *mut libc::c_uchar
+        strcmp(dat as *const libc::c_char,
+               b"\xef\xbc\x8a\x00" as *const u8 as *const libc::c_char) ==
+            0 {
+        return 0 as *mut libc::c_uchar;
     }
-    loop  {
+    loop {
         if *dat as libc::c_int == '\u{0}' as i32 {
             *ret = '\u{0}' as i32 as libc::c_uchar;
-            return dat
+            return dat;
         } else {
             /* 頻度が記述してある場合 */
             if *dat as libc::c_int == ':' as i32 {
@@ -1030,7 +1028,7 @@ pub unsafe extern "C" fn extract_ipal_str(mut dat: *mut libc::c_uchar,
                 dat = dat.offset(1)
             } else if *dat as libc::c_int == ' ' as i32 {
                 *ret = '\u{0}' as i32 as libc::c_uchar;
-                return dat.offset(1 as libc::c_int as isize)
+                return dat.offset(1 as libc::c_int as isize);
             } else {
                 if (*dat as libc::c_int) < 0x80 as libc::c_int {
                     /* 空白でも切る */
@@ -1044,29 +1042,29 @@ pub unsafe extern "C" fn extract_ipal_str(mut dat: *mut libc::c_uchar,
                                   b"\xef\xbc\x8f\x00" as *const u8 as
                                       *const libc::c_char,
                                   strlen(b"\xef\xbc\x8f\x00" as *const u8 as
-                                             *const libc::c_char)) == 0 ||
-                              strncmp(dat as *const libc::c_char,
-                                      b"\xef\xbc\x8c\x00" as *const u8 as
-                                          *const libc::c_char,
-                                      strlen(b"\xef\xbc\x8c\x00" as *const u8
-                                                 as *const libc::c_char)) == 0
-                              ||
-                              strncmp(dat as *const libc::c_char,
-                                      b"\xe3\x80\x81\x00" as *const u8 as
-                                          *const libc::c_char,
-                                      strlen(b"\xe3\x80\x81\x00" as *const u8
-                                                 as *const libc::c_char)) == 0
-                              ||
-                              strncmp(dat as *const libc::c_char,
-                                      b"\xef\xbc\x8a\x00" as *const u8 as
-                                          *const libc::c_char,
-                                      strlen(b"\xef\xbc\x8a\x00" as *const u8
-                                                 as *const libc::c_char)) == 0
-                 {
+                                      *const libc::c_char)) == 0 ||
+                    strncmp(dat as *const libc::c_char,
+                            b"\xef\xbc\x8c\x00" as *const u8 as
+                                *const libc::c_char,
+                            strlen(b"\xef\xbc\x8c\x00" as *const u8
+                                as *const libc::c_char)) == 0
+                    ||
+                    strncmp(dat as *const libc::c_char,
+                            b"\xe3\x80\x81\x00" as *const u8 as
+                                *const libc::c_char,
+                            strlen(b"\xe3\x80\x81\x00" as *const u8
+                                as *const libc::c_char)) == 0
+                    ||
+                    strncmp(dat as *const libc::c_char,
+                            b"\xef\xbc\x8a\x00" as *const u8 as
+                                *const libc::c_char,
+                            strlen(b"\xef\xbc\x8a\x00" as *const u8
+                                as *const libc::c_char)) == 0
+                {
                     *ret = '\u{0}' as i32 as libc::c_uchar;
                     return dat.offset(strlen(b"\xef\xbc\x8f\x00" as *const u8
-                                                 as *const libc::c_char) as
-                                          isize)
+                        as *const libc::c_char) as
+                        isize);
                     /* OK? */
                 } else {
                     i = 0 as libc::c_int;
@@ -1089,43 +1087,43 @@ pub unsafe extern "C" fn _make_ipal_cframe_pp(mut c_ptr: *mut CASE_FRAME,
                                               mut cp: *mut libc::c_uchar,
                                               mut num: libc::c_int,
                                               mut flag: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                              -> libc::c_int
+/*==================================================================*/
+{
     /* 助詞の読みだし */
     let mut point: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
     let mut pp_num: libc::c_int = 0 as libc::c_int;
     /* 直前格 */
     if *cp.offset(strlen(cp as *const libc::c_char) as
-                      isize).offset(-(1 as libc::c_int as isize)) as
-           libc::c_int == '*' as i32 {
+        isize).offset(-(1 as libc::c_int as isize)) as
+        libc::c_int == '*' as i32 {
         (*c_ptr).adjacent[num as usize] =
             (0 as libc::c_int == 0) as libc::c_int;
         *cp.offset(strlen(cp as *const libc::c_char) as
-                       isize).offset(-(1 as libc::c_int as isize)) =
+            isize).offset(-(1 as libc::c_int as isize)) =
             '\u{0}' as i32 as libc::c_uchar
     } else if strcmp(cp.offset(strlen(cp as *const libc::c_char) as
-                                   isize).offset(-(strlen(b"\xef\xbc\xa0\x00"
-                                                              as *const u8 as
-                                                              *const libc::c_char)
-                                                       as isize)) as
+        isize).offset(-(strlen(b"\xef\xbc\xa0\x00"
+        as *const u8 as
+        *const libc::c_char)
+        as isize)) as
                          *const libc::c_char,
                      b"\xef\xbc\xa0\x00" as *const u8 as *const libc::c_char)
-                  == 0 {
+        == 0 {
         (*c_ptr).adjacent[num as usize] =
             (0 as libc::c_int == 0) as libc::c_int;
         *cp.offset(strlen(cp as *const libc::c_char) as
-                       isize).offset(-(strlen(b"\xef\xbc\xa0\x00" as *const u8
-                                                  as *const libc::c_char) as
-                                           isize)) =
+            isize).offset(-(strlen(b"\xef\xbc\xa0\x00" as *const u8
+            as *const libc::c_char) as
+            isize)) =
             '\u{0}' as i32 as libc::c_uchar
     }
     /* 任意格 */
     if strcmp(cp.offset(strlen(cp as *const libc::c_char) as
-                            isize).offset(-(strlen(b"\xef\xbc\x8a\x00" as
-                                                       *const u8 as
-                                                       *const libc::c_char) as
-                                                isize)) as
+        isize).offset(-(strlen(b"\xef\xbc\x8a\x00" as
+        *const u8 as
+        *const libc::c_char) as
+        isize)) as
                   *const libc::c_char,
               b"\xef\xbc\x8a\x00" as *const u8 as *const libc::c_char) == 0 {
         (*c_ptr).oblig[num as usize] = 0 as libc::c_int
@@ -1133,18 +1131,18 @@ pub unsafe extern "C" fn _make_ipal_cframe_pp(mut c_ptr: *mut CASE_FRAME,
         (*c_ptr).oblig[num as usize] = (0 as libc::c_int == 0) as libc::c_int
     }
     point = cp;
-    loop  {
+    loop {
         point = extract_ipal_str(point, cf_str_buf, 0 as libc::c_int);
-        if point.is_null() { break ; }
+        if point.is_null() { break; }
         if flag == 1 as libc::c_int {
             (*c_ptr).pp[num as usize][pp_num as usize] =
                 pp_kstr_to_code(cf_str_buf as *mut libc::c_char);
             if (*c_ptr).pp[num as usize][pp_num as usize] ==
-                   -(10 as libc::c_int) {
+                -(10 as libc::c_int) {
                 /*                if (OptDisplay == OPT_DEBUG) {*/
-/*                    fprintf(stderr, ";; Unknown case (%s) in PP!\n", cf_str_buf);*/
-/*                }*/
-                return 0 as libc::c_int
+                /*                    fprintf(stderr, ";; Unknown case (%s) in PP!\n", cf_str_buf);*/
+                /*                }*/
+                return 0 as libc::c_int;
             }
             (*c_ptr).pp_str[num as usize] = 0 as *mut libc::c_char
         } else {
@@ -1164,9 +1162,9 @@ pub unsafe extern "C" fn _make_ipal_cframe_pp(mut c_ptr: *mut CASE_FRAME,
 pub unsafe extern "C" fn append_str(mut dst: *mut *mut libc::c_char,
                                     mut src: *mut libc::c_char,
                                     mut delim: *mut libc::c_char)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                    -> *mut libc::c_char
+/*==================================================================*/
+{
     if !src.is_null() && *src as libc::c_int != 0 {
         if (*dst).is_null() {
             *dst = strdup(src)
@@ -1174,16 +1172,16 @@ pub unsafe extern "C" fn append_str(mut dst: *mut *mut libc::c_char,
             *dst =
                 realloc_data(*dst as *mut libc::c_void,
                              strlen(*dst).wrapping_add((if !delim.is_null() {
-                                                            strlen(delim)
-                                                        } else {
-                                                            0 as libc::c_int
-                                                                as
-                                                                libc::c_ulong
-                                                        })).wrapping_add(strlen(src)).wrapping_add(1
-                                                                                                       as
-                                                                                                       libc::c_int
-                                                                                                       as
-                                                                                                       libc::c_ulong),
+                                 strlen(delim)
+                             } else {
+                                 0 as libc::c_int
+                                     as
+                                     libc::c_ulong
+                             })).wrapping_add(strlen(src)).wrapping_add(1
+                                 as
+                                 libc::c_int
+                                 as
+                                 libc::c_ulong),
                              b"append_str\x00" as *const u8 as
                                  *const libc::c_char as *mut libc::c_char) as
                     *mut libc::c_char;
@@ -1198,9 +1196,9 @@ pub unsafe extern "C" fn append_str(mut dst: *mut *mut libc::c_char,
 pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                                               mut cp: *mut libc::c_uchar,
                                               mut num: libc::c_int,
-                                              mut flag: libc::c_int) 
- /*==================================================================*/
- {
+                                              mut flag: libc::c_int)
+/*==================================================================*/
+{
     /* 意味マーカの読みだし */
     let mut point: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
     let mut size: libc::c_int = 0;
@@ -1214,37 +1212,37 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
     let mut sm_specify_sm: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut temp: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut str: *mut libc::c_char = 0 as *mut libc::c_char;
-    if *cp as libc::c_int == '\u{0}' as i32 { return }
+    if *cp as libc::c_int == '\u{0}' as i32 { return; }
     if flag & 1 as libc::c_int != 0 {
         size = 11 as libc::c_int
     } else if flag & 2 as libc::c_int != 0 {
         size = 12 as libc::c_int
-    } else { return }
+    } else { return; }
     str = strdup(cp as *const libc::c_char);
     *str = '\u{0}' as i32 as libc::c_char;
     point = cp;
     buf[0 as libc::c_int as usize] = '\u{0}' as i32 as libc::c_char;
-    loop  {
+    loop {
         point = extract_ipal_str(point, cf_str_buf, 0 as libc::c_int);
-        if point.is_null() { break ; }
+        if point.is_null() { break; }
         /* 意味素制限 */
         if *cf_str_buf.offset(0 as libc::c_int as isize) as libc::c_int ==
-               '+' as i32 {
+            '+' as i32 {
             if (*c_ptr).sm_specify[num as usize].is_null() {
                 (*c_ptr).sm_specify_size[num as usize] = 256 as libc::c_int;
                 (*c_ptr).sm_specify[num as usize] =
                     malloc_data((::std::mem::size_of::<libc::c_char>() as
-                                     libc::c_ulong).wrapping_mul((*c_ptr).sm_specify_size[num
-                                                                                              as
-                                                                                              usize]
-                                                                     as
-                                                                     libc::c_ulong).wrapping_mul(size
-                                                                                                     as
-                                                                                                     libc::c_ulong).wrapping_add(1
-                                                                                                                                     as
-                                                                                                                                     libc::c_int
-                                                                                                                                     as
-                                                                                                                                     libc::c_ulong),
+                        libc::c_ulong).wrapping_mul((*c_ptr).sm_specify_size[num
+                        as
+                        usize]
+                        as
+                        libc::c_ulong).wrapping_mul(size
+                        as
+                        libc::c_ulong).wrapping_add(1
+                        as
+                        libc::c_int
+                        as
+                        libc::c_ulong),
                                 b"_make_ipal_cframe_sm\x00" as *const u8 as
                                     *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_char;
@@ -1253,8 +1251,8 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                 if flag & 2 as libc::c_int != 0 {
                     sm_specify_sm_max =
                         (::std::mem::size_of::<libc::c_char>() as
-                             libc::c_ulong).wrapping_mul(1024 as libc::c_int
-                                                             as libc::c_ulong)
+                            libc::c_ulong).wrapping_mul(1024 as libc::c_int
+                            as libc::c_ulong)
                             as libc::c_int;
                     sm_specify_sm =
                         malloc_data(sm_specify_sm_max as size_t,
@@ -1268,33 +1266,33 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                 } else {
                     sm_specify_sm =
                         strdup(b"\xe6\x84\x8f\xe5\x91\xb3\xe7\xb4\xa0\xe5\x88\xb6\xe9\x99\x90\x00"
-                                   as *const u8 as *const libc::c_char)
+                            as *const u8 as *const libc::c_char)
                 }
             } else if (*c_ptr).sm_specify_num[num as usize] >=
-                          (*c_ptr).sm_specify_size[num as usize] {
+                (*c_ptr).sm_specify_size[num as usize] {
                 (*c_ptr).sm_specify_size[num as usize] <<= 1 as libc::c_int;
                 (*c_ptr).sm_specify[num as usize] =
                     realloc_data((*c_ptr).sm_specify[num as usize] as
                                      *mut libc::c_void,
                                  (::std::mem::size_of::<libc::c_char>() as
-                                      libc::c_ulong).wrapping_mul((*c_ptr).sm_specify_size[num
-                                                                                               as
-                                                                                               usize]
-                                                                      as
-                                                                      libc::c_ulong).wrapping_mul(size
-                                                                                                      as
-                                                                                                      libc::c_ulong).wrapping_add(1
-                                                                                                                                      as
-                                                                                                                                      libc::c_int
-                                                                                                                                      as
-                                                                                                                                      libc::c_ulong),
+                                     libc::c_ulong).wrapping_mul((*c_ptr).sm_specify_size[num
+                                     as
+                                     usize]
+                                     as
+                                     libc::c_ulong).wrapping_mul(size
+                                     as
+                                     libc::c_ulong).wrapping_add(1
+                                     as
+                                     libc::c_int
+                                     as
+                                     libc::c_ulong),
                                  b"_make_ipal_cframe_sm\x00" as *const u8 as
                                      *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_char
             }
             /* codeが書いてあるとき */
             if *cf_str_buf.offset(1 as libc::c_int as isize) as libc::c_int ==
-                   '1' as i32 {
+                '1' as i32 {
                 strcat((*c_ptr).sm_specify[num as usize],
                        &mut *cf_str_buf.offset(1 as libc::c_int as isize) as
                            *mut libc::c_uchar as *const libc::c_char);
@@ -1302,13 +1300,13 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                     /* 表示用の意味素名への変換 (NTTのみ) */
                     temp =
                         code2sm(&mut *cf_str_buf.offset(1 as libc::c_int as
-                                                            isize) as
-                                    *mut libc::c_uchar as *mut libc::c_char);
+                            isize) as
+                            *mut libc::c_uchar as *mut libc::c_char);
                     if *temp.offset(0 as libc::c_int as isize) != 0 {
                         /* -1 ではないのは '/' の分 */
                         if strlen(sm_specify_sm).wrapping_add(strlen(temp)) >
-                               (sm_specify_sm_max - 2 as libc::c_int) as
-                                   libc::c_ulong {
+                            (sm_specify_sm_max - 2 as libc::c_int) as
+                                libc::c_ulong {
                             sm_specify_sm_max <<= 1 as libc::c_int;
                             sm_specify_sm =
                                 realloc_data(sm_specify_sm as
@@ -1329,27 +1327,27 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                 /* 意味素名での指定 (NTTのみ) */
                 strcat((*c_ptr).sm_specify[num as usize],
                        sm2code(&mut *cf_str_buf.offset(1 as libc::c_int as
-                                                           isize) as
-                                   *mut libc::c_uchar as *mut libc::c_char));
+                           isize) as
+                           *mut libc::c_uchar as *mut libc::c_char));
             }
             (*c_ptr).sm_specify_num[num as usize] += 1
         } else if *cf_str_buf.offset(0 as libc::c_int as isize) as libc::c_int
-                      == '-' as i32 {
+            == '-' as i32 {
             if (*c_ptr).sm_delete[num as usize].is_null() {
                 (*c_ptr).sm_delete_size[num as usize] = 256 as libc::c_int;
                 (*c_ptr).sm_delete[num as usize] =
                     malloc_data((::std::mem::size_of::<libc::c_char>() as
-                                     libc::c_ulong).wrapping_mul((*c_ptr).sm_delete_size[num
-                                                                                             as
-                                                                                             usize]
-                                                                     as
-                                                                     libc::c_ulong).wrapping_mul(size
-                                                                                                     as
-                                                                                                     libc::c_ulong).wrapping_add(1
-                                                                                                                                     as
-                                                                                                                                     libc::c_int
-                                                                                                                                     as
-                                                                                                                                     libc::c_ulong),
+                        libc::c_ulong).wrapping_mul((*c_ptr).sm_delete_size[num
+                        as
+                        usize]
+                        as
+                        libc::c_ulong).wrapping_mul(size
+                        as
+                        libc::c_ulong).wrapping_add(1
+                        as
+                        libc::c_int
+                        as
+                        libc::c_ulong),
                                 b"_make_ipal_cframe_sm\x00" as *const u8 as
                                     *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_char;
@@ -1358,8 +1356,8 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                 if PrintDeletedSM != 0 && flag & 2 as libc::c_int != 0 {
                     sm_delete_sm_max =
                         (::std::mem::size_of::<libc::c_char>() as
-                             libc::c_ulong).wrapping_mul(1024 as libc::c_int
-                                                             as libc::c_ulong)
+                            libc::c_ulong).wrapping_mul(1024 as libc::c_int
+                            as libc::c_ulong)
                             as libc::c_int;
                     sm_delete_sm =
                         malloc_data(sm_delete_sm_max as size_t,
@@ -1373,26 +1371,26 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                 } else {
                     sm_delete_sm =
                         strdup(b"\xe6\x84\x8f\xe5\x91\xb3\xe7\xb4\xa0\xe5\x89\x8a\xe9\x99\xa4\x00"
-                                   as *const u8 as *const libc::c_char)
+                            as *const u8 as *const libc::c_char)
                 }
             } else if (*c_ptr).sm_delete_num[num as usize] >=
-                          (*c_ptr).sm_delete_size[num as usize] {
+                (*c_ptr).sm_delete_size[num as usize] {
                 (*c_ptr).sm_delete_size[num as usize] <<= 1 as libc::c_int;
                 (*c_ptr).sm_delete[num as usize] =
                     realloc_data((*c_ptr).sm_delete[num as usize] as
                                      *mut libc::c_void,
                                  (::std::mem::size_of::<libc::c_char>() as
-                                      libc::c_ulong).wrapping_mul((*c_ptr).sm_delete_size[num
-                                                                                              as
-                                                                                              usize]
-                                                                      as
-                                                                      libc::c_ulong).wrapping_mul(size
-                                                                                                      as
-                                                                                                      libc::c_ulong).wrapping_add(1
-                                                                                                                                      as
-                                                                                                                                      libc::c_int
-                                                                                                                                      as
-                                                                                                                                      libc::c_ulong),
+                                     libc::c_ulong).wrapping_mul((*c_ptr).sm_delete_size[num
+                                     as
+                                     usize]
+                                     as
+                                     libc::c_ulong).wrapping_mul(size
+                                     as
+                                     libc::c_ulong).wrapping_add(1
+                                     as
+                                     libc::c_int
+                                     as
+                                     libc::c_ulong),
                                  b"_make_ipal_cframe_sm\x00" as *const u8 as
                                      *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_char
@@ -1400,7 +1398,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
             /* 使ってはいけない意味素 */
             /* codeが書いてあるとき */
             if *cf_str_buf.offset(1 as libc::c_int as isize) as libc::c_int ==
-                   '1' as i32 {
+                '1' as i32 {
                 strcat((*c_ptr).sm_delete[num as usize],
                        &mut *cf_str_buf.offset(1 as libc::c_int as isize) as
                            *mut libc::c_uchar as *const libc::c_char);
@@ -1408,13 +1406,13 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                     /* 表示用の意味素名への変換 (NTTのみ) */
                     temp =
                         code2sm(&mut *cf_str_buf.offset(1 as libc::c_int as
-                                                            isize) as
-                                    *mut libc::c_uchar as *mut libc::c_char);
+                            isize) as
+                            *mut libc::c_uchar as *mut libc::c_char);
                     if *temp.offset(0 as libc::c_int as isize) != 0 {
                         /* -1 ではないのは '/' の分 */
                         if strlen(sm_delete_sm).wrapping_add(strlen(temp)) >
-                               (sm_delete_sm_max - 2 as libc::c_int) as
-                                   libc::c_ulong {
+                            (sm_delete_sm_max - 2 as libc::c_int) as
+                                libc::c_ulong {
                             sm_delete_sm_max <<= 1 as libc::c_int;
                             sm_delete_sm =
                                 realloc_data(sm_delete_sm as
@@ -1435,52 +1433,52 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                 /* 意味素名での指定 (NTTのみ) */
                 strcat((*c_ptr).sm_delete[num as usize],
                        sm2code(&mut *cf_str_buf.offset(1 as libc::c_int as
-                                                           isize) as
-                                   *mut libc::c_uchar as *mut libc::c_char));
+                           isize) as
+                           *mut libc::c_uchar as *mut libc::c_char));
             }
             (*c_ptr).sm_delete_num[num as usize] += 1
         } else {
             /* 普通の意味素 */
             sm_num += 1;
             sm_print_num += 1;
-            if sm_num >= 256 as libc::c_int { break ; }
+            if sm_num >= 256 as libc::c_int { break; }
             if strncmp(cf_str_buf as *const libc::c_char,
                        b"\xe6\x95\xb0\xe9\x87\x8f\x00" as *const u8 as
                            *const libc::c_char,
                        strlen(b"\xe6\x95\xb0\xe9\x87\x8f\x00" as *const u8 as
-                                  *const libc::c_char)) == 0 {
+                           *const libc::c_char)) == 0 {
                 /* 前回も<数量>のときは入れない */
                 if sm_num > 1 as libc::c_int &&
-                       strncmp(&mut *buf.as_mut_ptr().offset((size *
-                                                                  (sm_num -
-                                                                       2 as
-                                                                           libc::c_int))
-                                                                 as isize),
-                               sm2code(b"\xe6\x95\xb0\xe9\x87\x8f\x00" as
-                                           *const u8 as *const libc::c_char as
-                                           *mut libc::c_char),
-                               size as libc::c_ulong) == 0 {
+                    strncmp(&mut *buf.as_mut_ptr().offset((size *
+                        (sm_num -
+                            2 as
+                                libc::c_int))
+                        as isize),
+                            sm2code(b"\xe6\x95\xb0\xe9\x87\x8f\x00" as
+                                *const u8 as *const libc::c_char as
+                                *mut libc::c_char),
+                            size as libc::c_ulong) == 0 {
                     sm_num -= 1
                 } else {
                     strcat(buf.as_mut_ptr(),
                            sm2code(b"\xe6\x95\xb0\xe9\x87\x8f\x00" as
-                                       *const u8 as *const libc::c_char as
-                                       *mut libc::c_char));
+                               *const u8 as *const libc::c_char as
+                               *mut libc::c_char));
                 }
             } else if strncmp(cf_str_buf as *const libc::c_char,
                               b"\xe4\xb8\xbb\xe4\xbd\x93\xe6\xba\x96\x00" as
                                   *const u8 as *const libc::c_char,
                               strlen(b"\xe4\xb8\xbb\xe4\xbd\x93\xe6\xba\x96\x00"
-                                         as *const u8 as *const libc::c_char))
-                          == 0 {
+                                  as *const u8 as *const libc::c_char))
+                == 0 {
                 strcat(buf.as_mut_ptr(),
                        sm2code(b"\xe4\xb8\xbb\xe4\xbd\x93\x00" as *const u8 as
-                                   *const libc::c_char as *mut libc::c_char));
+                           *const libc::c_char as *mut libc::c_char));
                 if MatchPP((*c_ptr).pp[num as
-                                           usize][0 as libc::c_int as usize],
+                    usize][0 as libc::c_int as usize],
                            b"\xe3\x82\xac\x00" as *const u8 as
                                *const libc::c_char as *mut libc::c_char) != 0
-                   {
+                {
                     /* 今は、ガ格以外に<主体準>を与えても<主体>と同じになる */
                     (*c_ptr).etcflag |= 2 as libc::c_int
                 }
@@ -1489,8 +1487,8 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                        sm2code(cf_str_buf as *mut libc::c_char));
             }
             if flag & 4 as libc::c_int != 0 &&
-                   (EX_PRINT_NUM < 0 as libc::c_int ||
-                        sm_print_num <= EX_PRINT_NUM) {
+                (EX_PRINT_NUM < 0 as libc::c_int ||
+                    sm_print_num <= EX_PRINT_NUM) {
                 if *str.offset(0 as libc::c_int as isize) != 0 {
                     strcat(str, b"/\x00" as *const u8 as *const libc::c_char);
                 }
@@ -1517,7 +1515,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
                        *mut libc::c_char);
         if EX_PRINT_NUM >= 0 as libc::c_int && sm_print_num > EX_PRINT_NUM {
             append_str(&mut *(*c_ptr).semantics.as_mut_ptr().offset(num as
-                                                                        isize),
+                isize),
                        b"...\x00" as *const u8 as *const libc::c_char as
                            *mut libc::c_char,
                        b"/\x00" as *const u8 as *const libc::c_char as
@@ -1531,21 +1529,21 @@ pub unsafe extern "C" fn _make_ipal_cframe_sm(mut c_ptr: *mut CASE_FRAME,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn split_freq(mut cp: *mut libc::c_uchar)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                    -> libc::c_int
+/*==================================================================*/
+{
     let mut freq: libc::c_int = 0;
-    loop  {
+    loop {
         if *cp as libc::c_int == ':' as i32 {
             sscanf(cp.offset(1 as libc::c_int as isize) as
                        *const libc::c_char,
                    b"%d\x00" as *const u8 as *const libc::c_char,
                    &mut freq as *mut libc::c_int);
             *cp = '\u{0}' as i32 as libc::c_uchar;
-            return freq
+            return freq;
         } else {
             if *cp as libc::c_int == '\u{0}' as i32 {
-                return 1 as libc::c_int
+                return 1 as libc::c_int;
             }
         }
         cp = cp.offset(1)
@@ -1554,13 +1552,13 @@ pub unsafe extern "C" fn split_freq(mut cp: *mut libc::c_uchar)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn split_freq_for_gex(mut cp: *mut libc::c_uchar)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                            -> libc::c_double
+/*==================================================================*/
+{
     let mut freq: libc::c_double =
         0.; /* 先頭の"<NE:"、"<TH:", "<CT:", "<CL:"を読み飛ばす */
     cp = cp.offset(4 as libc::c_int as isize); /* ">"を除く */
-    loop  {
+    loop {
         if *cp as libc::c_int == ':' as i32 {
             sscanf(cp.offset(1 as libc::c_int as isize) as
                        *const libc::c_char,
@@ -1568,10 +1566,10 @@ pub unsafe extern "C" fn split_freq_for_gex(mut cp: *mut libc::c_uchar)
                    &mut freq as *mut libc::c_double);
             *cp.offset(-(1 as libc::c_int as isize)) =
                 '\u{0}' as i32 as libc::c_uchar;
-            return freq
+            return freq;
         } else {
             if *cp as libc::c_int == '\u{0}' as i32 {
-                return 1 as libc::c_int as libc::c_double
+                return 1 as libc::c_int as libc::c_double;
             }
         }
         cp = cp.offset(1)
@@ -1582,62 +1580,62 @@ pub unsafe extern "C" fn split_freq_for_gex(mut cp: *mut libc::c_uchar)
 pub unsafe extern "C" fn _register_ex_to_cframe(mut c_ptr: *mut CASE_FRAME,
                                                 mut num: libc::c_int,
                                                 mut token: *mut libc::c_char,
-                                                mut freq: libc::c_int) 
- /*==================================================================*/
- {
+                                                mut freq: libc::c_int)
+/*==================================================================*/
+{
     if (*c_ptr).ex_size[num as usize] == 0 as libc::c_int {
         (*c_ptr).ex_size[num as usize] =
             10 as libc::c_int; /* 初期確保数 */
         (*c_ptr).ex_list[num as usize] =
             malloc_data((::std::mem::size_of::<*mut libc::c_char>() as
-                             libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
-                                                                              as
-                                                                              usize]
-                                                             as
-                                                             libc::c_ulong),
+                libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
+                as
+                usize]
+                as
+                libc::c_ulong),
                         b"_make_ipal_cframe_ex\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut *mut libc::c_char;
         (*c_ptr).ex_freq[num as usize] =
             malloc_data((::std::mem::size_of::<libc::c_int>() as
-                             libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
-                                                                              as
-                                                                              usize]
-                                                             as
-                                                             libc::c_ulong),
+                libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
+                as
+                usize]
+                as
+                libc::c_ulong),
                         b"_make_ipal_cframe_ex\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_int
     } else if (*c_ptr).ex_num[num as usize] >= (*c_ptr).ex_size[num as usize]
-     {
+    {
         (*c_ptr).ex_size[num as usize] <<= 1 as libc::c_int;
         (*c_ptr).ex_list[num as usize] =
             realloc_data((*c_ptr).ex_list[num as usize] as *mut libc::c_void,
                          (::std::mem::size_of::<*mut libc::c_char>() as
-                              libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
-                                                                               as
-                                                                               usize]
-                                                              as
-                                                              libc::c_ulong),
+                             libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
+                             as
+                             usize]
+                             as
+                             libc::c_ulong),
                          b"_make_ipal_cframe_ex\x00" as *const u8 as
                              *const libc::c_char as *mut libc::c_char) as
                 *mut *mut libc::c_char;
         (*c_ptr).ex_freq[num as usize] =
             realloc_data((*c_ptr).ex_freq[num as usize] as *mut libc::c_void,
                          (::std::mem::size_of::<libc::c_int>() as
-                              libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
-                                                                               as
-                                                                               usize]
-                                                              as
-                                                              libc::c_ulong),
+                             libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
+                             as
+                             usize]
+                             as
+                             libc::c_ulong),
                          b"_make_ipal_cframe_ex\x00" as *const u8 as
                              *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_int
     }
     let ref mut fresh7 =
         *(*c_ptr).ex_list[num as
-                              usize].offset((*c_ptr).ex_num[num as usize] as
-                                                isize);
+            usize].offset((*c_ptr).ex_num[num as usize] as
+            isize);
     *fresh7 = strdup(token);
     let fresh8 = (*c_ptr).ex_num[num as usize];
     (*c_ptr).ex_num[num as usize] = (*c_ptr).ex_num[num as usize] + 1;
@@ -1650,9 +1648,9 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
                                               mut num: libc::c_int,
                                               mut flag: libc::c_int,
                                               mut fflag: libc::c_int,
-                                              mut init_flag: libc::c_int) 
- /*==================================================================*/
- {
+                                              mut init_flag: libc::c_int)
+/*==================================================================*/
+{
     /* 例の読みだし */
     /* fflag: 頻度1を使うかどうか
               格が外の関係のときだけ使う */
@@ -1674,7 +1672,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
     let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
     /* 用例合計数の初期化 (外の関係を追加するとき以外は初期化する) */
     if init_flag != 0 { (*c_ptr).freq[num as usize] = 0 as libc::c_int }
-    if *cp as libc::c_int == '\u{0}' as i32 { return }
+    if *cp as libc::c_int == '\u{0}' as i32 { return; }
     /* 引くリソースによって関数などをセット */
     destination =
         &mut *(*c_ptr).ex.as_mut_ptr().offset(num as isize) as
@@ -1689,33 +1687,33 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
     /* 最大値やめないといけません */
     buf =
         malloc_data((::std::mem::size_of::<libc::c_char>() as
-                         libc::c_ulong).wrapping_mul(max as libc::c_ulong),
+            libc::c_ulong).wrapping_mul(max as libc::c_ulong),
                     b"_make_ipal_cframe_ex\x00" as *const u8 as
                         *const libc::c_char as *mut libc::c_char) as
             *mut libc::c_char;
     point = cp;
     *buf = '\u{0}' as i32 as libc::c_char;
-    loop 
-         /* fprintf(stderr, "%s:%.10f freq_gex\n", point2 + 1, freq_gex); */
-         {
+    loop
+    /* fprintf(stderr, "%s:%.10f freq_gex\n", point2 + 1, freq_gex); */
+    {
         point =
             extract_ipal_str(point, cf_str_buf,
                              (0 as libc::c_int == 0) as libc::c_int);
-        if point.is_null() { break ; }
+        if point.is_null() { break; }
         point2 = cf_str_buf;
         /* 用例中に記された汎化素性の読み込み */
         if strncmp(point2 as *const libc::c_char,
                    b"<TH:\x00" as *const u8 as *const libc::c_char,
                    4 as libc::c_int as libc::c_ulong) == 0 ||
-               strncmp(point2 as *const libc::c_char,
-                       b"<NE:\x00" as *const u8 as *const libc::c_char,
-                       4 as libc::c_int as libc::c_ulong) == 0 ||
-               strncmp(point2 as *const libc::c_char,
-                       b"<CT:\x00" as *const u8 as *const libc::c_char,
-                       4 as libc::c_int as libc::c_ulong) == 0 ||
-               strncmp(point2 as *const libc::c_char,
-                       b"<CL:\x00" as *const u8 as *const libc::c_char,
-                       4 as libc::c_int as libc::c_ulong) == 0 {
+            strncmp(point2 as *const libc::c_char,
+                    b"<NE:\x00" as *const u8 as *const libc::c_char,
+                    4 as libc::c_int as libc::c_ulong) == 0 ||
+            strncmp(point2 as *const libc::c_char,
+                    b"<CT:\x00" as *const u8 as *const libc::c_char,
+                    4 as libc::c_int as libc::c_ulong) == 0 ||
+            strncmp(point2 as *const libc::c_char,
+                    b"<CL:\x00" as *const u8 as *const libc::c_char,
+                    4 as libc::c_int as libc::c_ulong) == 0 {
             /* 頻度の抽出 */
             freq_gex = split_freq_for_gex(point2);
             if strcmp(point2 as *const libc::c_char,
@@ -1728,37 +1726,37 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
                 (*c_ptr).gex_size[num as usize] = 10 as libc::c_int;
                 (*c_ptr).gex_list[num as usize] =
                     malloc_data((::std::mem::size_of::<*mut libc::c_char>() as
-                                     libc::c_ulong).wrapping_mul((*c_ptr).gex_size[num
-                                                                                       as
-                                                                                       usize]
-                                                                     as
-                                                                     libc::c_ulong),
+                        libc::c_ulong).wrapping_mul((*c_ptr).gex_size[num
+                        as
+                        usize]
+                        as
+                        libc::c_ulong),
                                 b"_make_ipal_cframe_ex\x00" as *const u8 as
                                     *const libc::c_char as *mut libc::c_char)
                         as *mut *mut libc::c_char;
                 (*c_ptr).gex_freq[num as usize] =
                     malloc_data((::std::mem::size_of::<libc::c_double>() as
-                                     libc::c_ulong).wrapping_mul((*c_ptr).gex_size[num
-                                                                                       as
-                                                                                       usize]
-                                                                     as
-                                                                     libc::c_ulong),
+                        libc::c_ulong).wrapping_mul((*c_ptr).gex_size[num
+                        as
+                        usize]
+                        as
+                        libc::c_ulong),
                                 b"_make_ipal_cframe_ex\x00" as *const u8 as
                                     *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_double
             } else if (*c_ptr).gex_num[num as usize] >=
-                          (*c_ptr).gex_size[num as usize] {
+                (*c_ptr).gex_size[num as usize] {
                 (*c_ptr).gex_size[num as usize] <<= 1 as libc::c_int;
                 (*c_ptr).gex_list[num as usize] =
                     realloc_data((*c_ptr).gex_list[num as usize] as
                                      *mut libc::c_void,
                                  (::std::mem::size_of::<*mut libc::c_char>()
-                                      as
-                                      libc::c_ulong).wrapping_mul((*c_ptr).gex_size[num
-                                                                                        as
-                                                                                        usize]
-                                                                      as
-                                                                      libc::c_ulong),
+                                     as
+                                     libc::c_ulong).wrapping_mul((*c_ptr).gex_size[num
+                                     as
+                                     usize]
+                                     as
+                                     libc::c_ulong),
                                  b"_make_ipal_cframe_ex\x00" as *const u8 as
                                      *const libc::c_char as *mut libc::c_char)
                         as *mut *mut libc::c_char;
@@ -1766,23 +1764,23 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
                     realloc_data((*c_ptr).gex_freq[num as usize] as
                                      *mut libc::c_void,
                                  (::std::mem::size_of::<libc::c_double>() as
-                                      libc::c_ulong).wrapping_mul((*c_ptr).gex_size[num
-                                                                                        as
-                                                                                        usize]
-                                                                      as
-                                                                      libc::c_ulong),
+                                     libc::c_ulong).wrapping_mul((*c_ptr).gex_size[num
+                                     as
+                                     usize]
+                                     as
+                                     libc::c_ulong),
                                  b"_make_ipal_cframe_ex\x00" as *const u8 as
                                      *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_double
             }
             let ref mut fresh9 =
                 *(*c_ptr).gex_list[num as
-                                       usize].offset((*c_ptr).gex_num[num as
-                                                                          usize]
-                                                         as isize);
+                    usize].offset((*c_ptr).gex_num[num as
+                    usize]
+                    as isize);
             *fresh9 =
                 strdup(point2.offset(1 as libc::c_int as isize) as
-                           *const libc::c_char);
+                    *const libc::c_char);
             let fresh10 = (*c_ptr).gex_num[num as usize];
             (*c_ptr).gex_num[num as usize] =
                 (*c_ptr).gex_num[num as usize] + 1;
@@ -1798,7 +1796,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
             } else {
                 /* fflag == TRUE: 低頻度を削除 */
                 if fflag != 0 && freq < 10 as libc::c_int {
-                    continue ; /* 全体を格納 */
+                    continue; /* 全体を格納 */
                 }
                 if *point2 as libc::c_int != '\u{0}' as i32 {
                     _register_ex_to_cframe(c_ptr, num,
@@ -1821,35 +1819,35 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
                             if !code.is_null() {
                                 /* <主体>のチェック (for backward compatibility -> will be deleted) */
                                 if ex_agent_flag == 0 as libc::c_int &&
-                                       cf_match_element(code,
-                                                        (if flag &
-                                                                1 as
-                                                                    libc::c_int
-                                                                != 0 {
-                                                             sm2code(b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
-                                                                         as
-                                                                         *const u8
-                                                                         as
-                                                                         *const libc::c_char
-                                                                         as
-                                                                         *mut libc::c_char)
-                                                                 as
-                                                                 *const libc::c_char
-                                                         } else {
-                                                             b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
-                                                                 as *const u8
-                                                                 as
-                                                                 *const libc::c_char
-                                                         }) as
-                                                            *mut libc::c_char,
-                                                        0 as libc::c_int) != 0
-                                   {
+                                    cf_match_element(code,
+                                                     (if flag &
+                                                         1 as
+                                                             libc::c_int
+                                                         != 0 {
+                                                         sm2code(b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
+                                                             as
+                                                             *const u8
+                                                             as
+                                                             *const libc::c_char
+                                                             as
+                                                             *mut libc::c_char)
+                                                             as
+                                                             *const libc::c_char
+                                                     } else {
+                                                         b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
+                                                             as *const u8
+                                                             as
+                                                             *const libc::c_char
+                                                     }) as
+                                                         *mut libc::c_char,
+                                                     0 as libc::c_int) != 0
+                                {
                                     agent_count += freq;
                                     ex_agent_flag = 1 as libc::c_int
                                 }
                                 if over_flag == 0 {
                                     if strlen(buf).wrapping_add(strlen(code))
-                                           >= max as libc::c_ulong {
+                                        >= max as libc::c_ulong {
                                         /* fprintf(stderr, "Too many EX <%s> (%2dth).\n", cf_str_buf, count); */
                                         over_flag = 1 as libc::c_int
                                     } else { strcat(buf, code); }
@@ -1878,7 +1876,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
                 libc::c_int;
         /* <主体>を意味素に追加 (-no-probcase用) */
         if sub_agent_flag == 0 &&
-               agent_ratio > SM_AGENT_THRESHOLD as libc::c_double {
+            agent_ratio > SM_AGENT_THRESHOLD as libc::c_double {
             _make_ipal_cframe_sm(c_ptr,
                                  b"\xe4\xb8\xbb\xe4\xbd\x93\x00" as *const u8
                                      as *const libc::c_char as
@@ -1892,36 +1890,36 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
                 1 as libc::c_int; /* 初期確保数 */
             (*c_ptr).ex_list[num as usize] =
                 malloc_data((::std::mem::size_of::<*mut libc::c_char>() as
-                                 libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
-                                                                                  as
-                                                                                  usize]
-                                                                 as
-                                                                 libc::c_ulong),
+                    libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
+                    as
+                    usize]
+                    as
+                    libc::c_ulong),
                             b"_make_ipal_cframe_ex\x00" as *const u8 as
                                 *const libc::c_char as *mut libc::c_char) as
                     *mut *mut libc::c_char;
             (*c_ptr).ex_freq[num as usize] =
                 malloc_data((::std::mem::size_of::<libc::c_int>() as
-                                 libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
-                                                                                  as
-                                                                                  usize]
-                                                                 as
-                                                                 libc::c_ulong),
+                    libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
+                    as
+                    usize]
+                    as
+                    libc::c_ulong),
                             b"_make_ipal_cframe_ex\x00" as *const u8 as
                                 *const libc::c_char as *mut libc::c_char) as
                     *mut libc::c_int
         } else if (*c_ptr).ex_num[num as usize] >=
-                      (*c_ptr).ex_size[num as usize] {
+            (*c_ptr).ex_size[num as usize] {
             (*c_ptr).ex_size[num as usize] <<= 1 as libc::c_int;
             (*c_ptr).ex_list[num as usize] =
                 realloc_data((*c_ptr).ex_list[num as usize] as
                                  *mut libc::c_void,
                              (::std::mem::size_of::<*mut libc::c_char>() as
-                                  libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
-                                                                                   as
-                                                                                   usize]
-                                                                  as
-                                                                  libc::c_ulong),
+                                 libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
+                                 as
+                                 usize]
+                                 as
+                                 libc::c_ulong),
                              b"_make_ipal_cframe_ex\x00" as *const u8 as
                                  *const libc::c_char as *mut libc::c_char) as
                     *mut *mut libc::c_char;
@@ -1929,22 +1927,22 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
                 realloc_data((*c_ptr).ex_freq[num as usize] as
                                  *mut libc::c_void,
                              (::std::mem::size_of::<libc::c_int>() as
-                                  libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
-                                                                                   as
-                                                                                   usize]
-                                                                  as
-                                                                  libc::c_ulong),
+                                 libc::c_ulong).wrapping_mul((*c_ptr).ex_size[num
+                                 as
+                                 usize]
+                                 as
+                                 libc::c_ulong),
                              b"_make_ipal_cframe_ex\x00" as *const u8 as
                                  *const libc::c_char as *mut libc::c_char) as
                     *mut libc::c_int
         }
         let ref mut fresh11 =
             *(*c_ptr).ex_list[num as
-                                  usize].offset((*c_ptr).ex_num[num as usize]
-                                                    as isize);
+                usize].offset((*c_ptr).ex_num[num as usize]
+                as isize);
         *fresh11 =
             strdup(b"<\xe4\xb8\xbb\xe4\xbd\x93>\x00" as *const u8 as
-                       *const libc::c_char);
+                *const libc::c_char);
         let fresh12 = (*c_ptr).ex_num[num as usize];
         (*c_ptr).ex_num[num as usize] = (*c_ptr).ex_num[num as usize] + 1;
         *(*c_ptr).ex_freq[num as usize].offset(fresh12 as isize) =
@@ -1961,25 +1959,25 @@ pub unsafe extern "C" fn _make_ipal_cframe_ex(mut c_ptr: *mut CASE_FRAME,
 pub unsafe extern "C" fn rep2id(mut rep: *mut libc::c_char,
                                 mut rep_len: libc::c_int,
                                 mut buffer: *mut libc::c_char)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                -> *mut libc::c_char
+/*==================================================================*/
+{
     /* MRPH_MAX * 9(max8桁+"+"の分)以上あるので溢れない */
     *buffer.offset(0 as libc::c_int as isize) =
         '\u{0}' as i32 as libc::c_char;
     if !rep.is_null() && rep_len > 0 as libc::c_int &&
-           Mrph2idExist == (0 as libc::c_int == 0) as libc::c_int {
+        Mrph2idExist == (0 as libc::c_int == 0) as libc::c_int {
         let mut token_start: *mut libc::c_char = 0 as *mut libc::c_char;
         let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
         let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
         let mut copied_rep: *mut libc::c_char =
             malloc_data((::std::mem::size_of::<libc::c_char>() as
-                             libc::c_ulong).wrapping_mul(rep_len as
-                                                             libc::c_ulong).wrapping_add(1
-                                                                                             as
-                                                                                             libc::c_int
-                                                                                             as
-                                                                                             libc::c_ulong),
+                libc::c_ulong).wrapping_mul(rep_len as
+                libc::c_ulong).wrapping_add(1
+                as
+                libc::c_int
+                as
+                libc::c_ulong),
                         b"rep2id\x00" as *const u8 as *const libc::c_char as
                             *mut libc::c_char) as *mut libc::c_char;
         strncpy(copied_rep, rep, rep_len as libc::c_ulong);
@@ -1995,8 +1993,8 @@ pub unsafe extern "C" fn rep2id(mut rep: *mut libc::c_char,
                     /* 2つ目以降 */
                     strncat(buffer,
                             rep.offset(token.offset(-(1 as libc::c_int as
-                                                          isize)).wrapping_offset_from(token_start)
-                                           as libc::c_long as isize),
+                                isize)).wrapping_offset_from(token_start)
+                                as libc::c_long as isize),
                             1 as libc::c_int as libc::c_ulong);
                 }
                 strcat(buffer, value);
@@ -2016,20 +2014,20 @@ pub unsafe extern "C" fn check_examples(mut cp: *mut libc::c_char,
                                         mut cp_len: libc::c_int,
                                         mut ex_list: *mut *mut libc::c_char,
                                         mut ex_num: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                        -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut rep_id: *mut libc::c_char = 0 as *mut libc::c_char;
-    if ex_list.is_null() { return -(1 as libc::c_int) }
+    if ex_list.is_null() { return -(1 as libc::c_int); }
     rep_id =
         rep2id(cp, cp_len,
                &mut *static_buffer.as_mut_ptr().offset(0 as libc::c_int as
-                                                           isize));
+                   isize));
     if *rep_id.offset(0 as libc::c_int as isize) != 0 {
         i = 0 as libc::c_int;
         while i < ex_num {
-            if strcmp(rep_id, *ex_list.offset(i as isize)) == 0 { return i }
+            if strcmp(rep_id, *ex_list.offset(i as isize)) == 0 { return i; }
             i += 1
         }
     }
@@ -2038,18 +2036,18 @@ pub unsafe extern "C" fn check_examples(mut cp: *mut libc::c_char,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn check_agentive(mut cp: *mut libc::c_uchar)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                        -> libc::c_int
+/*==================================================================*/
+{
     let mut point: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
     point = cp;
-    loop  {
+    loop {
         point = extract_ipal_str(point, cf_str_buf, 0 as libc::c_int);
-        if point.is_null() { break ; }
+        if point.is_null() { break; }
         if strcmp(cf_str_buf as *const libc::c_char,
                   b"\xef\xbc\xa1\x00" as *const u8 as *const libc::c_char) ==
-               0 {
-            return (0 as libc::c_int == 0) as libc::c_int
+            0 {
+            return (0 as libc::c_int == 0) as libc::c_int;
         }
     }
     return 0 as libc::c_int;
@@ -2061,9 +2059,9 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
                                            mut address: libc::c_ulonglong,
                                            mut size: libc::c_int,
                                            mut verb: *mut libc::c_char,
-                                           mut flag: libc::c_int) 
- /*==================================================================*/
- {
+                                           mut flag: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int =
         0; /* 格フレームの用言表記 (代表表記) */
     let mut j: libc::c_int = 0;
@@ -2091,64 +2089,64 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
             strdup((*i_ptr).cf_align[i as usize].cf_id);
         j = 0 as libc::c_int;
         while (*i_ptr).cf_align[i as
-                                    usize].aligned_case[j as
-                                                            usize][0 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       usize]
-                  != -(10 as libc::c_int) {
+            usize].aligned_case[j as
+            usize][0 as
+            libc::c_int
+            as
+            usize]
+            != -(10 as libc::c_int) {
             (*cf_ptr).cf_align[i as
-                                   usize].aligned_case[j as
-                                                           usize][0 as
-                                                                      libc::c_int
-                                                                      as
-                                                                      usize] =
+                usize].aligned_case[j as
+                usize][0 as
+                libc::c_int
+                as
+                usize] =
                 (*i_ptr).cf_align[i as
-                                      usize].aligned_case[j as
-                                                              usize][0 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         usize];
+                    usize].aligned_case[j as
+                    usize][0 as
+                    libc::c_int
+                    as
+                    usize];
             (*cf_ptr).cf_align[i as
-                                   usize].aligned_case[j as
-                                                           usize][1 as
-                                                                      libc::c_int
-                                                                      as
-                                                                      usize] =
+                usize].aligned_case[j as
+                usize][1 as
+                libc::c_int
+                as
+                usize] =
                 (*i_ptr).cf_align[i as
-                                      usize].aligned_case[j as
-                                                              usize][1 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         usize];
+                    usize].aligned_case[j as
+                    usize][1 as
+                    libc::c_int
+                    as
+                    usize];
             j += 1
         }
         (*cf_ptr).cf_align[i as
-                               usize].aligned_case[j as
-                                                       usize][0 as libc::c_int
-                                                                  as usize] =
+            usize].aligned_case[j as
+            usize][0 as libc::c_int
+            as usize] =
             -(10 as libc::c_int);
         (*cf_ptr).cf_align[i as
-                               usize].aligned_case[j as
-                                                       usize][1 as libc::c_int
-                                                                  as usize] =
+            usize].aligned_case[j as
+            usize][1 as libc::c_int
+            as usize] =
             -(10 as libc::c_int);
         i += 1
     }
     (*cf_ptr).cf_align[i as usize].cf_id = 0 as *mut libc::c_char;
     (*cf_ptr).cf_align[i as
-                           usize].aligned_case[0 as libc::c_int as
-                                                   usize][0 as libc::c_int as
-                                                              usize] =
+        usize].aligned_case[0 as libc::c_int as
+        usize][0 as libc::c_int as
+        usize] =
         -(10 as libc::c_int);
     (*cf_ptr).cf_align[i as
-                           usize].aligned_case[0 as libc::c_int as
-                                                   usize][1 as libc::c_int as
-                                                              usize] =
+        usize].aligned_case[0 as libc::c_int as
+        usize][1 as libc::c_int as
+        usize] =
         -(10 as libc::c_int);
     i = 0 as libc::c_int;
     while (*i_ptr).samecase[i as usize][0 as libc::c_int as usize] !=
-              -(10 as libc::c_int) {
+        -(10 as libc::c_int) {
         (*cf_ptr).samecase[i as usize][0 as libc::c_int as usize] =
             (*i_ptr).samecase[i as usize][0 as libc::c_int as usize];
         (*cf_ptr).samecase[i as usize][1 as libc::c_int as usize] =
@@ -2166,9 +2164,9 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
     /* 格要素の追加 */
     j = 0 as libc::c_int;
     if (*cf_ptr).voice == 2 as libc::c_int ||
-           (*cf_ptr).voice == 5 as libc::c_int ||
-           (*cf_ptr).voice == 6 as libc::c_int ||
-           (*cf_ptr).voice == 7 as libc::c_int {
+        (*cf_ptr).voice == 5 as libc::c_int ||
+        (*cf_ptr).voice == 6 as libc::c_int ||
+        (*cf_ptr).voice == 7 as libc::c_int {
         _make_ipal_cframe_pp(cf_ptr,
                              b"\xe3\x82\xac\x00" as *const u8 as
                                  *const libc::c_char as *mut libc::c_uchar, j,
@@ -2212,7 +2210,7 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
         if _make_ipal_cframe_pp(cf_ptr,
                                 (*i_ptr).cs[i as usize].kaku_keishiki as
                                     *mut libc::c_uchar, j, flag) ==
-               0 as libc::c_int {
+            0 as libc::c_int {
             j -= 1
         } else {
             if Thesaurus == 1 as libc::c_int {
@@ -2224,10 +2222,10 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
                                          0 as libc::c_int
                                      } else {
                                          MatchPP((*cf_ptr).pp[j as
-                                                                  usize][0 as
-                                                                             libc::c_int
-                                                                             as
-                                                                             usize],
+                                             usize][0 as
+                                             libc::c_int
+                                             as
+                                             usize],
                                                  b"\xe5\xa4\x96\xe3\x81\xae\xe9\x96\xa2\xe4\xbf\x82\x00"
                                                      as *const u8 as
                                                      *const libc::c_char as
@@ -2247,10 +2245,10 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
                                          0 as libc::c_int
                                      } else {
                                          MatchPP((*cf_ptr).pp[j as
-                                                                  usize][0 as
-                                                                             libc::c_int
-                                                                             as
-                                                                             usize],
+                                             usize][0 as
+                                             libc::c_int
+                                             as
+                                             usize],
                                                  b"\xe5\xa4\x96\xe3\x81\xae\xe9\x96\xa2\xe4\xbf\x82\x00"
                                                      as *const u8 as
                                                      *const libc::c_char as
@@ -2270,13 +2268,13 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
 	  cf_ptr->oblig[i] = FALSE;
 	*/
             if (*cf_ptr).voice == 5 as libc::c_int ||
-                   (*cf_ptr).voice == 6 as libc::c_int ||
-                   (*cf_ptr).voice == 7 as libc::c_int {
+                (*cf_ptr).voice == 6 as libc::c_int ||
+                (*cf_ptr).voice == 7 as libc::c_int {
                 /* ガ → ヲ，ニ */
                 if (*cf_ptr).pp[j as usize][0 as libc::c_int as usize] ==
-                       pp_kstr_to_code(b"\xe3\x82\xac\x00" as *const u8 as
-                                           *const libc::c_char as
-                                           *mut libc::c_char) {
+                    pp_kstr_to_code(b"\xe3\x82\xac\x00" as *const u8 as
+                        *const libc::c_char as
+                        *mut libc::c_char) {
                     if ga_p == 0 as libc::c_int {
                         ga_p = (0 as libc::c_int == 0) as libc::c_int;
                         if (*cf_ptr).voice == 5 as libc::c_int {
@@ -2310,8 +2308,8 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
                     }
                 }
             } else if (*cf_ptr).voice == 2 as libc::c_int ||
-                          (*cf_ptr).voice == 3 as libc::c_int ||
-                          (*cf_ptr).voice == 4 as libc::c_int {
+                (*cf_ptr).voice == 3 as libc::c_int ||
+                (*cf_ptr).voice == 4 as libc::c_int {
                 /* 間接 ガ→ニ，直接 ガ→ニ／ニヨッテ／．． */
                 if strcmp((*i_ptr).cs[i as usize].kaku_keishiki,
                           b"\xe3\x82\xac\x00" as *const u8 as
@@ -2335,30 +2333,30 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
                                                  *mut libc::c_uchar, j, flag);
                     }
                 } else if (*cf_ptr).voice == 3 as libc::c_int &&
-                              (strcmp((*i_ptr).cs[i as usize].kaku_keishiki,
-                                      b"\xe3\x83\xb2\x00" as *const u8 as
-                                          *const libc::c_char) == 0 ||
-                                   sprintf(ast_cap.as_mut_ptr(),
-                                           b"\xe3\x83\xb2\xef\xbc\x8a\x00" as
-                                               *const u8 as
-                                               *const libc::c_char) != 0 &&
-                                       strcmp((*i_ptr).cs[i as
-                                                              usize].kaku_keishiki,
-                                              ast_cap.as_mut_ptr()) == 0) ||
-                              (*cf_ptr).voice == 4 as libc::c_int &&
-                                  (strcmp((*i_ptr).cs[i as
-                                                          usize].kaku_keishiki,
-                                          b"\xe3\x83\x8b\x00" as *const u8 as
-                                              *const libc::c_char) == 0 ||
-                                       sprintf(ast_cap.as_mut_ptr(),
-                                               b"\xe3\x83\x8b\xef\xbc\x8a\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char) != 0
-                                           &&
-                                           strcmp((*i_ptr).cs[i as
-                                                                  usize].kaku_keishiki,
-                                                  ast_cap.as_mut_ptr()) == 0)
-                 {
+                    (strcmp((*i_ptr).cs[i as usize].kaku_keishiki,
+                            b"\xe3\x83\xb2\x00" as *const u8 as
+                                *const libc::c_char) == 0 ||
+                        sprintf(ast_cap.as_mut_ptr(),
+                                b"\xe3\x83\xb2\xef\xbc\x8a\x00" as
+                                    *const u8 as
+                                    *const libc::c_char) != 0 &&
+                            strcmp((*i_ptr).cs[i as
+                                usize].kaku_keishiki,
+                                   ast_cap.as_mut_ptr()) == 0) ||
+                    (*cf_ptr).voice == 4 as libc::c_int &&
+                        (strcmp((*i_ptr).cs[i as
+                            usize].kaku_keishiki,
+                                b"\xe3\x83\x8b\x00" as *const u8 as
+                                    *const libc::c_char) == 0 ||
+                            sprintf(ast_cap.as_mut_ptr(),
+                                    b"\xe3\x83\x8b\xef\xbc\x8a\x00"
+                                        as *const u8 as
+                                        *const libc::c_char) != 0
+                                &&
+                                strcmp((*i_ptr).cs[i as
+                                    usize].kaku_keishiki,
+                                       ast_cap.as_mut_ptr()) == 0)
+                {
                     _make_ipal_cframe_pp(cf_ptr,
                                          b"\xe3\x82\xac\x00" as *const u8 as
                                              *const libc::c_char as
@@ -2396,90 +2394,90 @@ pub unsafe extern "C" fn _make_ipal_cframe(mut i_ptr: *mut CF_FRAME,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_quasi_closest_case_component(mut t_ptr:
-                                                              *mut TAG_DATA,
+                                                          *mut TAG_DATA,
                                                           mut pre_ptr:
-                                                              *mut TAG_DATA)
- -> *mut TAG_DATA 
- /*==================================================================*/
- {
+                                                          *mut TAG_DATA)
+                                                          -> *mut TAG_DATA
+/*==================================================================*/
+{
     if (*t_ptr).num < 1 as libc::c_int ||
-           (*t_ptr).type_0 == 2 as libc::c_int &&
-               (*t_ptr).inum != 0 as libc::c_int {
-        return 0 as *mut TAG_DATA
+        (*t_ptr).type_0 == 2 as libc::c_int &&
+            (*t_ptr).inum != 0 as libc::c_int {
+        return 0 as *mut TAG_DATA;
     }
     if !check_feature((*t_ptr).f,
                       b"ID:\xef\xbc\x88\xe3\x80\x9c\xe3\x82\x92\xef\xbc\x89\xe3\x80\x9c\xe3\x81\xab\x00"
                           as *const u8 as *const libc::c_char as
                           *mut libc::c_char).is_null() {
-        return t_ptr
+        return t_ptr;
     }
     if (*pre_ptr).type_0 == 2 as libc::c_int &&
-           (*pre_ptr).inum != 0 as libc::c_int {
-        return 0 as *mut TAG_DATA
+        (*pre_ptr).inum != 0 as libc::c_int {
+        return 0 as *mut TAG_DATA;
     }
     if check_feature((*pre_ptr).f,
                      b"\xe4\xbd\x93\xe8\xa8\x80\x00" as *const u8 as
                          *const libc::c_char as *mut libc::c_char).is_null() {
-        return 0 as *mut TAG_DATA
+        return 0 as *mut TAG_DATA;
     }
     if !check_feature((*pre_ptr).f,
                       b"\xe6\x8c\x87\xe7\xa4\xba\xe8\xa9\x9e\x00" as *const u8
                           as *const libc::c_char as
                           *mut libc::c_char).is_null() ||
-           (*pre_ptr).SM_code[0 as libc::c_int as usize] as libc::c_int ==
-               '\u{0}' as i32 &&
-               !check_feature((*pre_ptr).f,
-                              b"\xe4\xbf\x82:\xe3\x82\xac\xe6\xa0\xbc\x00" as
-                                  *const u8 as *const libc::c_char as
-                                  *mut libc::c_char).is_null() {
-        return 0 as *mut TAG_DATA
+        (*pre_ptr).SM_code[0 as libc::c_int as usize] as libc::c_int ==
+            '\u{0}' as i32 &&
+            !check_feature((*pre_ptr).f,
+                           b"\xe4\xbf\x82:\xe3\x82\xac\xe6\xa0\xbc\x00" as
+                               *const u8 as *const libc::c_char as
+                               *mut libc::c_char).is_null() {
+        return 0 as *mut TAG_DATA;
     }
     if !check_feature((*pre_ptr).f,
                       b"\xe4\xbf\x82:\xe3\x83\xb2\xe6\xa0\xbc\x00" as
                           *const u8 as *const libc::c_char as
                           *mut libc::c_char).is_null() ||
-           !check_feature((*pre_ptr).f,
-                          b"\xe4\xbf\x82:\xe3\x83\x8b\xe6\xa0\xbc\x00" as
-                              *const u8 as *const libc::c_char as
-                              *mut libc::c_char).is_null() ||
-           cf_match_element((*pre_ptr).SM_code.as_mut_ptr(),
-                            b"\xe4\xb8\xbb\xe4\xbd\x93\x00" as *const u8 as
-                                *const libc::c_char as *mut libc::c_char,
-                            0 as libc::c_int) == 0 &&
-               (!check_feature((*pre_ptr).f,
-                               b"\xe4\xbf\x82:\xe3\x82\xac\xe6\xa0\xbc\x00" as
-                                   *const u8 as *const libc::c_char as
+        !check_feature((*pre_ptr).f,
+                       b"\xe4\xbf\x82:\xe3\x83\x8b\xe6\xa0\xbc\x00" as
+                           *const u8 as *const libc::c_char as
+                           *mut libc::c_char).is_null() ||
+        cf_match_element((*pre_ptr).SM_code.as_mut_ptr(),
+                         b"\xe4\xb8\xbb\xe4\xbd\x93\x00" as *const u8 as
+                             *const libc::c_char as *mut libc::c_char,
+                         0 as libc::c_int) == 0 &&
+            (!check_feature((*pre_ptr).f,
+                            b"\xe4\xbf\x82:\xe3\x82\xac\xe6\xa0\xbc\x00" as
+                                *const u8 as *const libc::c_char as
+                                *mut libc::c_char).is_null() ||
+                !check_feature((*pre_ptr).f,
+                               b"\xe4\xbf\x82:\xe3\x82\xab\xe3\x83\xa9\xe6\xa0\xbc\x00"
+                                   as *const u8 as *const libc::c_char as
                                    *mut libc::c_char).is_null() ||
-                    !check_feature((*pre_ptr).f,
-                                   b"\xe4\xbf\x82:\xe3\x82\xab\xe3\x83\xa9\xe6\xa0\xbc\x00"
-                                       as *const u8 as *const libc::c_char as
-                                       *mut libc::c_char).is_null() ||
-                    !check_feature((*pre_ptr).f,
-                                   b"\xe4\xbf\x82:\xe3\x83\x98\xe6\xa0\xbc\x00"
-                                       as *const u8 as *const libc::c_char as
-                                       *mut libc::c_char).is_null() ||
-                    !check_feature((*pre_ptr).f,
-                                   b"\xe4\xbf\x82:\xe3\x83\xa8\xe3\x83\xaa\xe6\xa0\xbc\x00"
-                                       as *const u8 as *const libc::c_char as
-                                       *mut libc::c_char).is_null() ||
-                    !check_feature((*pre_ptr).f,
-                                   b"\xe4\xbf\x82:\xe3\x83\x88\xe6\xa0\xbc\x00"
-                                       as *const u8 as *const libc::c_char as
-                                       *mut libc::c_char).is_null() ||
-                    !check_feature((*pre_ptr).f,
-                                   b"\xe4\xbf\x82:\xe3\x83\x9e\xe3\x83\x87\xe6\xa0\xbc\x00"
-                                       as *const u8 as *const libc::c_char as
-                                       *mut libc::c_char).is_null()) {
-        return pre_ptr
+                !check_feature((*pre_ptr).f,
+                               b"\xe4\xbf\x82:\xe3\x83\x98\xe6\xa0\xbc\x00"
+                                   as *const u8 as *const libc::c_char as
+                                   *mut libc::c_char).is_null() ||
+                !check_feature((*pre_ptr).f,
+                               b"\xe4\xbf\x82:\xe3\x83\xa8\xe3\x83\xaa\xe6\xa0\xbc\x00"
+                                   as *const u8 as *const libc::c_char as
+                                   *mut libc::c_char).is_null() ||
+                !check_feature((*pre_ptr).f,
+                               b"\xe4\xbf\x82:\xe3\x83\x88\xe6\xa0\xbc\x00"
+                                   as *const u8 as *const libc::c_char as
+                                   *mut libc::c_char).is_null() ||
+                !check_feature((*pre_ptr).f,
+                               b"\xe4\xbf\x82:\xe3\x83\x9e\xe3\x83\x87\xe6\xa0\xbc\x00"
+                                   as *const u8 as *const libc::c_char as
+                                   *mut libc::c_char).is_null()) {
+        return pre_ptr;
     }
     return 0 as *mut TAG_DATA;
 }
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn feature2case(mut tp: *mut TAG_DATA)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                      -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buffer: *mut libc::c_char = 0 as *mut libc::c_char;
     if !check_feature((*tp).f,
@@ -2488,16 +2486,16 @@ pub unsafe extern "C" fn feature2case(mut tp: *mut TAG_DATA)
                           *mut libc::c_char).is_null() {
         buffer =
             malloc_data(strlen(b"\xe3\x83\x8b\x00" as *const u8 as
-                                   *const libc::c_char).wrapping_add(1 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         libc::c_ulong),
+                *const libc::c_char).wrapping_add(1 as
+                libc::c_int
+                as
+                libc::c_ulong),
                         b"feature2case\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_char;
         strcpy(buffer,
                b"\xe3\x83\x8b\x00" as *const u8 as *const libc::c_char);
-        return buffer
+        return buffer;
     } else {
         cp =
             check_feature((*tp).f,
@@ -2506,26 +2504,26 @@ pub unsafe extern "C" fn feature2case(mut tp: *mut TAG_DATA)
         if !cp.is_null() {
             buffer =
                 strdup(cp.offset(strlen(b"\xe4\xbf\x82:\x00" as *const u8 as
-                                            *const libc::c_char) as isize));
+                    *const libc::c_char) as isize));
             if strncmp(buffer.offset(strlen(buffer) as
-                                         isize).offset(-(strlen(b"\xe6\xa0\xbc\x00"
-                                                                    as
-                                                                    *const u8
-                                                                    as
-                                                                    *const libc::c_char)
-                                                             as isize)),
+                isize).offset(-(strlen(b"\xe6\xa0\xbc\x00"
+                as
+                *const u8
+                as
+                *const libc::c_char)
+                as isize)),
                        b"\xe6\xa0\xbc\x00" as *const u8 as
                            *const libc::c_char,
                        strlen(b"\xe6\xa0\xbc\x00" as *const u8 as
-                                  *const libc::c_char)) == 0 {
+                           *const libc::c_char)) == 0 {
                 *buffer.offset(strlen(buffer) as
-                                   isize).offset(-(strlen(b"\xe6\xa0\xbc\x00"
-                                                              as *const u8 as
-                                                              *const libc::c_char)
-                                                       as isize)) =
+                    isize).offset(-(strlen(b"\xe6\xa0\xbc\x00"
+                    as *const u8 as
+                    *const libc::c_char)
+                    as isize)) =
                     '\u{0}' as i32 as libc::c_char;
                 if pp_kstr_to_code(buffer) != -(10 as libc::c_int) {
-                    return buffer
+                    return buffer;
                 }
             }
             free(buffer as *mut libc::c_void);
@@ -2536,9 +2534,9 @@ pub unsafe extern "C" fn feature2case(mut tp: *mut TAG_DATA)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn f_num_inc(mut start: libc::c_int,
-                                   mut f_num_p: *mut libc::c_int) 
- /*==================================================================*/
- {
+                                   mut f_num_p: *mut libc::c_int)
+/*==================================================================*/
+{
     *f_num_p += 1;
     if start + *f_num_p >= MAX_Case_frame_num {
         realloc_cf();
@@ -2548,9 +2546,9 @@ pub unsafe extern "C" fn f_num_inc(mut start: libc::c_int,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn clear_cf_element(mut cf_ptr: *mut CASE_FRAME,
-                                          mut num: libc::c_int) 
- /*==================================================================*/
- {
+                                          mut num: libc::c_int)
+/*==================================================================*/
+{
     let mut k: libc::c_int = 0;
     if !(*cf_ptr).pp_str[num as usize].is_null() {
         free((*cf_ptr).pp_str[num as usize] as *mut libc::c_void);
@@ -2580,9 +2578,9 @@ pub unsafe extern "C" fn clear_cf_element(mut cf_ptr: *mut CASE_FRAME,
         k = 0 as libc::c_int;
         while k < (*cf_ptr).ex_num[num as usize] {
             if !(*(*cf_ptr).ex_list[num as
-                                        usize].offset(k as isize)).is_null() {
+                usize].offset(k as isize)).is_null() {
                 free(*(*cf_ptr).ex_list[num as usize].offset(k as isize) as
-                         *mut libc::c_void);
+                    *mut libc::c_void);
             }
             k += 1
         }
@@ -2597,10 +2595,10 @@ pub unsafe extern "C" fn clear_cf_element(mut cf_ptr: *mut CASE_FRAME,
         k = 0 as libc::c_int;
         while k < (*cf_ptr).gex_num[num as usize] {
             if !(*(*cf_ptr).gex_list[num as
-                                         usize].offset(k as isize)).is_null()
-               {
+                usize].offset(k as isize)).is_null()
+            {
                 free(*(*cf_ptr).gex_list[num as usize].offset(k as isize) as
-                         *mut libc::c_void);
+                    *mut libc::c_void);
             }
             k += 1
         }
@@ -2618,19 +2616,19 @@ pub unsafe extern "C" fn clear_cf_element(mut cf_ptr: *mut CASE_FRAME,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
-                                                           *mut SENTENCE_DATA,
+                                                       *mut SENTENCE_DATA,
                                                        mut t_ptr:
-                                                           *mut TAG_DATA,
+                                                       *mut TAG_DATA,
                                                        mut start: libc::c_int,
                                                        mut verb:
-                                                           *mut libc::c_char,
+                                                       *mut libc::c_char,
                                                        mut voice: libc::c_int,
                                                        mut flag: libc::c_int,
                                                        mut use_closest_cc:
-                                                           libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                                       libc::c_int)
+                                                       -> libc::c_int
+/*==================================================================*/
+{
     let mut i_ptr: *mut CF_FRAME = 0 as *mut CF_FRAME;
     let mut cf_ptr: *mut CASE_FRAME = 0 as *mut CASE_FRAME;
     let mut cbp: *mut TAG_DATA = 0 as *mut TAG_DATA;
@@ -2644,7 +2642,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut address_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut vtype: *mut libc::c_char = 0 as *mut libc::c_char;
-    if verb.is_null() { return f_num }
+    if verb.is_null() { return f_num; }
     cf_ptr = Case_frame_array.offset(start as isize);
     /* 直前格要素をくっつけて検索 */
     if use_closest_cc != 0 {
@@ -2653,22 +2651,22 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
         if check_str_type((*(*t_ptr).head_ptr).Goi.as_mut_ptr() as
                               *mut libc::c_uchar, 2 as libc::c_int,
                           0 as libc::c_int) != 0 &&
-               !check_feature((*(*t_ptr).head_ptr).f,
-                              b"\xe5\x93\x81\xe6\x9b\x96\x00" as *const u8 as
-                                  *const libc::c_char as
-                                  *mut libc::c_char).is_null() {
+            !check_feature((*(*t_ptr).head_ptr).f,
+                           b"\xe5\x93\x81\xe6\x9b\x96\x00" as *const u8 as
+                               *const libc::c_char as
+                               *mut libc::c_char).is_null() {
             address_str = get_ipal_address(verb as *mut libc::c_uchar, flag)
         } else {
             cbp =
                 get_quasi_closest_case_component(t_ptr,
                                                  if (*t_ptr).num <
-                                                        1 as libc::c_int {
+                                                     1 as libc::c_int {
                                                      0 as *mut TAG_DATA
                                                  } else {
                                                      t_ptr.offset(-(1 as
-                                                                        libc::c_int
-                                                                        as
-                                                                        isize))
+                                                         libc::c_int
+                                                         as
+                                                         isize))
                                                  });
             if OptCaseFlag & 2048 as libc::c_int != 0 && !cbp.is_null() {
                 let mut buffer: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -2679,16 +2677,16 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                 if !pp.is_null() {
                     if OptCaseFlag & 32 as libc::c_int != 0 {
                         if !(OptCaseFlag & 1024 as libc::c_int != 0 &&
-                                 {
-                                     cbp_str =
-                                         get_bnst_head_canonical_rep((*cbp).b_ptr,
-                                                                     OptCaseFlag
-                                                                         &
-                                                                         512
-                                                                             as
-                                                                             libc::c_int);
-                                     !cbp_str.is_null()
-                                 }) {
+                            {
+                                cbp_str =
+                                    get_bnst_head_canonical_rep((*cbp).b_ptr,
+                                                                OptCaseFlag
+                                                                    &
+                                                                    512
+                                                                        as
+                                                                        libc::c_int);
+                                !cbp_str.is_null()
+                            }) {
                             cbp_str =
                                 get_mrph_rep_from_f((*cbp).head_ptr,
                                                     0 as libc::c_int);
@@ -2702,10 +2700,10 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                     } else { cbp_str = (*(*cbp).head_ptr).Goi.as_mut_ptr() }
                     buffer =
                         malloc_data(strlen(cbp_str).wrapping_add(strlen(pp)).wrapping_add(strlen(verb)).wrapping_add(3
-                                                                                                                         as
-                                                                                                                         libc::c_int
-                                                                                                                         as
-                                                                                                                         libc::c_ulong),
+                            as
+                            libc::c_int
+                            as
+                            libc::c_ulong),
                                     b"_make_ipal_cframe_subcontract\x00" as
                                         *const u8 as *const libc::c_char as
                                         *mut libc::c_char) as
@@ -2734,16 +2732,16 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
         address_str = get_ipal_address(verb as *mut libc::c_uchar, flag)
     }
     /* なければ */
-    if address_str.is_null() { return f_num }
+    if address_str.is_null() { return f_num; }
     if flag == 2 as libc::c_int &&
-           {
-               vtype =
-                   check_feature((*t_ptr).f,
-                                 b"\xe4\xbd\x93\xe8\xa8\x80\x00" as *const u8
-                                     as *const libc::c_char as
-                                     *mut libc::c_char);
-               !vtype.is_null()
-           } {
+        {
+            vtype =
+                check_feature((*t_ptr).f,
+                              b"\xe4\xbd\x93\xe8\xa8\x80\x00" as *const u8
+                                  as *const libc::c_char as
+                                  *mut libc::c_char);
+            !vtype.is_null()
+        } {
         vtype =
             b"\xe5\x90\x8d\x00" as *const u8 as *const libc::c_char as
                 *mut libc::c_char
@@ -2755,8 +2753,8 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
         if !vtype.is_null() {
             vtype =
                 vtype.offset(strlen(b"\xe7\x94\xa8\xe8\xa8\x80:\x00" as
-                                        *const u8 as *const libc::c_char) as
-                                 isize)
+                    *const u8 as *const libc::c_char) as
+                    isize)
         } else {
             vtype =
                 check_feature((*t_ptr).f,
@@ -2766,8 +2764,8 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
             if !vtype.is_null() {
                 vtype =
                     vtype.offset(strlen(b"\xe9\x9d\x9e\xe7\x94\xa8\xe8\xa8\x80\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90:\x00"
-                                            as *const u8 as
-                                            *const libc::c_char) as isize)
+                        as *const u8 as
+                        *const libc::c_char) as isize)
             }
         }
     }
@@ -2776,7 +2774,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
     cp = pre_pos;
     while f_num < (*sp).frame_num_max {
         if *cp as libc::c_int == '/' as i32 ||
-               *cp as libc::c_int == '\u{0}' as i32 {
+            *cp as libc::c_int == '\u{0}' as i32 {
             if *cp as libc::c_int == '\u{0}' as i32 {
                 break_flag = 1 as libc::c_int
             } else { *cp = '\u{0}' as i32 as libc::c_char }
@@ -2793,8 +2791,11 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                 exit(1 as libc::c_int);
             }
             if !(OptCaseFlag & 8192 as libc::c_int != 0 &&
-                     { i_ptr = lookup_caseframe(address); !i_ptr.is_null() })
-               {
+                {
+                    i_ptr = lookup_caseframe(address);
+                    !i_ptr.is_null()
+                })
+            {
                 /* 格フレームcacheを使う場合は、cacheを引く */
                 i_ptr = get_ipal_frame(address, size, flag)
             }
@@ -2803,13 +2804,13 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
             if !vtype.is_null() {
                 if strncmp(vtype, (*i_ptr).pred_type.as_mut_ptr(),
                            strlen(b"\xe5\x90\x8d\x00" as *const u8 as
-                                      *const libc::c_char)) != 0 {
-                    if break_flag != 0 { break ; }
+                               *const libc::c_char)) != 0 {
+                    if break_flag != 0 { break; }
                     current_block_175 = 13321564401369230990;
                 } else { current_block_175 = 2606304779496145856; }
             } else { current_block_175 = 2606304779496145856; }
             match current_block_175 {
-                13321564401369230990 => { }
+                13321564401369230990 => {}
                 _ => {
                     /* 能動態 or 格フレームに態が含まれる場合 */
                     if voice == 0 as libc::c_int {
@@ -2821,7 +2822,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                                           address, size, verb, flag);
                         /* 用言のときは、一般的外の関係名詞を追加 */
                         if OptCaseFlag & 64 as libc::c_int != 0 &&
-                               flag == 1 as libc::c_int {
+                            flag == 1 as libc::c_int {
                             /* 外の関係がないとき */
                             c =
                                 check_cf_case(cf_ptr.offset(f_num as isize),
@@ -2831,46 +2832,46 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                                                   *mut libc::c_char);
                             if c < 0 as libc::c_int {
                                 if (*cf_ptr.offset(f_num as
-                                                       isize)).element_num ==
-                                       24 as libc::c_int {
+                                    isize)).element_num ==
+                                    24 as libc::c_int {
                                     /* 格の数が上限 */
                                     let ref mut fresh13 =
                                         (*cf_ptr.offset(f_num as
-                                                            isize)).element_num; /* 最後の格を削除 */
+                                            isize)).element_num; /* 最後の格を削除 */
                                     *fresh13 -= 1;
                                     clear_cf_element(cf_ptr.offset(f_num as
-                                                                       isize),
+                                        isize),
                                                      (*cf_ptr.offset(f_num as
-                                                                         isize)).element_num);
+                                                         isize)).element_num);
                                 }
                                 _make_ipal_cframe_pp(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      b"\xe5\xa4\x96\xe3\x81\xae\xe9\x96\xa2\xe4\xbf\x82\x00"
                                                          as *const u8 as
                                                          *const libc::c_char
                                                          as
                                                          *mut libc::c_uchar,
                                                      (*cf_ptr.offset(f_num as
-                                                                         isize)).element_num,
+                                                         isize)).element_num,
                                                      flag);
                                 _make_ipal_cframe_ex(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      GENERAL_SOTO_WORDS as
                                                          *mut libc::c_uchar,
                                                      (*cf_ptr.offset(f_num as
-                                                                         isize)).element_num,
+                                                         isize)).element_num,
                                                      Thesaurus,
                                                      0 as libc::c_int,
                                                      (0 as libc::c_int == 0)
                                                          as libc::c_int);
                                 let ref mut fresh14 =
                                     (*cf_ptr.offset(f_num as
-                                                        isize)).element_num;
+                                        isize)).element_num;
                                 *fresh14 += 1
                             } else {
                                 /* 外の関係がすでにあるときは用例を追加 */
                                 _make_ipal_cframe_ex(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      GENERAL_SOTO_WORDS as
                                                          *mut libc::c_uchar,
                                                      c, Thesaurus,
@@ -2881,7 +2882,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                         /* 以下 flag == CF_PRED のはず */
                         /* 格フレーム使役/格フレーム使役&受身*/
                         if (*t_ptr).voice & 1 as libc::c_int != 0 ||
-                               (*t_ptr).voice & 4 as libc::c_int != 0 {
+                            (*t_ptr).voice & 4 as libc::c_int != 0 {
                             /* ニ格がないとき */
                             c =
                                 check_cf_case(cf_ptr.offset(f_num as isize),
@@ -2890,47 +2891,47 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                                                   *mut libc::c_char);
                             if c < 0 as libc::c_int {
                                 _make_ipal_cframe_pp(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      b"\xe3\x83\x8b\x00" as
                                                          *const u8 as
                                                          *const libc::c_char
                                                          as
                                                          *mut libc::c_uchar,
                                                      (*cf_ptr.offset(f_num as
-                                                                         isize)).element_num,
+                                                         isize)).element_num,
                                                      flag);
                                 _make_ipal_cframe_sm(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
                                                          as *const u8 as
                                                          *const libc::c_char
                                                          as
                                                          *mut libc::c_uchar,
                                                      (*cf_ptr.offset(f_num as
-                                                                         isize)).element_num,
+                                                         isize)).element_num,
                                                      if Thesaurus ==
-                                                            2 as libc::c_int {
+                                                         2 as libc::c_int {
                                                          6 as libc::c_int
                                                      } else {
                                                          5 as libc::c_int
                                                      });
                                 let ref mut fresh15 =
                                     (*cf_ptr.offset(f_num as
-                                                        isize)).element_num;
+                                        isize)).element_num;
                                 *fresh15 += 1
                             } else if sms_match(sm2code(b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
-                                                            as *const u8 as
-                                                            *const libc::c_char
-                                                            as
-                                                            *mut libc::c_char),
+                                as *const u8 as
+                                *const libc::c_char
+                                as
+                                *mut libc::c_char),
                                                 (*cf_ptr.offset(f_num as
-                                                                    isize)).sm[c
-                                                                                   as
-                                                                                   usize],
+                                                    isize)).sm[c
+                                                    as
+                                                    usize],
                                                 1 as libc::c_int) ==
-                                          0 as libc::c_int {
+                                0 as libc::c_int {
                                 _make_ipal_cframe_sm(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
                                                          as *const u8 as
                                                          *const libc::c_char
@@ -2938,7 +2939,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                                                          *mut libc::c_uchar,
                                                      c,
                                                      if Thesaurus ==
-                                                            2 as libc::c_int {
+                                                         2 as libc::c_int {
                                                          6 as libc::c_int
                                                      } else {
                                                          5 as libc::c_int
@@ -2952,8 +2953,8 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                                     8 as libc::c_int
                             }
                         } else if (*t_ptr).voice & 2 as libc::c_int != 0 ||
-                                      (*t_ptr).voice & 32 as libc::c_int != 0
-                         {
+                            (*t_ptr).voice & 32 as libc::c_int != 0
+                        {
                             /* ニ格はあるけど<主体>がないとき */
                             /* 格フレーム受身 */
                             /* ニ/ニヨル/カラ格がないとき */
@@ -2963,72 +2964,72 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                                                   as *const libc::c_char as
                                                   *mut libc::c_char);
                             if c < 0 as libc::c_int &&
-                                   {
-                                       c =
-                                           check_cf_case(cf_ptr.offset(f_num
-                                                                           as
-                                                                           isize),
-                                                         b"\xe3\x83\x8b\xe3\x83\xa8\xe3\x83\xab\x00"
-                                                             as *const u8 as
-                                                             *const libc::c_char
-                                                             as
-                                                             *mut libc::c_char);
-                                       (c) < 0 as libc::c_int
-                                   } &&
-                                   {
-                                       c =
-                                           check_cf_case(cf_ptr.offset(f_num
-                                                                           as
-                                                                           isize),
-                                                         b"\xe3\x82\xab\xe3\x83\xa9\x00"
-                                                             as *const u8 as
-                                                             *const libc::c_char
-                                                             as
-                                                             *mut libc::c_char);
-                                       (c) < 0 as libc::c_int
-                                   } {
+                                {
+                                    c =
+                                        check_cf_case(cf_ptr.offset(f_num
+                                            as
+                                            isize),
+                                                      b"\xe3\x83\x8b\xe3\x83\xa8\xe3\x83\xab\x00"
+                                                          as *const u8 as
+                                                          *const libc::c_char
+                                                          as
+                                                          *mut libc::c_char);
+                                    (c) < 0 as libc::c_int
+                                } &&
+                                {
+                                    c =
+                                        check_cf_case(cf_ptr.offset(f_num
+                                            as
+                                            isize),
+                                                      b"\xe3\x82\xab\xe3\x83\xa9\x00"
+                                                          as *const u8 as
+                                                          *const libc::c_char
+                                                          as
+                                                          *mut libc::c_char);
+                                    (c) < 0 as libc::c_int
+                                } {
                                 _make_ipal_cframe_pp(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      b"\xe3\x83\x8b\x00" as
                                                          *const u8 as
                                                          *const libc::c_char
                                                          as
                                                          *mut libc::c_uchar,
                                                      (*cf_ptr.offset(f_num as
-                                                                         isize)).element_num,
+                                                         isize)).element_num,
                                                      flag);
                                 _make_ipal_cframe_sm(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
                                                          as *const u8 as
                                                          *const libc::c_char
                                                          as
                                                          *mut libc::c_uchar,
                                                      (*cf_ptr.offset(f_num as
-                                                                         isize)).element_num,
+                                                         isize)).element_num,
                                                      if Thesaurus ==
-                                                            2 as libc::c_int {
+                                                         2 as libc::c_int {
                                                          6 as libc::c_int
                                                      } else {
                                                          5 as libc::c_int
                                                      });
                                 let ref mut fresh16 =
                                     (*cf_ptr.offset(f_num as
-                                                        isize)).element_num;
+                                        isize)).element_num;
                                 *fresh16 += 1
                             } else if sms_match(sm2code(b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
-                                                            as *const u8 as
-                                                            *const libc::c_char
-                                                            as
-                                                            *mut libc::c_char),
+                                as *const u8 as
+                                *const libc::c_char
+                                as
+                                *mut libc::c_char),
                                                 (*cf_ptr.offset(f_num as
-                                                                    isize)).sm[c
-                                                                                   as
-                                                                                   usize],
+                                                    isize)).sm[c
+                                                    as
+                                                    usize],
                                                 1 as libc::c_int) ==
-                                          0 as libc::c_int {
+                                0 as libc::c_int {
                                 _make_ipal_cframe_sm(cf_ptr.offset(f_num as
-                                                                       isize),
+                                    isize),
                                                      b"\xe4\xb8\xbb\xe4\xbd\x93\x00"
                                                          as *const u8 as
                                                          *const libc::c_char
@@ -3036,7 +3037,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                                                          *mut libc::c_uchar,
                                                      c,
                                                      if Thesaurus ==
-                                                            2 as libc::c_int {
+                                                         2 as libc::c_int {
                                                          6 as libc::c_int
                                                      } else {
                                                          5 as libc::c_int
@@ -3052,7 +3053,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                     /* 使役 */
                     if voice & 1 as libc::c_int != 0 {
                         if (*i_ptr).voice & 1 as libc::c_int != 0 &&
-                               (*i_ptr).voice & 2 as libc::c_int != 0 {
+                            (*i_ptr).voice & 2 as libc::c_int != 0 {
                             (*cf_ptr.offset(f_num as isize)).voice =
                                 5 as libc::c_int
                         } else if (*i_ptr).voice & 1 as libc::c_int != 0 {
@@ -3103,7 +3104,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                     }
                     /* もらう/ほしい */
                     if voice & 8 as libc::c_int != 0 ||
-                           voice & 16 as libc::c_int != 0 {
+                        voice & 16 as libc::c_int != 0 {
                         /* ニ使役 (間接受身でも同じ */
                         if (*i_ptr).voice & 2 as libc::c_int != 0 {
                             (*cf_ptr.offset(f_num as isize)).voice =
@@ -3155,7 +3156,7 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
                             cf_ptr = Case_frame_array.offset(start as isize)
                         }
                     }
-                    if break_flag != 0 { break ; }
+                    if break_flag != 0 { break; }
                 }
             }
         }
@@ -3167,18 +3168,18 @@ pub unsafe extern "C" fn _make_ipal_cframe_subcontract(mut sp:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn make_ipal_cframe_subcontract(mut sp:
-                                                          *mut SENTENCE_DATA,
+                                                      *mut SENTENCE_DATA,
                                                       mut t_ptr:
-                                                          *mut TAG_DATA,
+                                                      *mut TAG_DATA,
                                                       mut m_ptr:
-                                                          *mut MRPH_DATA,
+                                                      *mut MRPH_DATA,
                                                       mut orig_form:
-                                                          *mut libc::c_char,
+                                                      *mut libc::c_char,
                                                       mut start: libc::c_int,
                                                       mut flag: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                                      -> libc::c_int
+/*==================================================================*/
+{
     let mut f_num: libc::c_int = 0 as libc::c_int;
     let mut plus_num: libc::c_int = 0;
     let mut verb: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -3200,7 +3201,7 @@ pub unsafe extern "C" fn make_ipal_cframe_subcontract(mut sp:
                                           0 as libc::c_int, flag,
                                           0 as libc::c_int);
         free(pred_string as *mut libc::c_void);
-        return f_num
+        return f_num;
     } else {
         if OptCaseFlag & 131072 as libc::c_int != 0 {
             /* 用言代表表記版(受身など込み)格フレーム */
@@ -3234,12 +3235,12 @@ pub unsafe extern "C" fn make_ipal_cframe_subcontract(mut sp:
                 }
             }
             free(pred_string as *mut libc::c_void);
-            return f_num
+            return f_num;
         }
     }
     verb =
         malloc_data(strlen(pred_string).wrapping_add(4 as libc::c_int as
-                                                         libc::c_ulong),
+            libc::c_ulong),
                     b"make_ipal_cframe_subcontract\x00" as *const u8 as
                         *const libc::c_char as *mut libc::c_char) as
             *mut libc::c_char;
@@ -3254,19 +3255,19 @@ pub unsafe extern "C" fn make_ipal_cframe_subcontract(mut sp:
         /* 今のところ受身の場合を考えない */
         free(verb as *mut libc::c_void);
         free(pred_string as *mut libc::c_void);
-        return f_num
+        return f_num;
     }
     /* 受身, 使役の格フレーム */
     if (*t_ptr).voice == 32 as libc::c_int ||
-           (*t_ptr).voice & 2 as libc::c_int != 0 ||
-           (*t_ptr).voice & 1 as libc::c_int != 0 ||
-           (*t_ptr).voice & 4 as libc::c_int != 0 {
+        (*t_ptr).voice & 2 as libc::c_int != 0 ||
+        (*t_ptr).voice & 1 as libc::c_int != 0 ||
+        (*t_ptr).voice & 4 as libc::c_int != 0 {
         let mut suffix: libc::c_int = 0 as libc::c_int;
         if (*t_ptr).voice & 1 as libc::c_int != 0 {
             strcat(verb, b":C\x00" as *const u8 as *const libc::c_char);
             suffix = 2 as libc::c_int
         } else if (*t_ptr).voice & 2 as libc::c_int != 0 ||
-                      (*t_ptr).voice & 32 as libc::c_int != 0 {
+            (*t_ptr).voice & 32 as libc::c_int != 0 {
             strcat(verb, b":P\x00" as *const u8 as *const libc::c_char);
             suffix = 2 as libc::c_int
         } else if (*t_ptr).voice & 4 as libc::c_int != 0 {
@@ -3281,7 +3282,7 @@ pub unsafe extern "C" fn make_ipal_cframe_subcontract(mut sp:
         if plus_num != 0 as libc::c_int {
             free(verb as *mut libc::c_void);
             free(pred_string as *mut libc::c_void);
-            return f_num + plus_num
+            return f_num + plus_num;
         }
         *verb.offset(strlen(verb) as isize).offset(-(suffix as isize)) =
             '\u{0}' as i32 as libc::c_char
@@ -3308,9 +3309,9 @@ pub unsafe extern "C" fn make_ipal_cframe_subcontract(mut sp:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn make_pred_type(mut t_ptr: *mut TAG_DATA)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                        -> *mut libc::c_char
+/*==================================================================*/
+{
     /* 用言タイプをかえす */
     return if (*t_ptr).voice == 32 as libc::c_int {
         /* 文末のサ変名詞など */
@@ -3338,9 +3339,9 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                                           mut use_rep_flag: libc::c_int,
                                           mut cf_type: libc::c_int,
                                           mut cpncf_flag: libc::c_int)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                          -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut buffer: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut main_pred: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -3372,20 +3373,20 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                 main_pred_malloc_flag = 1 as libc::c_int
             }
         } else if cf_type == 2 as libc::c_int && OptAnaphora != 0 &&
-                      {
-                          cp =
-                              check_feature((*(*t_ptr).b_ptr).f,
-                                            b"\xe6\xad\xa3\xe8\xa6\x8f\xe5\x8c\x96\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\x00"
-                                                as *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char);
-                          !cp.is_null()
-                      } {
+            {
+                cp =
+                    check_feature((*(*t_ptr).b_ptr).f,
+                                  b"\xe6\xad\xa3\xe8\xa6\x8f\xe5\x8c\x96\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\x00"
+                                      as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char);
+                !cp.is_null()
+            } {
             cpncf_flag = (0 as libc::c_int == 0) as libc::c_int;
             rep_strt =
                 cp.offset(strlen(b"\xe6\xad\xa3\xe8\xa6\x8f\xe5\x8c\x96\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98:\x00"
-                                     as *const u8 as *const libc::c_char) as
-                              isize);
+                    as *const u8 as *const libc::c_char) as
+                    isize);
             rep_length = strlen(rep_strt) as libc::c_int;
             main_pred =
                 malloc_data((rep_length + 1 as libc::c_int) as size_t,
@@ -3397,24 +3398,24 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                 '\u{0}' as i32 as libc::c_char;
             main_pred_malloc_flag = 1 as libc::c_int
         } else if cf_type == 2 as libc::c_int && OptUseCPNCF != 0 &&
-                      check_feature((*(*t_ptr).head_ptr).f,
-                                    b"\xe7\x89\xb9\xe6\xae\x8a\xe9\x9d\x9e\xe8\xa6\x8b\xe5\x87\xba\xe8\xaa\x9e\x00"
-                                        as *const u8 as *const libc::c_char as
-                                        *mut libc::c_char).is_null() &&
-                      {
-                          cp =
-                              check_feature((*t_ptr).f,
-                                            b"BGH\x00" as *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char);
-                          !cp.is_null()
-                      } &&
-                      strstr(cp,
-                             b"|\x00" as *const u8 as
-                                 *const libc::c_char).is_null() {
+            check_feature((*(*t_ptr).head_ptr).f,
+                          b"\xe7\x89\xb9\xe6\xae\x8a\xe9\x9d\x9e\xe8\xa6\x8b\xe5\x87\xba\xe8\xaa\x9e\x00"
+                              as *const u8 as *const libc::c_char as
+                              *mut libc::c_char).is_null() &&
+            {
+                cp =
+                    check_feature((*t_ptr).f,
+                                  b"BGH\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char);
+                !cp.is_null()
+            } &&
+            strstr(cp,
+                   b"|\x00" as *const u8 as
+                       *const libc::c_char).is_null() {
             /* 連想照応解析をする場合は正規化代表表記を使用する */
             /* 複合名詞格フレームを用いる場合で、分類語彙表が引けている場合 */
-	/* ただし、BGH中に"|"が含まれている場合は除く */
+            /* ただし、BGH中に"|"が含まれている場合は除く */
             /* 形容詞語幹の場合は通常の代表表記を使用する */
             if !check_feature((*t_ptr).f,
                               b"\xe5\x90\x8d\xe8\xa9\x9e\xe7\x9a\x84\xe5\xbd\xa2\xe5\xae\xb9\xe8\xa9\x9e\xe8\xaa\x9e\xe5\xb9\xb9\x00"
@@ -3427,21 +3428,21 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                 cpncf_flag = (0 as libc::c_int == 0) as libc::c_int;
                 rep_strt =
                     cp.offset(strlen(b"BGH:\x00" as *const u8 as
-                                         *const libc::c_char) as isize);
+                        *const libc::c_char) as isize);
                 rep_length = strlen(rep_strt) as libc::c_int;
                 /* 後方の基本句の分類語彙表の見出しに含まれる基本句は省略解析の対象としない */
-		/* 分類語彙表の見出しが処理対象の基本句より長い場合のみ実行*/
+                /* 分類語彙表の見出しが処理対象の基本句より長い場合のみ実行*/
                 cp = get_mrph_rep((*t_ptr).head_ptr);
                 if 0 as libc::c_int != 0 && !cp.is_null() &&
-                       strncmp(cp, rep_strt,
-                               strlen(cp).wrapping_sub(1 as libc::c_int as
-                                                           libc::c_ulong)) !=
-                           0 {
+                    strncmp(cp, rep_strt,
+                            strlen(cp).wrapping_sub(1 as libc::c_int as
+                                libc::c_ulong)) !=
+                        0 {
                     i = 1 as libc::c_int;
                     while !t_ptr.offset(-(i as isize)).is_null() &&
-                              !(*t_ptr.offset(-(i as
-                                                    isize))).head_ptr.is_null()
-                          {
+                        !(*t_ptr.offset(-(i as
+                            isize))).head_ptr.is_null()
+                    {
                         assign_cfeature(&mut (*t_ptr.offset(-(i as isize))).f,
                                         b"\xe7\x9c\x81\xe7\x95\xa5\xe8\xa7\xa3\xe6\x9e\x90\xe3\x81\xaa\xe3\x81\x97\x00"
                                             as *const u8 as
@@ -3449,24 +3450,24 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                                             *mut libc::c_char,
                                         0 as libc::c_int);
                         if !check_feature((*(*t_ptr.offset(-(i as
-                                                                 isize))).head_ptr).f,
+                            isize))).head_ptr).f,
                                           b"\xe6\x96\x87\xe7\xaf\x80\xe5\xa7\x8b\x00"
                                               as *const u8 as
                                               *const libc::c_char as
                                               *mut libc::c_char).is_null() {
-                            break ;
+                            break;
                         }
                         cp =
                             get_mrph_rep((*t_ptr.offset(-(i as
-                                                              isize))).head_ptr);
+                                isize))).head_ptr);
                         if cp.is_null() ||
-                               strncmp(cp, rep_strt,
-                                       strlen(cp).wrapping_sub(1 as
-                                                                   libc::c_int
-                                                                   as
-                                                                   libc::c_ulong))
-                                   == 0 {
-                            break ;
+                            strncmp(cp, rep_strt,
+                                    strlen(cp).wrapping_sub(1 as
+                                        libc::c_int
+                                        as
+                                        libc::c_ulong))
+                                == 0 {
+                            break;
                         }
                         i += 1
                     }
@@ -3484,32 +3485,32 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                 main_pred_malloc_flag = 1 as libc::c_int
             }
         } else if cf_type & 1 as libc::c_int != 0 &&
-                      strcmp(Class[(*(*t_ptr).head_ptr).Hinshi as
-                                       usize][(*(*t_ptr).head_ptr).Bunrui as
-                                                  usize].id as
-                                 *const libc::c_char,
-                             b"\xe5\x90\x8d\xe8\xa9\x9e\xe6\x80\xa7\xe5\x90\x8d\xe8\xa9\x9e\xe6\x8e\xa5\xe5\xb0\xbe\xe8\xbe\x9e\x00"
-                                 as *const u8 as *const libc::c_char) == 0 {
+            strcmp(Class[(*(*t_ptr).head_ptr).Hinshi as
+                usize][(*(*t_ptr).head_ptr).Bunrui as
+                usize].id as
+                       *const libc::c_char,
+                   b"\xe5\x90\x8d\xe8\xa9\x9e\xe6\x80\xa7\xe5\x90\x8d\xe8\xa9\x9e\xe6\x8e\xa5\xe5\xb0\xbe\xe8\xbe\x9e\x00"
+                       as *const u8 as *const libc::c_char) == 0 {
             main_pred =
                 get_mrph_rep_from_f((*t_ptr).head_ptr.offset(-(1 as
-                                                                   libc::c_int
-                                                                   as isize)),
+                    libc::c_int
+                    as isize)),
                                     (cf_type & 1 as libc::c_int != 0 &&
-                                         !check_feature((*(*t_ptr).head_ptr.offset(-(1
-                                                                                         as
-                                                                                         libc::c_int
-                                                                                         as
-                                                                                         isize))).f,
-                                                        b"\xef\xbc\xb4\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\xe5\xa4\x89\xe6\x9b\xb4\xe5\x89\x8d\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\x00"
-                                                            as *const u8 as
-                                                            *const libc::c_char
-                                                            as
-                                                            *mut libc::c_char).is_null())
+                                        !check_feature((*(*t_ptr).head_ptr.offset(-(1
+                                            as
+                                            libc::c_int
+                                            as
+                                            isize))).f,
+                                                       b"\xef\xbc\xb4\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\xe5\xa4\x89\xe6\x9b\xb4\xe5\x89\x8d\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\x00"
+                                                           as *const u8 as
+                                                           *const libc::c_char
+                                                           as
+                                                           *mut libc::c_char).is_null())
                                         as libc::c_int);
             if main_pred.is_null() {
                 main_pred =
                     make_mrph_rn((*t_ptr).head_ptr.offset(-(1 as libc::c_int
-                                                                as isize)));
+                        as isize)));
                 main_pred_malloc_flag = 1 as libc::c_int
             }
         } else {
@@ -3518,12 +3519,12 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
             main_pred =
                 get_mrph_rep_from_f((*t_ptr).head_ptr,
                                     (cf_type & 1 as libc::c_int != 0 &&
-                                         !check_feature((*(*t_ptr).head_ptr).f,
-                                                        b"\xef\xbc\xb4\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\xe5\xa4\x89\xe6\x9b\xb4\xe5\x89\x8d\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\x00"
-                                                            as *const u8 as
-                                                            *const libc::c_char
-                                                            as
-                                                            *mut libc::c_char).is_null())
+                                        !check_feature((*(*t_ptr).head_ptr).f,
+                                                       b"\xef\xbc\xb4\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\xe5\xa4\x89\xe6\x9b\xb4\xe5\x89\x8d\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\x00"
+                                                           as *const u8 as
+                                                           *const libc::c_char
+                                                           as
+                                                           *mut libc::c_char).is_null())
                                         as libc::c_int);
             if main_pred.is_null() {
                 main_pred = make_mrph_rn((*t_ptr).head_ptr);
@@ -3544,11 +3545,11 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                           *mut libc::c_char).is_null() && cpncf_flag == 0 {
         buffer =
             malloc_data(strlen(b"\xe3\x81\x99\xe3\x82\x8b/\xe3\x81\x99\xe3\x82\x8b\x00"
-                                   as *const u8 as
-                                   *const libc::c_char).wrapping_add(8 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         libc::c_ulong),
+                as *const u8 as
+                *const libc::c_char).wrapping_add(8 as
+                libc::c_int
+                as
+                libc::c_ulong),
                         b"make_pred_string\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_char; /* 9(euc) + 8 */
@@ -3565,37 +3566,37 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                              b"\xef\xbc\xb4\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe2\x86\x92\x00"
                                  as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-                  cpncf_flag == 0 &&
-                  (check_feature((*(*t_ptr).head_ptr).f,
-                                 b"\xe3\x82\xb5\xe5\xa4\x89\x00" as *const u8
-                                     as *const libc::c_char as
-                                     *mut libc::c_char).is_null() ||
-                       {
-                           cp =
-                               get_mrph_rep_from_f((*t_ptr).head_ptr.offset(1
-                                                                                as
-                                                                                libc::c_int
-                                                                                as
-                                                                                isize),
-                                                   cf_type);
-                           (!cp.is_null()) &&
-                               strcmp(cp,
-                                      b"\xe3\x81\x99\xe3\x82\x8b/\xe3\x81\x99\xe3\x82\x8b\x00"
-                                          as *const u8 as *const libc::c_char)
-                                   != 0
-                       }) {
+        cpncf_flag == 0 &&
+        (check_feature((*(*t_ptr).head_ptr).f,
+                       b"\xe3\x82\xb5\xe5\xa4\x89\x00" as *const u8
+                           as *const libc::c_char as
+                           *mut libc::c_char).is_null() ||
+            {
+                cp =
+                    get_mrph_rep_from_f((*t_ptr).head_ptr.offset(1
+                        as
+                        libc::c_int
+                        as
+                        isize),
+                                        cf_type);
+                (!cp.is_null()) &&
+                    strcmp(cp,
+                           b"\xe3\x81\x99\xe3\x82\x8b/\xe3\x81\x99\xe3\x82\x8b\x00"
+                               as *const u8 as *const libc::c_char)
+                        != 0
+            }) {
         if use_rep_flag != 0 {
             cp =
                 get_mrph_rep_from_f((*t_ptr).head_ptr.offset(1 as libc::c_int
-                                                                 as isize),
+                    as isize),
                                     cf_type);
             if !cp.is_null() {
                 buffer =
                     malloc_data(strlen(main_pred).wrapping_add(strlen(cp)).wrapping_add(9
-                                                                                            as
-                                                                                            libc::c_int
-                                                                                            as
-                                                                                            libc::c_ulong),
+                        as
+                        libc::c_int
+                        as
+                        libc::c_ulong),
                                 b"make_pred_string\x00" as *const u8 as
                                     *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_char;
@@ -3605,14 +3606,14 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
             } else {
                 buffer =
                     malloc_data(strlen(main_pred).wrapping_add(strlen((*(*t_ptr).head_ptr.offset(1
-                                                                                                     as
-                                                                                                     libc::c_int
-                                                                                                     as
-                                                                                                     isize)).Goi.as_mut_ptr())).wrapping_add(9
-                                                                                                                                                 as
-                                                                                                                                                 libc::c_int
-                                                                                                                                                 as
-                                                                                                                                                 libc::c_ulong),
+                        as
+                        libc::c_int
+                        as
+                        isize)).Goi.as_mut_ptr())).wrapping_add(9
+                        as
+                        libc::c_int
+                        as
+                        libc::c_ulong),
                                 b"make_pred_string\x00" as *const u8 as
                                     *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_char;
@@ -3620,54 +3621,54 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
                 strcat(buffer, b"+\x00" as *const u8 as *const libc::c_char);
                 strcat(buffer,
                        (*(*t_ptr).head_ptr.offset(1 as libc::c_int as
-                                                      isize)).Goi.as_mut_ptr());
+                           isize)).Goi.as_mut_ptr());
             }
         } else {
             buffer =
                 malloc_data(strlen((*(*t_ptr).head_ptr).Goi2.as_mut_ptr()).wrapping_add(strlen((*(*t_ptr).head_ptr.offset(1
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize)).Goi.as_mut_ptr())).wrapping_add(8
-                                                                                                                                                                          as
-                                                                                                                                                                          libc::c_int
-                                                                                                                                                                          as
-                                                                                                                                                                          libc::c_ulong),
+                    as
+                    libc::c_int
+                    as
+                    isize)).Goi.as_mut_ptr())).wrapping_add(8
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong),
                             b"make_pred_string\x00" as *const u8 as
                                 *const libc::c_char as *mut libc::c_char) as
                     *mut libc::c_char;
             strcpy(buffer, (*(*t_ptr).head_ptr).Goi2.as_mut_ptr());
             strcat(buffer,
                    (*(*t_ptr).head_ptr.offset(1 as libc::c_int as
-                                                  isize)).Goi.as_mut_ptr());
+                       isize)).Goi.as_mut_ptr());
         }
     } else if !check_feature((*t_ptr).f,
                              b"\xef\xbc\xb4\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe2\x86\x90\x00"
                                  as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-                  cpncf_flag == 0 &&
-                  check_feature((*(*t_ptr).head_ptr.offset(-(1 as libc::c_int
-                                                                 as
-                                                                 isize))).f,
-                                b"\xe4\xbb\x98\xe5\xb1\x9e\x00" as *const u8
-                                    as *const libc::c_char as
-                                    *mut libc::c_char).is_null() {
+        cpncf_flag == 0 &&
+        check_feature((*(*t_ptr).head_ptr.offset(-(1 as libc::c_int
+            as
+            isize))).f,
+                      b"\xe4\xbb\x98\xe5\xb1\x9e\x00" as *const u8
+                          as *const libc::c_char as
+                          *mut libc::c_char).is_null() {
         if use_rep_flag != 0 &&
-               {
-                   cp =
-                       get_mrph_rep_from_f((*t_ptr).head_ptr.offset(-(1 as
-                                                                          libc::c_int
-                                                                          as
-                                                                          isize)),
-                                           0 as libc::c_int);
-                   !cp.is_null()
-               } {
+            {
+                cp =
+                    get_mrph_rep_from_f((*t_ptr).head_ptr.offset(-(1 as
+                        libc::c_int
+                        as
+                        isize)),
+                                        0 as libc::c_int);
+                !cp.is_null()
+            } {
             buffer =
                 malloc_data(strlen(cp).wrapping_add(strlen(main_pred)).wrapping_add(9
-                                                                                        as
-                                                                                        libc::c_int
-                                                                                        as
-                                                                                        libc::c_ulong),
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong),
                             b"make_pred_string\x00" as *const u8 as
                                 *const libc::c_char as *mut libc::c_char) as
                     *mut libc::c_char;
@@ -3676,25 +3677,25 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
         } else {
             buffer =
                 malloc_data(strlen((*(*t_ptr).head_ptr.offset(-(1 as
-                                                                    libc::c_int
-                                                                    as
-                                                                    isize))).Goi2.as_mut_ptr()).wrapping_add(strlen(main_pred)).wrapping_add(8
-                                                                                                                                                 as
-                                                                                                                                                 libc::c_int
-                                                                                                                                                 as
-                                                                                                                                                 libc::c_ulong),
+                    libc::c_int
+                    as
+                    isize))).Goi2.as_mut_ptr()).wrapping_add(strlen(main_pred)).wrapping_add(8
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong),
                             b"make_pred_string\x00" as *const u8 as
                                 *const libc::c_char as *mut libc::c_char) as
                     *mut libc::c_char;
             strcpy(buffer,
                    (*(*t_ptr).head_ptr.offset(-(1 as libc::c_int as
-                                                    isize))).Goi2.as_mut_ptr());
+                       isize))).Goi2.as_mut_ptr());
         }
         strcat(buffer, main_pred);
     } else if !orig_form.is_null() {
         buffer =
             malloc_data(strlen(orig_form).wrapping_add(8 as libc::c_int as
-                                                           libc::c_ulong),
+                libc::c_ulong),
                         b"make_pred_string\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_char;
@@ -3702,7 +3703,7 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
     } else {
         buffer =
             malloc_data(strlen(main_pred).wrapping_add(8 as libc::c_int as
-                                                           libc::c_ulong),
+                libc::c_ulong),
                         b"make_pred_string\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_char;
@@ -3718,15 +3719,15 @@ pub unsafe extern "C" fn make_pred_string(mut t_ptr: *mut TAG_DATA,
 pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                                                     mut m_ptr: *mut MRPH_DATA,
                                                     mut orig_form:
-                                                        *mut libc::c_char,
+                                                    *mut libc::c_char,
                                                     mut use_rep_flag:
-                                                        libc::c_int,
+                                                    libc::c_int,
                                                     mut cf_type: libc::c_int,
                                                     mut cpncf_flag:
-                                                        libc::c_int)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                                    libc::c_int)
+                                                    -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut buffer: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut main_pred: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -3757,20 +3758,20 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                 main_pred_malloc_flag = 1 as libc::c_int
             }
         } else if cf_type == 2 as libc::c_int && OptAnaphora != 0 &&
-                      {
-                          cp =
-                              check_feature((*(*t_ptr).b_ptr).f,
-                                            b"\xe6\xad\xa3\xe8\xa6\x8f\xe5\x8c\x96\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\x00"
-                                                as *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char);
-                          !cp.is_null()
-                      } {
+            {
+                cp =
+                    check_feature((*(*t_ptr).b_ptr).f,
+                                  b"\xe6\xad\xa3\xe8\xa6\x8f\xe5\x8c\x96\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\x00"
+                                      as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char);
+                !cp.is_null()
+            } {
             cpncf_flag = (0 as libc::c_int == 0) as libc::c_int;
             rep_strt =
                 cp.offset(strlen(b"\xe6\xad\xa3\xe8\xa6\x8f\xe5\x8c\x96\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98:\x00"
-                                     as *const u8 as *const libc::c_char) as
-                              isize);
+                    as *const u8 as *const libc::c_char) as
+                    isize);
             rep_length = strlen(rep_strt) as libc::c_int;
             main_pred =
                 malloc_data((rep_length + 1 as libc::c_int) as size_t,
@@ -3782,24 +3783,24 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                 '\u{0}' as i32 as libc::c_char;
             main_pred_malloc_flag = 1 as libc::c_int
         } else if cf_type == 2 as libc::c_int && OptUseCPNCF != 0 &&
-                      check_feature((*(*t_ptr).head_ptr).f,
-                                    b"\xe7\x89\xb9\xe6\xae\x8a\xe9\x9d\x9e\xe8\xa6\x8b\xe5\x87\xba\xe8\xaa\x9e\x00"
-                                        as *const u8 as *const libc::c_char as
-                                        *mut libc::c_char).is_null() &&
-                      {
-                          cp =
-                              check_feature((*t_ptr).f,
-                                            b"BGH\x00" as *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char);
-                          !cp.is_null()
-                      } &&
-                      strstr(cp,
-                             b"|\x00" as *const u8 as
-                                 *const libc::c_char).is_null() {
+            check_feature((*(*t_ptr).head_ptr).f,
+                          b"\xe7\x89\xb9\xe6\xae\x8a\xe9\x9d\x9e\xe8\xa6\x8b\xe5\x87\xba\xe8\xaa\x9e\x00"
+                              as *const u8 as *const libc::c_char as
+                              *mut libc::c_char).is_null() &&
+            {
+                cp =
+                    check_feature((*t_ptr).f,
+                                  b"BGH\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char);
+                !cp.is_null()
+            } &&
+            strstr(cp,
+                   b"|\x00" as *const u8 as
+                       *const libc::c_char).is_null() {
             /* 連想照応解析をする場合は正規化代表表記を使用する */
             /* 複合名詞格フレームを用いる場合で、分類語彙表が引けている場合 */
-	/* ただし、BGH中に"|"が含まれている場合は除く */
+            /* ただし、BGH中に"|"が含まれている場合は除く */
             /* 形容詞語幹の場合は通常の代表表記を使用する */
             if !check_feature((*t_ptr).f,
                               b"\xe5\x90\x8d\xe8\xa9\x9e\xe7\x9a\x84\xe5\xbd\xa2\xe5\xae\xb9\xe8\xa9\x9e\xe8\xaa\x9e\xe5\xb9\xb9\x00"
@@ -3812,21 +3813,21 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                 cpncf_flag = (0 as libc::c_int == 0) as libc::c_int;
                 rep_strt =
                     cp.offset(strlen(b"BGH:\x00" as *const u8 as
-                                         *const libc::c_char) as isize);
+                        *const libc::c_char) as isize);
                 rep_length = strlen(rep_strt) as libc::c_int;
                 /* 後方の基本句の分類語彙表の見出しに含まれる基本句は省略解析の対象としない */
-		/* 分類語彙表の見出しが処理対象の基本句より長い場合のみ実行*/
+                /* 分類語彙表の見出しが処理対象の基本句より長い場合のみ実行*/
                 cp = get_mrph_rep((*t_ptr).head_ptr);
                 if 0 as libc::c_int != 0 && !cp.is_null() &&
-                       strncmp(cp, rep_strt,
-                               strlen(cp).wrapping_sub(1 as libc::c_int as
-                                                           libc::c_ulong)) !=
-                           0 {
+                    strncmp(cp, rep_strt,
+                            strlen(cp).wrapping_sub(1 as libc::c_int as
+                                libc::c_ulong)) !=
+                        0 {
                     i = 1 as libc::c_int;
                     while !t_ptr.offset(-(i as isize)).is_null() &&
-                              !(*t_ptr.offset(-(i as
-                                                    isize))).head_ptr.is_null()
-                          {
+                        !(*t_ptr.offset(-(i as
+                            isize))).head_ptr.is_null()
+                    {
                         assign_cfeature(&mut (*t_ptr.offset(-(i as isize))).f,
                                         b"\xe7\x9c\x81\xe7\x95\xa5\xe8\xa7\xa3\xe6\x9e\x90\xe3\x81\xaa\xe3\x81\x97\x00"
                                             as *const u8 as
@@ -3834,24 +3835,24 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                                             *mut libc::c_char,
                                         0 as libc::c_int);
                         if !check_feature((*(*t_ptr.offset(-(i as
-                                                                 isize))).head_ptr).f,
+                            isize))).head_ptr).f,
                                           b"\xe6\x96\x87\xe7\xaf\x80\xe5\xa7\x8b\x00"
                                               as *const u8 as
                                               *const libc::c_char as
                                               *mut libc::c_char).is_null() {
-                            break ;
+                            break;
                         }
                         cp =
                             get_mrph_rep((*t_ptr.offset(-(i as
-                                                              isize))).head_ptr);
+                                isize))).head_ptr);
                         if cp.is_null() ||
-                               strncmp(cp, rep_strt,
-                                       strlen(cp).wrapping_sub(1 as
-                                                                   libc::c_int
-                                                                   as
-                                                                   libc::c_ulong))
-                                   == 0 {
-                            break ;
+                            strncmp(cp, rep_strt,
+                                    strlen(cp).wrapping_sub(1 as
+                                        libc::c_int
+                                        as
+                                        libc::c_ulong))
+                                == 0 {
+                            break;
                         }
                         i += 1
                     }
@@ -3873,12 +3874,12 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
             main_pred =
                 get_mrph_rep_from_f((*t_ptr).head_ptr,
                                     (cf_type & 1 as libc::c_int != 0 &&
-                                         !check_feature((*(*t_ptr).head_ptr).f,
-                                                        b"\xef\xbc\xb4\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\xe5\xa4\x89\xe6\x9b\xb4\xe5\x89\x8d\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\x00"
-                                                            as *const u8 as
-                                                            *const libc::c_char
-                                                            as
-                                                            *mut libc::c_char).is_null())
+                                        !check_feature((*(*t_ptr).head_ptr).f,
+                                                       b"\xef\xbc\xb4\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\xe5\xa4\x89\xe6\x9b\xb4\xe5\x89\x8d\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\x00"
+                                                           as *const u8 as
+                                                           *const libc::c_char
+                                                           as
+                                                           *mut libc::c_char).is_null())
                                         as libc::c_int);
             if main_pred.is_null() {
                 main_pred = make_mrph_rn((*t_ptr).head_ptr);
@@ -3899,11 +3900,11 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                           *mut libc::c_char).is_null() && cpncf_flag == 0 {
         buffer =
             malloc_data(strlen(b"\xe3\x81\x99\xe3\x82\x8b/\xe3\x81\x99\xe3\x82\x8b\x00"
-                                   as *const u8 as
-                                   *const libc::c_char).wrapping_add(8 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         libc::c_ulong),
+                as *const u8 as
+                *const libc::c_char).wrapping_add(8 as
+                libc::c_int
+                as
+                libc::c_ulong),
                         b"make_pred_string_from_mrph\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_char; /* 9(euc) + 8 */
@@ -3923,30 +3924,30 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
         i = 0 as libc::c_int;
         while i < (*t_ptr).mrph_num {
             if !(use_rep_flag != 0 &&
-                     {
-                         cp =
-                             get_mrph_rep_from_f((*t_ptr).mrph_ptr.offset(i as
-                                                                              isize),
-                                                 0 as libc::c_int);
-                         !cp.is_null()
-                     }) {
+                {
+                    cp =
+                        get_mrph_rep_from_f((*t_ptr).mrph_ptr.offset(i as
+                            isize),
+                                            0 as libc::c_int);
+                    !cp.is_null()
+                }) {
                 if (*t_ptr).mrph_ptr.offset(i as isize) < (*t_ptr).head_ptr {
                     /* 主辞より前側 */
                     cp =
                         (*(*t_ptr).mrph_ptr.offset(i as
-                                                       isize)).Goi2.as_mut_ptr()
+                            isize)).Goi2.as_mut_ptr()
                 } else {
                     cp =
                         (*(*t_ptr).mrph_ptr.offset(i as
-                                                       isize)).Goi.as_mut_ptr()
+                            isize)).Goi.as_mut_ptr()
                 }
             }
             length =
                 (length as
-                     libc::c_ulong).wrapping_add(strlen(cp).wrapping_add(1 as
-                                                                             libc::c_int
-                                                                             as
-                                                                             libc::c_ulong))
+                    libc::c_ulong).wrapping_add(strlen(cp).wrapping_add(1 as
+                    libc::c_int
+                    as
+                    libc::c_ulong))
                     as libc::c_int as libc::c_int;
             cp =
                 check_feature((*(*t_ptr).mrph_ptr.offset(i as isize)).f,
@@ -3956,26 +3957,26 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
             if !cp.is_null() {
                 cp =
                     cp.offset(strlen(b"\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe6\x8e\xa5\xe8\xbe\x9e:\x00"
-                                         as *const u8 as *const libc::c_char)
-                                  as isize);
+                        as *const u8 as *const libc::c_char)
+                        as isize);
                 length =
                     (length as
-                         libc::c_ulong).wrapping_add(strlen(cp).wrapping_add(1
-                                                                                 as
-                                                                                 libc::c_int
-                                                                                 as
-                                                                                 libc::c_ulong))
+                        libc::c_ulong).wrapping_add(strlen(cp).wrapping_add(1
+                        as
+                        libc::c_int
+                        as
+                        libc::c_ulong))
                         as libc::c_int as libc::c_int
             }
             i += 1
         }
         buffer =
             malloc_data((length as
-                             libc::c_ulong).wrapping_add(strlen(main_pred)).wrapping_add(8
-                                                                                             as
-                                                                                             libc::c_int
-                                                                                             as
-                                                                                             libc::c_ulong),
+                libc::c_ulong).wrapping_add(strlen(main_pred)).wrapping_add(8
+                as
+                libc::c_int
+                as
+                libc::c_ulong),
                         b"make_pred_string_from_mrph\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_char;
@@ -3987,11 +3988,11 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
         if cpncf_flag == 0 {
             mrph_ptr = (*t_ptr).mrph_ptr;
             while mrph_ptr < (*t_ptr).head_ptr &&
-                      !check_feature((*mrph_ptr.offset(1 as libc::c_int as
-                                                           isize)).f,
-                                     b"\xef\xbc\xb4\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe2\x86\x90\x00"
-                                         as *const u8 as *const libc::c_char
-                                         as *mut libc::c_char).is_null() {
+                !check_feature((*mrph_ptr.offset(1 as libc::c_int as
+                    isize)).f,
+                               b"\xef\xbc\xb4\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe2\x86\x90\x00"
+                                   as *const u8 as *const libc::c_char
+                                   as *mut libc::c_char).is_null() {
                 if is_assigned_pred_begin_feature == 0 {
                     /* 用言代表表記の先頭形態素にマーク */
                     assign_cfeature(&mut (*mrph_ptr).f,
@@ -4001,12 +4002,12 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                     is_assigned_pred_begin_feature = 1 as libc::c_int
                 }
                 if use_rep_flag != 0 &&
-                       {
-                           cp =
-                               get_mrph_rep_from_f(mrph_ptr,
-                                                   0 as libc::c_int);
-                           !cp.is_null()
-                       } {
+                    {
+                        cp =
+                            get_mrph_rep_from_f(mrph_ptr,
+                                                0 as libc::c_int);
+                        !cp.is_null()
+                    } {
                     strcat(buffer, cp);
                 } else {
                     strcat(buffer, (*mrph_ptr).Goi2.as_mut_ptr());
@@ -4037,8 +4038,8 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
         if !cp.is_null() {
             cp =
                 cp.offset(strlen(b"\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe6\x8e\xa5\xe8\xbe\x9e:\x00"
-                                     as *const u8 as *const libc::c_char) as
-                              isize);
+                    as *const u8 as *const libc::c_char) as
+                    isize);
             strcat(buffer, b"~\x00" as *const u8 as *const libc::c_char);
             strcat(buffer, cp);
         }
@@ -4046,19 +4047,19 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
         if cpncf_flag == 0 {
             mrph_ptr = (*t_ptr).head_ptr;
             while mrph_ptr <
-                      (*t_ptr).mrph_ptr.offset((*t_ptr).mrph_num as
-                                                   isize).offset(-(1 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       isize))
-                      &&
-                      !check_feature((*mrph_ptr).f,
-                                     b"\xef\xbc\xb4\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe2\x86\x92\x00"
-                                         as *const u8 as *const libc::c_char
-                                         as *mut libc::c_char).is_null() {
+                (*t_ptr).mrph_ptr.offset((*t_ptr).mrph_num as
+                    isize).offset(-(1 as
+                    libc::c_int
+                    as
+                    isize))
+                &&
+                !check_feature((*mrph_ptr).f,
+                               b"\xef\xbc\xb4\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe2\x86\x92\x00"
+                                   as *const u8 as *const libc::c_char
+                                   as *mut libc::c_char).is_null() {
                 if strcmp(Class[(*mrph_ptr.offset(1 as libc::c_int as
-                                                      isize)).Hinshi as
-                                    usize][0 as libc::c_int as usize].id as
+                    isize)).Hinshi as
+                    usize][0 as libc::c_int as usize].id as
                               *const libc::c_char,
                           b"\xe5\x8a\xa9\xe8\xa9\x9e\x00" as *const u8 as
                               *const libc::c_char) == 0 {
@@ -4068,35 +4069,35 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                     strcat(buffer,
                            b"+\x00" as *const u8 as *const libc::c_char);
                     if use_rep_flag != 0 &&
-                           {
-                               cp =
-                                   get_mrph_rep_from_f(mrph_ptr.offset(1 as
-                                                                           libc::c_int
-                                                                           as
-                                                                           isize),
-                                                       cf_type &
-                                                           1 as libc::c_int);
-                               !cp.is_null()
-                           } {
+                        {
+                            cp =
+                                get_mrph_rep_from_f(mrph_ptr.offset(1 as
+                                    libc::c_int
+                                    as
+                                    isize),
+                                                    cf_type &
+                                                        1 as libc::c_int);
+                            !cp.is_null()
+                        } {
                         strcat(buffer, cp);
                     } else {
                         strcat(buffer,
                                (*mrph_ptr.offset(1 as libc::c_int as
-                                                     isize)).Goi.as_mut_ptr());
+                                   isize)).Goi.as_mut_ptr());
                     }
                     /* 用言見出接辞(テ形)の区別: ~テ形 */
                     cp =
                         check_feature((*mrph_ptr.offset(1 as libc::c_int as
-                                                            isize)).f,
+                            isize)).f,
                                       b"\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe6\x8e\xa5\xe8\xbe\x9e\x00"
                                           as *const u8 as *const libc::c_char
                                           as *mut libc::c_char);
                     if !cp.is_null() {
                         cp =
                             cp.offset(strlen(b"\xe7\x94\xa8\xe8\xa8\x80\xe8\xa6\x8b\xe5\x87\xba\xe6\x8e\xa5\xe8\xbe\x9e:\x00"
-                                                 as *const u8 as
-                                                 *const libc::c_char) as
-                                          isize);
+                                as *const u8 as
+                                *const libc::c_char) as
+                                isize);
                         strcat(buffer,
                                b"~\x00" as *const u8 as *const libc::c_char);
                         strcat(buffer, cp);
@@ -4123,7 +4124,7 @@ pub unsafe extern "C" fn make_pred_string_from_mrph(mut t_ptr: *mut TAG_DATA,
                                       as *const libc::c_char as
                                       *mut libc::c_char).is_null() {
                     semantic_mrph_ptr = (*t_ptr).mrph_ptr.offset(i as isize);
-                    break ;
+                    break;
                 } else { i -= 1 }
             }
             assign_cfeature(&mut (*semantic_mrph_ptr).f,
@@ -4141,13 +4142,13 @@ pub unsafe extern "C" fn make_ipal_cframe(mut sp: *mut SENTENCE_DATA,
                                           mut t_ptr: *mut TAG_DATA,
                                           mut start: libc::c_int,
                                           mut flag: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                          -> libc::c_int
+/*==================================================================*/
+{
     let mut f_num: libc::c_int = 0 as libc::c_int;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     /* 自立語末尾語を用いて格フレーム辞書を引く */
-    if (*t_ptr).jiritu_ptr.is_null() { return f_num }
+    if (*t_ptr).jiritu_ptr.is_null() { return f_num; }
     f_num +=
         make_ipal_cframe_subcontract(sp, t_ptr, 0 as *mut MRPH_DATA,
                                      0 as *mut libc::c_char, start, flag);
@@ -4156,39 +4157,41 @@ pub unsafe extern "C" fn make_ipal_cframe(mut sp: *mut SENTENCE_DATA,
                       b"\xe5\x8e\x9f\xe5\xbd\xa2\xe6\x9b\x96\xe6\x98\xa7\x00"
                           as *const u8 as *const libc::c_char as
                           *mut libc::c_char).is_null() &&
-           flag == 1 as libc::c_int {
+        flag == 1 as libc::c_int {
         let mut fp: *mut FEATURE = 0 as *mut FEATURE;
         let mut m: MRPH_DATA =
-            MRPH_DATA{type_0: 0,
-                      num: 0,
-                      parent: 0 as *mut tnode_b,
-                      child: [0 as *mut tnode_b; 32],
-                      length: 0,
-                      space: 0,
-                      dpnd_head: 0,
-                      dpnd_type: 0,
-                      dpnd_dflt: 0,
-                      para_num: 0,
-                      para_key_type: 0,
-                      para_top_p: 0,
-                      para_type: 0,
-                      to_para_p: 0,
-                      tnum: 0,
-                      inum: 0,
-                      out_head_flag: 0,
-                      Goi: [0; 129],
-                      Yomi: [0; 129],
-                      Goi2: [0; 129],
-                      Hinshi: 0,
-                      Bunrui: 0,
-                      Katuyou_Kata: 0,
-                      Katuyou_Kei: 0,
-                      Imi: [0; 1024],
-                      f: 0 as *mut _FEATURE,
-                      Num: 0,
-                      SM: 0 as *mut libc::c_char,
-                      Pos: [0; 4],
-                      Type: [0; 9],};
+            MRPH_DATA {
+                type_0: 0,
+                num: 0,
+                parent: 0 as *mut tnode_b,
+                child: [0 as *mut tnode_b; 32],
+                length: 0,
+                space: 0,
+                dpnd_head: 0,
+                dpnd_type: 0,
+                dpnd_dflt: 0,
+                para_num: 0,
+                para_key_type: 0,
+                para_top_p: 0,
+                para_type: 0,
+                to_para_p: 0,
+                tnum: 0,
+                inum: 0,
+                out_head_flag: 0,
+                Goi: [0; 129],
+                Yomi: [0; 129],
+                Goi2: [0; 129],
+                Hinshi: 0,
+                Bunrui: 0,
+                Katuyou_Kata: 0,
+                Katuyou_Kei: 0,
+                Imi: [0; 1024],
+                f: 0 as *mut _FEATURE,
+                Num: 0,
+                SM: 0 as *mut libc::c_char,
+                Pos: [0; 4],
+                Type: [0; 9],
+            };
         // let mut str: *mut libc::c_char = 0 as *mut libc::c_char;
         fp = (*(*t_ptr).head_ptr).f;
         while !fp.is_null() {
@@ -4214,21 +4217,21 @@ pub unsafe extern "C" fn make_ipal_cframe(mut sp: *mut SENTENCE_DATA,
     }
     /* ないときで、可能動詞のときは、もとの形を使う */
     if OptCaseFlag & 131072 as libc::c_int == 0 && f_num == 0 as libc::c_int
-           &&
-           {
-               cp =
-                   check_feature((*(*t_ptr).head_ptr).f,
-                                 b"\xe5\x8f\xaf\xe8\x83\xbd\xe5\x8b\x95\xe8\xa9\x9e\x00"
-                                     as *const u8 as *const libc::c_char as
-                                     *mut libc::c_char);
-               !cp.is_null()
-           } {
+        &&
+        {
+            cp =
+                check_feature((*(*t_ptr).head_ptr).f,
+                              b"\xe5\x8f\xaf\xe8\x83\xbd\xe5\x8b\x95\xe8\xa9\x9e\x00"
+                                  as *const u8 as *const libc::c_char as
+                                  *mut libc::c_char);
+            !cp.is_null()
+        } {
         f_num +=
             make_ipal_cframe_subcontract(sp, t_ptr, 0 as *mut MRPH_DATA,
                                          cp.offset(strlen(b"\xe5\x8f\xaf\xe8\x83\xbd\xe5\x8b\x95\xe8\xa9\x9e:\x00"
-                                                              as *const u8 as
-                                                              *const libc::c_char)
-                                                       as isize), start, flag)
+                                             as *const u8 as
+                                             *const libc::c_char)
+                                             as isize), start, flag)
     }
     Case_frame_num += f_num;
     return f_num;
@@ -4236,9 +4239,9 @@ pub unsafe extern "C" fn make_ipal_cframe(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn assign_pred_feature_to_bp(mut sp:
-                                                       *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+                                                   *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut pred_merged_rep_size: libc::c_int = 5120 as libc::c_int;
     let mut pred_string: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -4258,10 +4261,10 @@ pub unsafe extern "C" fn assign_pred_feature_to_bp(mut sp:
                            b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8 as
                                *const libc::c_char as
                                *mut libc::c_char).is_null() ||
-                 !check_feature((*t_ptr).f,
-                                b"\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90\xe3\x81\xaa\xe3\x81\x97\x00"
-                                    as *const u8 as *const libc::c_char as
-                                    *mut libc::c_char).is_null()) {
+            !check_feature((*t_ptr).f,
+                           b"\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90\xe3\x81\xaa\xe3\x81\x97\x00"
+                               as *const u8 as *const libc::c_char as
+                               *mut libc::c_char).is_null()) {
             pred_string =
                 make_pred_string_from_mrph(t_ptr, 0 as *mut MRPH_DATA,
                                            0 as *mut libc::c_char,
@@ -4279,36 +4282,38 @@ pub unsafe extern "C" fn assign_pred_feature_to_bp(mut sp:
                                   *mut libc::c_char).is_null() {
                 let mut fp: *mut FEATURE = 0 as *mut FEATURE;
                 let mut m: MRPH_DATA =
-                    MRPH_DATA{type_0: 0,
-                              num: 0,
-                              parent: 0 as *mut tnode_b,
-                              child: [0 as *mut tnode_b; 32],
-                              length: 0,
-                              space: 0,
-                              dpnd_head: 0,
-                              dpnd_type: 0,
-                              dpnd_dflt: 0,
-                              para_num: 0,
-                              para_key_type: 0,
-                              para_top_p: 0,
-                              para_type: 0,
-                              to_para_p: 0,
-                              tnum: 0,
-                              inum: 0,
-                              out_head_flag: 0,
-                              Goi: [0; 129],
-                              Yomi: [0; 129],
-                              Goi2: [0; 129],
-                              Hinshi: 0,
-                              Bunrui: 0,
-                              Katuyou_Kata: 0,
-                              Katuyou_Kei: 0,
-                              Imi: [0; 1024],
-                              f: 0 as *mut _FEATURE,
-                              Num: 0,
-                              SM: 0 as *mut libc::c_char,
-                              Pos: [0; 4],
-                              Type: [0; 9],};
+                    MRPH_DATA {
+                        type_0: 0,
+                        num: 0,
+                        parent: 0 as *mut tnode_b,
+                        child: [0 as *mut tnode_b; 32],
+                        length: 0,
+                        space: 0,
+                        dpnd_head: 0,
+                        dpnd_type: 0,
+                        dpnd_dflt: 0,
+                        para_num: 0,
+                        para_key_type: 0,
+                        para_top_p: 0,
+                        para_type: 0,
+                        to_para_p: 0,
+                        tnum: 0,
+                        inum: 0,
+                        out_head_flag: 0,
+                        Goi: [0; 129],
+                        Yomi: [0; 129],
+                        Goi2: [0; 129],
+                        Hinshi: 0,
+                        Bunrui: 0,
+                        Katuyou_Kata: 0,
+                        Katuyou_Kei: 0,
+                        Imi: [0; 1024],
+                        f: 0 as *mut _FEATURE,
+                        Num: 0,
+                        SM: 0 as *mut libc::c_char,
+                        Pos: [0; 4],
+                        Type: [0; 9],
+                    };
                 // let mut str: *mut libc::c_char = 0 as *mut libc::c_char;
                 fp = (*(*t_ptr).head_ptr).f;
                 while !fp.is_null() {
@@ -4336,11 +4341,11 @@ pub unsafe extern "C" fn assign_pred_feature_to_bp(mut sp:
                         /* 代表と異なるもの */
                         if strcmp(pred_string, new_pred_string) != 0 {
                             if strlen(pred_merged_rep).wrapping_add(strlen(new_pred_string)).wrapping_add(2
-                                                                                                              as
-                                                                                                              libc::c_int
-                                                                                                              as
-                                                                                                              libc::c_ulong)
-                                   > pred_merged_rep_size as libc::c_ulong {
+                                as
+                                libc::c_int
+                                as
+                                libc::c_ulong)
+                                > pred_merged_rep_size as libc::c_ulong {
                                 pred_merged_rep_size *= 2 as libc::c_int;
                                 pred_merged_rep =
                                     realloc_data(pred_merged_rep as
@@ -4375,9 +4380,9 @@ pub unsafe extern "C" fn assign_pred_feature_to_bp(mut sp:
 #[no_mangle]
 pub unsafe extern "C" fn make_default_cframe(mut t_ptr: *mut TAG_DATA,
                                              mut start: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                             -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut num: libc::c_int = 0 as libc::c_int;
     let mut f_num: libc::c_int = 0 as libc::c_int;
@@ -4391,17 +4396,17 @@ pub unsafe extern "C" fn make_default_cframe(mut t_ptr: *mut TAG_DATA,
         MAX_cf_frame_length += 1024 as libc::c_int;
         cf_str_buf =
             malloc_data((::std::mem::size_of::<libc::c_uchar>() as
-                             libc::c_ulong).wrapping_mul(1024 as libc::c_int
-                                                             as
-                                                             libc::c_ulong),
+                libc::c_ulong).wrapping_mul(1024 as libc::c_int
+                as
+                libc::c_ulong),
                         b"make_default_cframe\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_uchar;
         CF_frame.DATA =
             malloc_data((::std::mem::size_of::<libc::c_uchar>() as
-                             libc::c_ulong).wrapping_mul(1024 as libc::c_int
-                                                             as
-                                                             libc::c_ulong),
+                libc::c_ulong).wrapping_mul(1024 as libc::c_int
+                as
+                libc::c_ulong),
                         b"make_default_cframe\x00" as *const u8 as
                             *const libc::c_char as *mut libc::c_char) as
                 *mut libc::c_uchar
@@ -4484,8 +4489,8 @@ pub unsafe extern "C" fn make_default_cframe(mut t_ptr: *mut TAG_DATA,
                                      as *const u8 as *const libc::c_char as
                                      *mut libc::c_uchar, fresh23,
                                  1 as libc::c_int);
-        } else { return 0 as libc::c_int }
-    } else { return 0 as libc::c_int }
+        } else { return 0 as libc::c_int; }
+    } else { return 0 as libc::c_int; }
     (*cf_ptr).element_num = num;
     (*cf_ptr).etcflag = 0 as libc::c_int;
     /* 代表表記格フレームのときは、IDなどを代表表記にする */
@@ -4498,7 +4503,7 @@ pub unsafe extern "C" fn make_default_cframe(mut t_ptr: *mut TAG_DATA,
         if strlen(rep_name) >= 256 as libc::c_int as libc::c_ulong {
             /* 長すぎるとき */
             *rep_name.offset(256 as libc::c_int as
-                                 isize).offset(-(1 as libc::c_int as isize)) =
+                isize).offset(-(1 as libc::c_int as isize)) =
                 '\u{0}' as i32 as libc::c_char
         }
         sprintf((*cf_ptr).cf_id.as_mut_ptr(),
@@ -4536,9 +4541,9 @@ pub unsafe extern "C" fn make_default_cframe(mut t_ptr: *mut TAG_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn make_caseframes(mut sp: *mut SENTENCE_DATA,
                                          mut t_ptr: *mut TAG_DATA,
-                                         mut flag: libc::c_int) 
- /*==================================================================*/
- {
+                                         mut flag: libc::c_int)
+/*==================================================================*/
+{
     let mut current_cf_num: libc::c_int = 0;
     current_cf_num = make_ipal_cframe(sp, t_ptr, Case_frame_num, flag);
     (*t_ptr).cf_num += current_cf_num;
@@ -4556,7 +4561,7 @@ pub unsafe extern "C" fn make_caseframes(mut sp: *mut SENTENCE_DATA,
             i = 0 as libc::c_int;
             while i < (*t_ptr).mrph_num {
                 fputs((*(*t_ptr).mrph_ptr.offset(i as
-                                                     isize)).Goi2.as_mut_ptr(),
+                    isize)).Goi2.as_mut_ptr(),
                       stderr);
                 i += 1
             }
@@ -4568,9 +4573,9 @@ pub unsafe extern "C" fn make_caseframes(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn copy_cf_pointer(mut dst: *mut CASE_FRAME,
-                                         mut src: *mut CASE_FRAME) 
- /*==================================================================*/
- {
+                                         mut src: *mut CASE_FRAME)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     (*dst).type_0 = (*src).type_0;
@@ -4667,15 +4672,15 @@ pub unsafe extern "C" fn copy_cf_pointer(mut dst: *mut CASE_FRAME,
 #[no_mangle]
 pub unsafe extern "C" fn copy_cf_array(mut start_ptr: *mut CASE_FRAME,
                                        mut num: libc::c_int)
- -> *mut CASE_FRAME 
- /*==================================================================*/
- {
+                                       -> *mut CASE_FRAME
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut dst_ptr: *mut CASE_FRAME = 0 as *mut CASE_FRAME;
     /* CASE_FRAME構造体を個数分確保し、Case_frame_arrayからポインタをコピー */
     dst_ptr =
         malloc_data((::std::mem::size_of::<CASE_FRAME>() as
-                         libc::c_ulong).wrapping_mul(num as libc::c_ulong),
+            libc::c_ulong).wrapping_mul(num as libc::c_ulong),
                     b"copy_cf_array\x00" as *const u8 as *const libc::c_char
                         as *mut libc::c_char) as *mut CASE_FRAME;
     init_cf_structure(dst_ptr, num);
@@ -4689,9 +4694,9 @@ pub unsafe extern "C" fn copy_cf_array(mut start_ptr: *mut CASE_FRAME,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn set_frame_num_max(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn set_frame_num_max(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut suru_num: libc::c_int = 0;
     suru_num = 0 as libc::c_int;
@@ -4708,15 +4713,15 @@ pub unsafe extern "C" fn set_frame_num_max(mut sp: *mut SENTENCE_DATA)
     /* suru_num > 2 の場合と、suru_num = 1 で sp->Tag_num > 10 の場合は  */
     /* 格フレーム数を制限(実際には"する/する"の格フレームのみ制限される) */
     if suru_num > 1 as libc::c_int ||
-           suru_num == 1 as libc::c_int && (*sp).Tag_num > 10 as libc::c_int {
+        suru_num == 1 as libc::c_int && (*sp).Tag_num > 10 as libc::c_int {
         (*sp).frame_num_max = 128 as libc::c_int
     };
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn set_caseframes(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn set_caseframes(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut start: libc::c_int = 0;
@@ -4731,37 +4736,37 @@ pub unsafe extern "C" fn set_caseframes(mut sp: *mut SENTENCE_DATA)
         /* 正解コーパスを入力したときに自立語がない場合がある */
         (*t_ptr).cf_num = 0 as libc::c_int; /* ヴォイス */
         if !(*t_ptr).jiritu_ptr.is_null() &&
-               check_feature((*t_ptr).f,
-                             b"\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90\xe3\x81\xaa\xe3\x81\x97\x00"
-                                 as *const u8 as *const libc::c_char as
-                                 *mut libc::c_char).is_null() {
+            check_feature((*t_ptr).f,
+                          b"\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90\xe3\x81\xaa\xe3\x81\x97\x00"
+                              as *const u8 as *const libc::c_char as
+                              *mut libc::c_char).is_null() {
             if OptUseNCF != 0 &&
-                   !check_feature((*t_ptr).f,
-                                  b"\xe4\xbd\x93\xe8\xa8\x80\x00" as *const u8
-                                      as *const libc::c_char as
-                                      *mut libc::c_char).is_null() {
+                !check_feature((*t_ptr).f,
+                               b"\xe4\xbd\x93\xe8\xa8\x80\x00" as *const u8
+                                   as *const libc::c_char as
+                                   *mut libc::c_char).is_null() {
                 make_caseframes(sp, t_ptr, 2 as libc::c_int);
             }
             if OptUseCF != 0 &&
-                   (!check_feature((*t_ptr).f,
-                                   b"\xe7\x94\xa8\xe8\xa8\x80\x00" as
-                                       *const u8 as *const libc::c_char as
-                                       *mut libc::c_char).is_null() ||
-                        !check_feature((*t_ptr).f,
-                                       b"\xe9\x9d\x9e\xe7\x94\xa8\xe8\xa8\x80\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90\x00"
-                                           as *const u8 as *const libc::c_char
-                                           as *mut libc::c_char).is_null() &&
-                            (OptCaseFlag & 16 as libc::c_int == 0 ||
-                                 OptCaseFlag & 524288 as libc::c_int != 0 ||
-                                 OptEllipsis & 1 as libc::c_int != 0 ||
-                                 OptAnaphora != 0 ||
-                                 (*t_ptr).inum == 1 as libc::c_int &&
-                                     !check_feature((*(*t_ptr).b_ptr).f,
-                                                    b"\xe3\x82\xbf\xe3\x82\xb0\xe5\x8d\x98\xe4\xbd\x8d\xe5\x8f\x97:-1\x00"
-                                                        as *const u8 as
-                                                        *const libc::c_char as
-                                                        *mut libc::c_char).is_null()))
-               {
+                (!check_feature((*t_ptr).f,
+                                b"\xe7\x94\xa8\xe8\xa8\x80\x00" as
+                                    *const u8 as *const libc::c_char as
+                                    *mut libc::c_char).is_null() ||
+                    !check_feature((*t_ptr).f,
+                                   b"\xe9\x9d\x9e\xe7\x94\xa8\xe8\xa8\x80\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90\x00"
+                                       as *const u8 as *const libc::c_char
+                                       as *mut libc::c_char).is_null() &&
+                        (OptCaseFlag & 16 as libc::c_int == 0 ||
+                            OptCaseFlag & 524288 as libc::c_int != 0 ||
+                            OptEllipsis & 1 as libc::c_int != 0 ||
+                            OptAnaphora != 0 ||
+                            (*t_ptr).inum == 1 as libc::c_int &&
+                                !check_feature((*(*t_ptr).b_ptr).f,
+                                               b"\xe3\x82\xbf\xe3\x82\xb0\xe5\x8d\x98\xe4\xbd\x8d\xe5\x8f\x97:-1\x00"
+                                                   as *const u8 as
+                                                   *const libc::c_char as
+                                                   *mut libc::c_char).is_null()))
+            {
                 set_pred_voice(t_ptr as *mut BNST_DATA);
                 make_caseframes(sp, t_ptr, 1 as libc::c_int);
                 (*t_ptr).e_cf_num = (*t_ptr).cf_num
@@ -4791,17 +4796,17 @@ pub unsafe extern "C" fn set_caseframes(mut sp: *mut SENTENCE_DATA)
 	       格フレームの表記がひらがなの場合が多ければひらがなの格フレームのみを対象に、
 	       ひらがな以外が多ければひらがな以外のみを対象にするためのfeatureを付与 */
             if OptCaseFlag & 32 as libc::c_int == 0 &&
-                   check_str_type((*(*t_ptr).head_ptr).Goi.as_mut_ptr() as
-                                      *mut libc::c_uchar, 2 as libc::c_int,
-                                  0 as libc::c_int) != 0 {
+                check_str_type((*(*t_ptr).head_ptr).Goi.as_mut_ptr() as
+                                   *mut libc::c_uchar, 2 as libc::c_int,
+                               0 as libc::c_int) != 0 {
                 hiragana_count = 0 as libc::c_int;
                 j = 0 as libc::c_int;
                 while j < (*t_ptr).cf_num {
                     if check_str_type((*(*t_ptr).cf_ptr.offset(j as
-                                                                   isize)).entry
+                        isize)).entry
                                           as *mut libc::c_uchar,
                                       2 as libc::c_int, 0 as libc::c_int) != 0
-                       {
+                    {
                         hiragana_count += 1
                     }
                     j += 1
@@ -4821,9 +4826,9 @@ pub unsafe extern "C" fn set_caseframes(mut sp: *mut SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn clear_cf(mut flag: libc::c_int) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn clear_cf(mut flag: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut end: libc::c_int = 0;
@@ -4837,31 +4842,31 @@ pub unsafe extern "C" fn clear_cf(mut flag: libc::c_int)
         }
         if !(*Case_frame_array.offset(i as isize)).entry.is_null() {
             free((*Case_frame_array.offset(i as isize)).entry as
-                     *mut libc::c_void);
+                *mut libc::c_void);
             let ref mut fresh25 =
                 (*Case_frame_array.offset(i as isize)).entry;
             *fresh25 = 0 as *mut libc::c_char
         }
         if !(*Case_frame_array.offset(i as isize)).feature.is_null() {
             free((*Case_frame_array.offset(i as isize)).feature as
-                     *mut libc::c_void);
+                *mut libc::c_void);
             let ref mut fresh26 =
                 (*Case_frame_array.offset(i as isize)).feature;
             *fresh26 = 0 as *mut libc::c_char
         }
         j = 0 as libc::c_int;
         while !(*Case_frame_array.offset(i as
-                                             isize)).cf_align[j as
-                                                                  usize].cf_id.is_null()
-              {
+            isize)).cf_align[j as
+            usize].cf_id.is_null()
+        {
             free((*Case_frame_array.offset(i as
-                                               isize)).cf_align[j as
-                                                                    usize].cf_id
-                     as *mut libc::c_void);
+                isize)).cf_align[j as
+                usize].cf_id
+                as *mut libc::c_void);
             let ref mut fresh27 =
                 (*Case_frame_array.offset(i as
-                                              isize)).cf_align[j as
-                                                                   usize].cf_id;
+                    isize)).cf_align[j as
+                    usize].cf_id;
             *fresh27 = 0 as *mut libc::c_char;
             j += 1
         }
@@ -4872,13 +4877,13 @@ pub unsafe extern "C" fn clear_cf(mut flag: libc::c_int)
 #[no_mangle]
 pub unsafe extern "C" fn check_cf_case(mut cfp: *mut CASE_FRAME,
                                        mut pp: *mut libc::c_char)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                       -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*cfp).element_num {
-        if MatchPP2((*cfp).pp[i as usize].as_mut_ptr(), pp) != 0 { return i }
+        if MatchPP2((*cfp).pp[i as usize].as_mut_ptr(), pp) != 0 { return i; }
         i += 1
     }
     return -(1 as libc::c_int);
@@ -4886,9 +4891,9 @@ pub unsafe extern "C" fn check_cf_case(mut cfp: *mut CASE_FRAME,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn malloc_db_buf(mut size: libc::c_int)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                       -> *mut libc::c_char
+/*==================================================================*/
+{
     if db_buf_size == 0 as libc::c_int {
         db_buf_size = 5120 as libc::c_int;
         db_buf =
@@ -4911,9 +4916,9 @@ pub unsafe extern "C" fn malloc_db_buf(mut size: libc::c_int)
 #[no_mangle]
 pub unsafe extern "C" fn get_cfs_similarity(mut cf1: *mut libc::c_char,
                                             mut cf2: *mut libc::c_char)
- -> libc::c_float 
- /*==================================================================*/
- {
+                                            -> libc::c_float
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut verb1: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -4922,10 +4927,10 @@ pub unsafe extern "C" fn get_cfs_similarity(mut cf1: *mut libc::c_char,
     let mut id1: libc::c_int = 0;
     let mut id2: libc::c_int = 0;
     if CFSimExist == 0 as libc::c_int || cf1.is_null() || cf2.is_null() {
-        return 0 as libc::c_int as libc::c_float
+        return 0 as libc::c_int as libc::c_float;
     }
     /* 同じとき */
-    if strcmp(cf1, cf2) == 0 { return 1.0f64 as libc::c_float }
+    if strcmp(cf1, cf2) == 0 { return 1.0f64 as libc::c_float; }
     verb1 = strdup(cf1);
     verb2 = strdup(cf2);
     sscanf(cf1, b"%[^0-9]%d\x00" as *const u8 as *const libc::c_char, verb1,
@@ -4934,11 +4939,11 @@ pub unsafe extern "C" fn get_cfs_similarity(mut cf1: *mut libc::c_char,
            &mut id2 as *mut libc::c_int);
     key =
         malloc_data((::std::mem::size_of::<libc::c_char>() as
-                         libc::c_ulong).wrapping_mul(strlen(cf1).wrapping_add(strlen(cf2)).wrapping_add(2
-                                                                                                            as
-                                                                                                            libc::c_int
-                                                                                                            as
-                                                                                                            libc::c_ulong)),
+            libc::c_ulong).wrapping_mul(strlen(cf1).wrapping_add(strlen(cf2)).wrapping_add(2
+            as
+            libc::c_int
+            as
+            libc::c_ulong)),
                     b"get_cfs_similarity\x00" as *const u8 as
                         *const libc::c_char as *mut libc::c_char) as
             *mut libc::c_char;
@@ -4963,17 +4968,17 @@ pub unsafe extern "C" fn get_cfs_similarity(mut cf1: *mut libc::c_char,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_cf_probability_internal(mut key:
-                                                         *mut libc::c_char)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                     *mut libc::c_char)
+                                                     -> libc::c_double
+/*==================================================================*/
+{
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0.;
     value = db_get(cfp_db, key);
     if !value.is_null() {
         ret = atof(value);
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (CF) P(%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, key, ret);
@@ -4982,7 +4987,7 @@ pub unsafe extern "C" fn get_cf_probability_internal(mut key:
         ret = log(ret)
     } else {
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (CF) P(%s) = 0\n\x00" as *const u8 as
                         *const libc::c_char, key);
@@ -4995,9 +5000,9 @@ pub unsafe extern "C" fn get_cf_probability_internal(mut key:
 #[no_mangle]
 pub unsafe extern "C" fn get_cf_probability_for_pred(mut cfd: *mut CASE_FRAME,
                                                      mut cfp: *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                     -> libc::c_double
+/*==================================================================*/
+{
     /* 格フレーム選択確率 P(食べる/たべる:動2|食べる/たべる:動)
        KNP格解析結果 (cfp.prob) */
     let mut vtype: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -5006,18 +5011,18 @@ pub unsafe extern "C" fn get_cf_probability_for_pred(mut cfd: *mut CASE_FRAME,
     let mut num: libc::c_int = 0;
     let mut tp: *mut TAG_DATA = (*cfd).pred_b_ptr;
     if CfpExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     vtype =
         check_feature((*tp).f, b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8 as *const libc::c_char as *mut libc::c_char);
     if !vtype.is_null() {
         vtype = vtype.offset(strlen(b"\xe7\x94\xa8\xe8\xa8\x80:\x00" as *const u8 as *const libc::c_char) as isize)
     } else {
-        vtype = check_feature((*tp).f, b"\xe9\x9d\x9e\xe7\x94\xa8\xe8\xa8\x80\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90\x00"  as *const u8 as *const libc::c_char as  *mut libc::c_char);
+        vtype = check_feature((*tp).f, b"\xe9\x9d\x9e\xe7\x94\xa8\xe8\xa8\x80\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90\x00" as *const u8 as *const libc::c_char as *mut libc::c_char);
         if !vtype.is_null() {
             vtype = vtype.offset(strlen(b"\xe9\x9d\x9e\xe7\x94\xa8\xe8\xa8\x80\xe6\xa0\xbc\xe8\xa7\xa3\xe6\x9e\x90:\x00" as *const u8 as *const libc::c_char) as isize)
         } else {
-            return -11.512925f64
+            return -11.512925f64;
         }
     }
     if OptCaseFlag & 131072 as libc::c_int != 0 {
@@ -5029,17 +5034,17 @@ pub unsafe extern "C" fn get_cf_probability_for_pred(mut cfd: *mut CASE_FRAME,
             key = malloc_db_buf(strlen((*cfp).cf_id.as_mut_ptr()).wrapping_add(strlen(pred_string)).wrapping_add(8 as libc::c_int as libc::c_ulong) as libc::c_int);
             sprintf(key, b"%s|%s:%s\x00" as *const u8 as *const libc::c_char, (*cfp).cf_id.as_mut_ptr(), pred_string, vtype);
         } else {
-            return -11.512925f64
+            return -11.512925f64;
         }
     } else {
         /* 用言表記を格フレームIDから抽出しない場合 */
         key =
             malloc_db_buf(strlen((*cfp).cf_id.as_mut_ptr()).wrapping_add(strlen((*(*tp).head_ptr).Goi.as_mut_ptr())).wrapping_add(8
-                                                                                                                                      as
-                                                                                                                                      libc::c_int
-                                                                                                                                      as
-                                                                                                                                      libc::c_ulong)
-                              as libc::c_int);
+                as
+                libc::c_int
+                as
+                libc::c_ulong)
+                as libc::c_int);
         num =
             sscanf((*cfp).cf_id.as_mut_ptr(),
                    b"%*[^:]:%*[^:]:%[PC]%*d\x00" as *const u8 as
@@ -5062,16 +5067,16 @@ pub unsafe extern "C" fn get_cf_probability_for_pred(mut cfd: *mut CASE_FRAME,
 #[no_mangle]
 pub unsafe extern "C" fn get_cf_probability_for_noun(mut cfd: *mut CASE_FRAME,
                                                      mut cfp: *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                     -> libc::c_double
+/*==================================================================*/
+{
     /* 格フレーム選択確率 P(レバー/ればー:名1|レバー/ればー:名)
        KNP格解析結果 (cfp.prob) */
     let mut num: libc::c_int = 0;
     let mut pred_id: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     if CfpExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     pred_id = strdup((*cfp).cf_id.as_mut_ptr());
     num =
@@ -5099,9 +5104,9 @@ pub unsafe extern "C" fn get_cf_probability_for_noun(mut cfd: *mut CASE_FRAME,
 #[no_mangle]
 pub unsafe extern "C" fn get_cf_probability(mut cfd: *mut CASE_FRAME,
                                             mut cfp: *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                            -> libc::c_double
+/*==================================================================*/
+{
     return if (*cfp).type_0 == 1 as libc::c_int {
         /* 用言格フレーム */
         get_cf_probability_for_pred(cfd, cfp)
@@ -5113,15 +5118,15 @@ pub unsafe extern "C" fn get_cf_probability(mut cfd: *mut CASE_FRAME,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_case_probability_from_str(mut case_str:
-                                                           *mut libc::c_char,
+                                                       *mut libc::c_char,
                                                        mut cfp:
-                                                           *mut CASE_FRAME,
+                                                       *mut CASE_FRAME,
                                                        mut aflag: libc::c_int,
                                                        mut para_cpm_ptr:
-                                                           *mut CF_PRED_MGR)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                       *mut CF_PRED_MGR)
+                                                       -> libc::c_double
+/*==================================================================*/
+{
     /* 格確率 P(ガ格○|食べる:動2)
        KNP格解析結果から計算 (cfcases.prob) */
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -5134,36 +5139,36 @@ pub unsafe extern "C" fn get_case_probability_from_str(mut case_str:
     let mut denominator: libc::c_int = 0 as libc::c_int;
     let mut num: libc::c_int = 0;
     if CFCaseExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     if OptParaNoFixFlag & 4 as libc::c_int != 0 && !para_cpm_ptr.is_null() &&
-           (*para_cpm_ptr).result_num != 0 as libc::c_int &&
-           !(*para_cpm_ptr).cmm[0 as libc::c_int as usize].cf_ptr.is_null() &&
-           (*(*para_cpm_ptr).cmm[0 as libc::c_int as usize].cf_ptr).cf_address
-               != -(1 as libc::c_int) as libc::c_ulonglong &&
-           (*para_cpm_ptr).cmm[0 as libc::c_int as usize].score !=
-               -(1001 as libc::c_int) as libc::c_double {
+        (*para_cpm_ptr).result_num != 0 as libc::c_int &&
+        !(*para_cpm_ptr).cmm[0 as libc::c_int as usize].cf_ptr.is_null() &&
+        (*(*para_cpm_ptr).cmm[0 as libc::c_int as usize].cf_ptr).cf_address
+            != -(1 as libc::c_int) as libc::c_ulonglong &&
+        (*para_cpm_ptr).cmm[0 as libc::c_int as usize].score !=
+            -(1001 as libc::c_int) as libc::c_double {
         let mut i: libc::c_int = 0;
         i = 0 as libc::c_int;
         while i <
-                  (*(*para_cpm_ptr).cmm[0 as libc::c_int as
-                                            usize].cf_ptr).element_num {
+            (*(*para_cpm_ptr).cmm[0 as libc::c_int as
+                usize].cf_ptr).element_num {
             if MatchPP((*(*para_cpm_ptr).cmm[0 as libc::c_int as
-                                                 usize].cf_ptr).pp[i as
-                                                                       usize][0
-                                                                                  as
-                                                                                  libc::c_int
-                                                                                  as
-                                                                                  usize],
+                usize].cf_ptr).pp[i as
+                usize][0
+                as
+                libc::c_int
+                as
+                usize],
                        case_str) != 0 {
                 num =
                     (*para_cpm_ptr).cmm[0 as libc::c_int as
-                                            usize].result_lists_p[0 as
-                                                                      libc::c_int
-                                                                      as
-                                                                      usize].flag[i
-                                                                                      as
-                                                                                      usize];
+                        usize].result_lists_p[0 as
+                        libc::c_int
+                        as
+                        usize].flag[i
+                        as
+                        usize];
                 if num == -(1 as libc::c_int) {
                     /* 並列述語の格フレームに対象格があるが、割り当てなし */
                     para_cond =
@@ -5174,7 +5179,7 @@ pub unsafe extern "C" fn get_case_probability_from_str(mut case_str:
                         b"PO\x00" as *const u8 as *const libc::c_char as
                             *mut libc::c_char
                 }
-                break ;
+                break;
             } else { i += 1 }
         }
         if para_cond.is_null() {
@@ -5191,12 +5196,12 @@ pub unsafe extern "C" fn get_case_probability_from_str(mut case_str:
     /* 格フレーム */
     key =
         malloc_db_buf(strlen(case_str).wrapping_mul(2 as libc::c_int as
-                                                        libc::c_ulong).wrapping_add(strlen((*cfp).cf_id.as_mut_ptr())).wrapping_add(6
-                                                                                                                                        as
-                                                                                                                                        libc::c_int
-                                                                                                                                        as
-                                                                                                                                        libc::c_ulong)
-                          as libc::c_int);
+            libc::c_ulong).wrapping_add(strlen((*cfp).cf_id.as_mut_ptr())).wrapping_add(6
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     if OptParaNoFixFlag & 4 as libc::c_int != 0 {
         sprintf(key, b"%s|%s,%s,%s\x00" as *const u8 as *const libc::c_char,
                 case_str, (*cfp).cf_id.as_mut_ptr(), case_str, para_cond);
@@ -5268,7 +5273,7 @@ pub unsafe extern "C" fn get_case_probability_from_str(mut case_str:
             denominator as libc::c_double /
                 (denominator + 1 as libc::c_int) as libc::c_double;
         if VerboseLevel as libc::c_uint >=
-               VERBOSE1 as libc::c_int as libc::c_uint {
+            VERBOSE1 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (C) lambda * P(%s|%s,%s) + (1 - lambda) * P(%s|%s,%s) = %lf * %lf + %lf * %lf\n\x00"
                         as *const u8 as *const libc::c_char, case_str,
@@ -5280,7 +5285,7 @@ pub unsafe extern "C" fn get_case_probability_from_str(mut case_str:
         pred_ret += lambda * cf_ret
     } else if pred_ret > 0 as libc::c_int as libc::c_double {
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (C) P(%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, key, pred_ret);
@@ -5290,14 +5295,14 @@ pub unsafe extern "C" fn get_case_probability_from_str(mut case_str:
         /* 格フレームのみ値が存在 */
         pred_ret = cf_ret;
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (C) P(%s|%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, case_str,
                     (*cfp).cf_id.as_mut_ptr(), pred_ret);
         }
     } else if VerboseLevel as libc::c_uint >=
-                  VERBOSE3 as libc::c_int as libc::c_uint {
+        VERBOSE3 as libc::c_int as libc::c_uint {
         fprintf(Outfp,
                 b";; (C) P(%s) = 0\n\x00" as *const u8 as *const libc::c_char,
                 key);
@@ -5317,10 +5322,10 @@ pub unsafe extern "C" fn get_case_probability(mut as2: libc::c_int,
                                               mut cfp: *mut CASE_FRAME,
                                               mut aflag: libc::c_int,
                                               mut para_cpm_ptr:
-                                                  *mut CF_PRED_MGR)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                              *mut CF_PRED_MGR)
+                                              -> libc::c_double
+/*==================================================================*/
+{
     /* 格確率 P(ガ格○|食べる/たべる:動2)
        KNP格解析結果から計算 (cfcase.prob) */
     return if (*cfp).type_0 == 1 as libc::c_int {
@@ -5329,7 +5334,7 @@ pub unsafe extern "C" fn get_case_probability(mut as2: libc::c_int,
             pp_code_to_kstr((*cfp).pp[as2 as usize][0 as libc::c_int as usize]),
             cfp,
             aflag,
-            para_cpm_ptr
+            para_cpm_ptr,
         )
     } else {
         /* 名詞格フレーム */
@@ -5337,7 +5342,7 @@ pub unsafe extern "C" fn get_case_probability(mut as2: libc::c_int,
             (*cfp).pp_str[as2 as usize],
             cfp,
             aflag,
-            para_cpm_ptr
+            para_cpm_ptr,
         )
     };
 }
@@ -5346,10 +5351,10 @@ pub unsafe extern "C" fn get_case_probability(mut as2: libc::c_int,
 pub unsafe extern "C" fn get_case_num_probability(mut cfp: *mut CASE_FRAME,
                                                   mut num: libc::c_int,
                                                   mut para_cpm_ptr:
-                                                      *mut CF_PRED_MGR)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                  *mut CF_PRED_MGR)
+                                                  -> libc::c_double
+/*==================================================================*/
+{
     /* 格の個数確率 P(2|食べる/たべる:動2)
        KNP格解析結果から計算 (cfcase.prob) */
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -5362,18 +5367,18 @@ pub unsafe extern "C" fn get_case_num_probability(mut cfp: *mut CASE_FRAME,
     let mut denominator: libc::c_int = 0 as libc::c_int;
     /* 名詞の場合は個数を生成しない */
     if CFCaseExist == 0 as libc::c_int || (*cfp).type_0 == 2 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     if OptParaNoFixFlag & 4 as libc::c_int != 0 && !para_cpm_ptr.is_null() &&
-           (*para_cpm_ptr).result_num != 0 as libc::c_int &&
-           !(*para_cpm_ptr).cmm[0 as libc::c_int as usize].cf_ptr.is_null() &&
-           (*(*para_cpm_ptr).cmm[0 as libc::c_int as usize].cf_ptr).cf_address
-               != -(1 as libc::c_int) as libc::c_ulonglong &&
-           (*para_cpm_ptr).cmm[0 as libc::c_int as usize].score !=
-               -(1001 as libc::c_int) as libc::c_double {
+        (*para_cpm_ptr).result_num != 0 as libc::c_int &&
+        !(*para_cpm_ptr).cmm[0 as libc::c_int as usize].cf_ptr.is_null() &&
+        (*(*para_cpm_ptr).cmm[0 as libc::c_int as usize].cf_ptr).cf_address
+            != -(1 as libc::c_int) as libc::c_ulonglong &&
+        (*para_cpm_ptr).cmm[0 as libc::c_int as usize].score !=
+            -(1001 as libc::c_int) as libc::c_double {
         if (*(*para_cpm_ptr).cmm[0 as libc::c_int as
-                                     usize].cf_ptr).element_num >
-               0 as libc::c_int {
+            usize].cf_ptr).element_num >
+            0 as libc::c_int {
             para_cond =
                 b"PO\x00" as *const u8 as *const libc::c_char as
                     *mut libc::c_char
@@ -5391,10 +5396,10 @@ pub unsafe extern "C" fn get_case_num_probability(mut cfp: *mut CASE_FRAME,
     /* 格フレーム */
     key =
         malloc_db_buf(strlen((*cfp).cf_id.as_mut_ptr()).wrapping_add(9 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         libc::c_ulong)
-                          as libc::c_int);
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     if OptParaNoFixFlag & 4 as libc::c_int != 0 {
         sprintf(key, b"%d|N:%s,%s\x00" as *const u8 as *const libc::c_char,
                 num, (*cfp).cf_id.as_mut_ptr(), para_cond);
@@ -5457,7 +5462,7 @@ pub unsafe extern "C" fn get_case_num_probability(mut cfp: *mut CASE_FRAME,
             denominator as libc::c_double /
                 (denominator + 1 as libc::c_int) as libc::c_double;
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (CN) lambda * P(%d|N:%s,%s) + (1 - lambda) * P(%d|N:%s,%s) = %lf * %lf + %lf * %lf\n\x00"
                         as *const u8 as *const libc::c_char, num,
@@ -5469,7 +5474,7 @@ pub unsafe extern "C" fn get_case_num_probability(mut cfp: *mut CASE_FRAME,
         pred_ret += lambda * cf_ret
     } else if pred_ret > 0 as libc::c_int as libc::c_double {
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (CN) P(%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, key, pred_ret);
@@ -5479,14 +5484,14 @@ pub unsafe extern "C" fn get_case_num_probability(mut cfp: *mut CASE_FRAME,
         /* 格フレームのみ値が存在 */
         pred_ret = cf_ret;
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (CN) P(%d|N:%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, num, (*cfp).cf_id.as_mut_ptr(),
                     pred_ret);
         }
     } else if VerboseLevel as libc::c_uint >=
-                  VERBOSE3 as libc::c_int as libc::c_uint {
+        VERBOSE3 as libc::c_int as libc::c_uint {
         fprintf(Outfp,
                 b";; (CN) P(%s) = 0\n\x00" as *const u8 as
                     *const libc::c_char, key);
@@ -5500,14 +5505,14 @@ pub unsafe extern "C" fn get_case_num_probability(mut cfp: *mut CASE_FRAME,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn _get_ex_category_probability(mut key:
-                                                          *mut libc::c_char,
+                                                      *mut libc::c_char,
                                                       mut as2: libc::c_int,
                                                       mut cfp:
-                                                          *mut CASE_FRAME,
+                                                      *mut CASE_FRAME,
                                                       mut fp: *mut FEATURE)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                      -> libc::c_double
+/*==================================================================*/
+{
     /* カテゴリ-用例確率 
        P(リンゴ/りんご|人工物-食べ物)*P(人工物-食べ物|食べる:動2:ガ格) */
     let mut i: libc::c_int = 0;
@@ -5524,25 +5529,25 @@ pub unsafe extern "C" fn _get_ex_category_probability(mut key:
                    2 as libc::c_int as libc::c_ulong) == 0 {
             strcpy(category.as_mut_ptr(),
                    (*(*cfp).gex_list[as2 as
-                                         usize].offset(i as
-                                                           isize)).offset(3 as
-                                                                              libc::c_int
-                                                                              as
-                                                                              isize));
+                       usize].offset(i as
+                       isize)).offset(3 as
+                       libc::c_int
+                       as
+                       isize));
             if !strchr(category.as_mut_ptr(), '>' as i32).is_null() {
                 *strchr(category.as_mut_ptr(), '>' as i32) =
                     '\u{0}' as i32 as libc::c_char
             }
             /* 該当するカテゴリが対象の語のfeatureに含まれていた場合 */
             if check_category(fp, category.as_mut_ptr(), 0 as libc::c_int) !=
-                   0 {
+                0 {
                 ex_category =
                     malloc_data((::std::mem::size_of::<libc::c_char>() as
-                                     libc::c_ulong).wrapping_mul(strlen(key).wrapping_add(strlen(category.as_mut_ptr())).wrapping_add(5
-                                                                                                                                          as
-                                                                                                                                          libc::c_int
-                                                                                                                                          as
-                                                                                                                                          libc::c_ulong)),
+                        libc::c_ulong).wrapping_mul(strlen(key).wrapping_add(strlen(category.as_mut_ptr())).wrapping_add(5
+                        as
+                        libc::c_int
+                        as
+                        libc::c_ulong)),
                                 b"get_ex_category_probability\x00" as
                                     *const u8 as *const libc::c_char as
                                     *mut libc::c_char) as *mut libc::c_char;
@@ -5552,14 +5557,14 @@ pub unsafe extern "C" fn _get_ex_category_probability(mut key:
                 value = db_get(case_db, ex_category);
                 if !value.is_null() {
                     if VerboseLevel as libc::c_uint >=
-                           VERBOSE3 as libc::c_int as libc::c_uint {
+                        VERBOSE3 as libc::c_int as libc::c_uint {
                         fprintf(Outfp,
                                 b";; (EX-CATEGORY)%s %f %f\n\x00" as *const u8
                                     as *const libc::c_char, ex_category,
                                 atof(value),
                                 *(*cfp).gex_freq[as2 as
-                                                     usize].offset(i as
-                                                                       isize));
+                                    usize].offset(i as
+                                    isize));
                     }
                     prob =
                         atof(value) *
@@ -5580,9 +5585,9 @@ pub unsafe extern "C" fn get_ex_ne_probability(mut cp: *mut libc::c_char,
                                                mut as2: libc::c_int,
                                                mut cfp: *mut CASE_FRAME,
                                                mut flag: libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                               -> libc::c_double
+/*==================================================================*/
+{
     /* 固有表現-用例確率 
        P(京大|LOCATION)*P(LOCATION|行く:動2:ニ格) */
     /* 入力key=NE:LOCATION:京大 */
@@ -5606,7 +5611,7 @@ pub unsafe extern "C" fn get_ex_ne_probability(mut cp: *mut libc::c_char,
         if strcmp(tag.as_mut_ptr(),
                   *(*cfp).gex_list[as2 as usize].offset(i as isize)) == 0 {
             if flag != 0 {
-                return *(*cfp).gex_freq[as2 as usize].offset(i as isize)
+                return *(*cfp).gex_freq[as2 as usize].offset(i as isize);
             }
             strcat(key.as_mut_ptr(),
                    b"|\x00" as *const u8 as *const libc::c_char);
@@ -5614,16 +5619,16 @@ pub unsafe extern "C" fn get_ex_ne_probability(mut cp: *mut libc::c_char,
             value = db_get(case_db, key.as_mut_ptr());
             if !value.is_null() {
                 if VerboseLevel as libc::c_uint >=
-                       VERBOSE3 as libc::c_int as libc::c_uint {
+                    VERBOSE3 as libc::c_int as libc::c_uint {
                     fprintf(Outfp,
                             b";; (EX-NE)%s %f %f\n\x00" as *const u8 as
                                 *const libc::c_char, key.as_mut_ptr(),
                             atof(value),
                             *(*cfp).gex_freq[as2 as
-                                                 usize].offset(i as isize));
+                                usize].offset(i as isize));
                 }
                 return atof(value) *
-                           *(*cfp).gex_freq[as2 as usize].offset(i as isize)
+                    *(*cfp).gex_freq[as2 as usize].offset(i as isize);
             }
         }
         i += 1
@@ -5633,13 +5638,13 @@ pub unsafe extern "C" fn get_ex_ne_probability(mut cp: *mut libc::c_char,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn _get_ex_probability_internal(mut key:
-                                                          *mut libc::c_char,
+                                                      *mut libc::c_char,
                                                       mut as2: libc::c_int,
                                                       mut cfp:
-                                                          *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                      *mut CASE_FRAME)
+                                                      -> libc::c_double
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut ret: libc::c_double = 0 as libc::c_int as libc::c_double;
     if OptCaseFlag & 1048576 as libc::c_int != 0 {
@@ -5651,29 +5656,29 @@ pub unsafe extern "C" fn _get_ex_probability_internal(mut key:
                    } else { 0 as libc::c_int as libc::c_ulong } as
                        libc::c_int,
                    &mut *static_buffer.as_mut_ptr().offset(0 as libc::c_int as
-                                                               isize));
+                       isize));
         if *rep_id.offset(0 as libc::c_int as isize) != 0 { key = rep_id }
     }
     i = 0 as libc::c_int;
     while i < (*cfp).ex_num[as2 as usize] {
         if strcmp(key, *(*cfp).ex_list[as2 as usize].offset(i as isize)) == 0
-           {
+        {
             ret =
                 *(*cfp).ex_freq[as2 as usize].offset(i as isize) as
                     libc::c_double /
                     (*cfp).freq[as2 as usize] as libc::c_double;
             if VerboseLevel as libc::c_uint >=
-                   VERBOSE3 as libc::c_int as libc::c_uint {
+                VERBOSE3 as libc::c_int as libc::c_uint {
                 fprintf(Outfp,
                         b";; (EX) P(%s) = %lf\n\x00" as *const u8 as
                             *const libc::c_char, key, ret);
             }
-            return ret
+            return ret;
         }
         i += 1
     }
     if VerboseLevel as libc::c_uint >= VERBOSE3 as libc::c_int as libc::c_uint
-       {
+    {
         fprintf(Outfp,
                 b";; (EX) P(%s) = 0\n\x00" as *const u8 as
                     *const libc::c_char, key);
@@ -5683,26 +5688,26 @@ pub unsafe extern "C" fn _get_ex_probability_internal(mut key:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn _get_ex_probability(mut key: *mut libc::c_char)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                             -> libc::c_double
+/*==================================================================*/
+{
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0 as libc::c_int as libc::c_double;
     if CFExExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     value = db_get(cf_ex_db, key);
     if !value.is_null() {
         ret = exp(-(1 as libc::c_int) as libc::c_double * atof(value));
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; P(%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, key, ret);
         }
         free(value as *mut libc::c_void);
     } else if VerboseLevel as libc::c_uint >=
-                  VERBOSE3 as libc::c_int as libc::c_uint {
+        VERBOSE3 as libc::c_int as libc::c_uint {
         fprintf(Outfp,
                 b";; P(%s) = 0\n\x00" as *const u8 as *const libc::c_char,
                 key);
@@ -5714,9 +5719,9 @@ pub unsafe extern "C" fn _get_ex_probability(mut key: *mut libc::c_char)
 pub unsafe extern "C" fn _get_sm_probability(mut dp: *mut TAG_DATA,
                                              mut as2: libc::c_int,
                                              mut cfp: *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                             -> libc::c_double
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut ret: libc::c_double = 0.;
     let mut max: libc::c_double = 0 as libc::c_int as libc::c_double;
@@ -5726,18 +5731,18 @@ pub unsafe extern "C" fn _get_sm_probability(mut dp: *mut TAG_DATA,
     code[12 as libc::c_int as usize] = '\u{0}' as i32 as libc::c_char;
     key =
         malloc_db_buf((12 as libc::c_int as
-                           libc::c_ulong).wrapping_add(strlen((*cfp).cf_id.as_mut_ptr())).wrapping_add(strlen(pp_code_to_kstr((*cfp).pp[as2
-                                                                                                                                            as
-                                                                                                                                            usize][0
-                                                                                                                                                       as
-                                                                                                                                                       libc::c_int
-                                                                                                                                                       as
-                                                                                                                                                       usize]))).wrapping_add(3
-                                                                                                                                                                                  as
-                                                                                                                                                                                  libc::c_int
-                                                                                                                                                                                  as
-                                                                                                                                                                                  libc::c_ulong)
-                          as libc::c_int);
+            libc::c_ulong).wrapping_add(strlen((*cfp).cf_id.as_mut_ptr())).wrapping_add(strlen(pp_code_to_kstr((*cfp).pp[as2
+            as
+            usize][0
+            as
+            libc::c_int
+            as
+            usize]))).wrapping_add(3
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     /* 各意味素ごとに調べて、maxをとる */
     i = 0 as libc::c_int;
     while *sm_code.offset(i as isize) != 0 {
@@ -5747,8 +5752,8 @@ pub unsafe extern "C" fn _get_sm_probability(mut dp: *mut TAG_DATA,
         sprintf(key, b"%s|%s,%s\x00" as *const u8 as *const libc::c_char,
                 code.as_mut_ptr(), (*cfp).cf_id.as_mut_ptr(),
                 pp_code_to_kstr((*cfp).pp[as2 as
-                                              usize][0 as libc::c_int as
-                                                         usize]));
+                    usize][0 as libc::c_int as
+                    usize]));
         ret = _get_ex_probability(key);
         if ret > max { max = ret }
         i += 12 as libc::c_int
@@ -5766,10 +5771,10 @@ pub unsafe extern "C" fn _get_soto_default_probability(mut dp: *mut TAG_DATA, mu
     let mut code: [libc::c_char; 13] = [0; 13];
     code[12 as libc::c_int as usize] = '\u{0}' as i32 as libc::c_char;
     if CFExExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     if strlen((*(*dp).head_ptr).Goi.as_mut_ptr()) >
-           12 as libc::c_int as libc::c_ulong {
+        12 as libc::c_int as libc::c_ulong {
         key =
             malloc_db_buf(strlen((*(*dp).head_ptr).Goi.as_mut_ptr()).wrapping_add(18 as libc::c_int as libc::c_ulong) as libc::c_int)
     } else { key = malloc_db_buf(12 as libc::c_int + 18 as libc::c_int) }
@@ -5779,7 +5784,7 @@ pub unsafe extern "C" fn _get_soto_default_probability(mut dp: *mut TAG_DATA, mu
                 as *const u8 as *const libc::c_char,
             (*(*dp).head_ptr).Goi.as_mut_ptr());
     ret = _get_ex_probability(key);
-    if ret != 0. { return ret }
+    if ret != 0. { return ret; }
     /* 意味素でsearch: maxをとる */
     i = 0 as libc::c_int;
     while *sm_code.offset(i as isize) != 0 {
@@ -5802,9 +5807,9 @@ pub unsafe extern "C" fn _get_soto_default_probability(mut dp: *mut TAG_DATA, mu
 pub unsafe extern "C" fn dat_match_agent(mut as1: libc::c_int,
                                          mut cfd: *mut CASE_FRAME,
                                          mut tp: *mut TAG_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                         -> libc::c_int
+/*==================================================================*/
+{
     if tp.is_null() {
         tp = (*(*(*cfd).pred_b_ptr).cpm_ptr).elem_b_ptr[as1 as usize]
     }
@@ -5812,13 +5817,13 @@ pub unsafe extern "C" fn dat_match_agent(mut as1: libc::c_int,
                       b"\xe9\x9d\x9e\xe4\xb8\xbb\xe4\xbd\x93\x00" as *const u8
                           as *const libc::c_char as
                           *mut libc::c_char).is_null() {
-        return 0 as libc::c_int
+        return 0 as libc::c_int;
     } else {
         if !check_feature((*tp).f,
                           b"SM-\xe4\xb8\xbb\xe4\xbd\x93\x00" as *const u8 as
                               *const libc::c_char as
                               *mut libc::c_char).is_null() {
-            return 1 as libc::c_int
+            return 1 as libc::c_int;
         }
     }
     return 0 as libc::c_int;
@@ -5831,9 +5836,9 @@ pub unsafe extern "C" fn get_ex_probability(mut as1: libc::c_int,
                                             mut as2: libc::c_int,
                                             mut cfp: *mut CASE_FRAME,
                                             mut sm_flag: libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                            -> libc::c_double
+/*==================================================================*/
+{
     /* 用例確率 P(弁当|食べる:動2,ヲ格)
        格フレームから計算 (cfex.prob) */
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -5850,40 +5855,40 @@ pub unsafe extern "C" fn get_ex_probability(mut as1: libc::c_int,
     }
     key =
         malloc_db_buf(strlen(b"<\xe8\xa3\x9c\xe6\x96\x87>\x00" as *const u8 as
-                                 *const libc::c_char).wrapping_add(strlen((*cfp).cf_id.as_mut_ptr())).wrapping_add(strlen(pp_code_to_kstr((*cfp).pp[as2
-                                                                                                                                                        as
-                                                                                                                                                        usize][0
-                                                                                                                                                                   as
-                                                                                                                                                                   libc::c_int
-                                                                                                                                                                   as
-                                                                                                                                                                   usize]))).wrapping_add(3
-                                                                                                                                                                                              as
-                                                                                                                                                                                              libc::c_int
-                                                                                                                                                                                              as
-                                                                                                                                                                                              libc::c_ulong)
-                          as libc::c_int);
+            *const libc::c_char).wrapping_add(strlen((*cfp).cf_id.as_mut_ptr())).wrapping_add(strlen(pp_code_to_kstr((*cfp).pp[as2
+            as
+            usize][0
+            as
+            libc::c_int
+            as
+            usize]))).wrapping_add(3
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     *key = '\u{0}' as i32 as libc::c_char;
     if !check_feature((*dp).f,
                       b"\xe8\xa3\x9c\xe6\x96\x87\x00" as *const u8 as
                           *const libc::c_char as *mut libc::c_char).is_null()
-       {
+    {
         sprintf(key,
                 b"<\xe8\xa3\x9c\xe6\x96\x87>\x00" as *const u8 as
                     *const libc::c_char);
     } else if sm_flag != 0 && OptCaseFlag & 128 as libc::c_int != 0 &&
-                  dat_match_agent(as1, cfd, dp) != 0 {
+        dat_match_agent(as1, cfd, dp) != 0 {
         sprintf(key,
                 b"<\xe4\xb8\xbb\xe4\xbd\x93>\x00" as *const u8 as
                     *const libc::c_char);
     } else if strcmp(pp_code_to_kstr((*cfp).pp[as2 as
-                                                   usize][0 as libc::c_int as
-                                                              usize]),
+        usize][0 as libc::c_int as
+        usize]),
                      b"\xe6\x99\x82\xe9\x96\x93\x00" as *const u8 as
                          *const libc::c_char) == 0 &&
-                  !check_feature((*dp).f,
-                                 b"\xe6\x99\x82\xe9\x96\x93\x00" as *const u8
-                                     as *const libc::c_char as
-                                     *mut libc::c_char).is_null() {
+        !check_feature((*dp).f,
+                       b"\xe6\x99\x82\xe9\x96\x93\x00" as *const u8
+                           as *const libc::c_char as
+                           *mut libc::c_char).is_null() {
         /* 時間格のみ<時間>を考慮 */
         sprintf(key,
                 b"<\xe6\x99\x82\xe9\x96\x93>\x00" as *const u8 as
@@ -5903,13 +5908,13 @@ pub unsafe extern "C" fn get_ex_probability(mut as1: libc::c_int,
     }
     if OptCaseFlag & 32 as libc::c_int != 0 {
         if OptCaseFlag & 1024 as libc::c_int != 0 &&
-               {
-                   cp =
-                       get_bnst_head_canonical_rep((*dp).b_ptr,
-                                                   OptCaseFlag &
-                                                       512 as libc::c_int);
-                   !cp.is_null()
-               } {
+            {
+                cp =
+                    get_bnst_head_canonical_rep((*dp).b_ptr,
+                                                OptCaseFlag &
+                                                    512 as libc::c_int);
+                !cp.is_null()
+            } {
             mrph_str = strdup(cp);
             rep_malloc_flag = 1 as libc::c_int
         } else {
@@ -5922,17 +5927,17 @@ pub unsafe extern "C" fn get_ex_probability(mut as1: libc::c_int,
     } else { mrph_str = (*(*dp).head_ptr).Goi.as_mut_ptr() }
     key =
         malloc_db_buf(strlen(mrph_str).wrapping_add(strlen((*cfp).cf_id.as_mut_ptr())).wrapping_add(strlen(pp_code_to_kstr((*cfp).pp[as2
-                                                                                                                                         as
-                                                                                                                                         usize][0
-                                                                                                                                                    as
-                                                                                                                                                    libc::c_int
-                                                                                                                                                    as
-                                                                                                                                                    usize]))).wrapping_add(3
-                                                                                                                                                                               as
-                                                                                                                                                                               libc::c_int
-                                                                                                                                                                               as
-                                                                                                                                                                               libc::c_ulong)
-                          as libc::c_int);
+            as
+            usize][0
+            as
+            libc::c_int
+            as
+            usize]))).wrapping_add(3
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     sprintf(key, b"%s\x00" as *const u8 as *const libc::c_char, mrph_str);
     /* sprintf(key, "%s|%s,%s", dp->head_ptr->Goi, 
        cfp->cf_id, pp_code_to_kstr(cfp->pp[as2][0])); */
@@ -5948,36 +5953,38 @@ pub unsafe extern "C" fn get_ex_probability(mut as1: libc::c_int,
         let mut rep_length: libc::c_int = 0;
         let mut fp: *mut FEATURE = (*(*dp).head_ptr).f;
         let mut m: MRPH_DATA =
-            MRPH_DATA{type_0: 0,
-                      num: 0,
-                      parent: 0 as *mut tnode_b,
-                      child: [0 as *mut tnode_b; 32],
-                      length: 0,
-                      space: 0,
-                      dpnd_head: 0,
-                      dpnd_type: 0,
-                      dpnd_dflt: 0,
-                      para_num: 0,
-                      para_key_type: 0,
-                      para_top_p: 0,
-                      para_type: 0,
-                      to_para_p: 0,
-                      tnum: 0,
-                      inum: 0,
-                      out_head_flag: 0,
-                      Goi: [0; 129],
-                      Yomi: [0; 129],
-                      Goi2: [0; 129],
-                      Hinshi: 0,
-                      Bunrui: 0,
-                      Katuyou_Kata: 0,
-                      Katuyou_Kei: 0,
-                      Imi: [0; 1024],
-                      f: 0 as *mut _FEATURE,
-                      Num: 0,
-                      SM: 0 as *mut libc::c_char,
-                      Pos: [0; 4],
-                      Type: [0; 9],};
+            MRPH_DATA {
+                type_0: 0,
+                num: 0,
+                parent: 0 as *mut tnode_b,
+                child: [0 as *mut tnode_b; 32],
+                length: 0,
+                space: 0,
+                dpnd_head: 0,
+                dpnd_type: 0,
+                dpnd_dflt: 0,
+                para_num: 0,
+                para_key_type: 0,
+                para_top_p: 0,
+                para_type: 0,
+                to_para_p: 0,
+                tnum: 0,
+                inum: 0,
+                out_head_flag: 0,
+                Goi: [0; 129],
+                Yomi: [0; 129],
+                Goi2: [0; 129],
+                Hinshi: 0,
+                Bunrui: 0,
+                Katuyou_Kata: 0,
+                Katuyou_Kei: 0,
+                Imi: [0; 1024],
+                f: 0 as *mut _FEATURE,
+                Num: 0,
+                SM: 0 as *mut libc::c_char,
+                Pos: [0; 4],
+                Type: [0; 9],
+            };
         mrph_str = get_mrph_rep_from_f((*dp).head_ptr, 0 as libc::c_int);
         if mrph_str.is_null() {
             /* 代表表記の場合はALTも調べる */
@@ -6031,22 +6038,22 @@ pub unsafe extern "C" fn get_ex_probability(mut as1: libc::c_int,
             }
         }
     }
-    if sm_flag == 0 { return ret }
+    if sm_flag == 0 { return ret; }
     /* 固有表現の場合 */
     if OptGeneralCF & 1 as libc::c_int != 0 &&
-           {
-               cp =
-                   check_feature((*dp).f,
-                                 b"NE\x00" as *const u8 as *const libc::c_char
-                                     as *mut libc::c_char);
-               !cp.is_null()
-           } {
+        {
+            cp =
+                check_feature((*dp).f,
+                              b"NE\x00" as *const u8 as *const libc::c_char
+                                  as *mut libc::c_char);
+            !cp.is_null()
+        } {
         prob = get_ex_ne_probability(cp, as2, cfp, 0 as libc::c_int);
         if prob != 0. { if ret < log(prob) { ret = log(prob) } }
     }
     /* 代表表記を用いる場合はカテゴリを参照する */
     if OptGeneralCF & 2 as libc::c_int != 0 &&
-           OptCaseFlag & 32 as libc::c_int != 0 {
+        OptCaseFlag & 32 as libc::c_int != 0 {
         mrph_str = get_mrph_rep_from_f((*dp).head_ptr, 0 as libc::c_int);
         if mrph_str.is_null() {
             mrph_str = make_mrph_rn((*dp).head_ptr);
@@ -6054,17 +6061,17 @@ pub unsafe extern "C" fn get_ex_probability(mut as1: libc::c_int,
         }
         key =
             malloc_db_buf(strlen(mrph_str).wrapping_add(strlen((*cfp).cf_id.as_mut_ptr())).wrapping_add(strlen(pp_code_to_kstr((*cfp).pp[as2
-                                                                                                                                             as
-                                                                                                                                             usize][0
-                                                                                                                                                        as
-                                                                                                                                                        libc::c_int
-                                                                                                                                                        as
-                                                                                                                                                        usize]))).wrapping_add(3
-                                                                                                                                                                                   as
-                                                                                                                                                                                   libc::c_int
-                                                                                                                                                                                   as
-                                                                                                                                                                                   libc::c_ulong)
-                              as libc::c_int);
+                as
+                usize][0
+                as
+                libc::c_int
+                as
+                usize]))).wrapping_add(3
+                as
+                libc::c_int
+                as
+                libc::c_ulong)
+                as libc::c_int);
         sprintf(key, b"%s\x00" as *const u8 as *const libc::c_char, mrph_str);
         prob =
             _get_ex_category_probability(key, as2, cfp, (*(*dp).head_ptr).f);
@@ -6087,13 +6094,13 @@ pub unsafe extern "C" fn get_ex_probability(mut as1: libc::c_int,
 #[no_mangle]
 pub unsafe extern "C" fn get_ex_probability_with_para(mut as1: libc::c_int,
                                                       mut cfd:
-                                                          *mut CASE_FRAME,
+                                                      *mut CASE_FRAME,
                                                       mut as2: libc::c_int,
                                                       mut cfp:
-                                                          *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                      *mut CASE_FRAME)
+                                                      -> libc::c_double
+/*==================================================================*/
+{
     let mut j: libc::c_int = 0;
     let mut count: libc::c_int = 1 as libc::c_int;
     let mut np_modifying_flag: libc::c_int = 0;
@@ -6115,7 +6122,7 @@ pub unsafe extern "C" fn get_ex_probability_with_para(mut as1: libc::c_int,
                                   *const u8 as *const libc::c_char as
                                   *mut libc::c_char).is_null() {
                 clause_modified_flag = 1 as libc::c_int;
-                break ;
+                break;
             } else { j += 1 }
         }
     }
@@ -6125,7 +6132,7 @@ pub unsafe extern "C" fn get_ex_probability_with_para(mut as1: libc::c_int,
                            (0 as libc::c_int == 0) as libc::c_int);
     if OptParaNoFixFlag & 2 as libc::c_int != 0 {
         /* 類似度生成モデルのときは、並列要素を述語から生成しない */
-        return score
+        return score;
     }
     /* 並列の要素 */
     while !(*tp).next.is_null() {
@@ -6148,7 +6155,7 @@ pub unsafe extern "C" fn get_ex_probability_with_para(mut as1: libc::c_int,
         fprintf(Outfp,
                 b";; (EX) is divided by %d => %.5f\n\x00" as *const u8 as *const libc::c_char,
                 count,
-                (score + sub_score) / count as libc::c_double
+                (score + sub_score) / count as libc::c_double,
         );
     }
     /* 並列確率的解析時: 並列要素間生成する場合と被連体修飾名詞は正規化
@@ -6172,21 +6179,21 @@ pub unsafe extern "C" fn get_ex_probability_with_para(mut as1: libc::c_int,
 #[no_mangle]
 pub unsafe extern "C" fn get_np_modifying_probability(mut as1: libc::c_int,
                                                       mut cfd:
-                                                          *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                      *mut CASE_FRAME)
+                                                      -> libc::c_double
+/*==================================================================*/
+{
     let mut dist: libc::c_int = 0 as libc::c_int;
     let mut type_0: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0.;
     if CaseExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     /* tp -> hp */
     if (*(*(*(*cfd).pred_b_ptr).cpm_ptr).elem_b_ptr[as1 as usize]).num >
-           (*(*cfd).pred_b_ptr).num {
+        (*(*cfd).pred_b_ptr).num {
         /* 連体修飾 */
         type_0 =
             check_feature((*(*cfd).pred_b_ptr).f,
@@ -6195,17 +6202,17 @@ pub unsafe extern "C" fn get_np_modifying_probability(mut as1: libc::c_int,
         if !type_0.is_null() {
             type_0 =
                 type_0.offset(strlen(b"\xe7\x94\xa8\xe8\xa8\x80:\x00" as
-                                         *const u8 as *const libc::c_char) as
-                                  isize)
+                    *const u8 as *const libc::c_char) as
+                    isize)
         }
         /* 候補チェック */
         dist =
             get_dist_from_work_mgr((*(*cfd).pred_b_ptr).b_ptr,
                                    (*(*(*(*cfd).pred_b_ptr).cpm_ptr).elem_b_ptr[as1
-                                                                                    as
-                                                                                    usize]).b_ptr);
+                                       as
+                                       usize]).b_ptr);
         if dist <= 0 as libc::c_int {
-            return -11.512925f64
+            return -11.512925f64;
         } else { if dist > 1 as libc::c_int { dist = 2 as libc::c_int } }
     }
     key = malloc_db_buf(10 as libc::c_int);
@@ -6216,7 +6223,7 @@ pub unsafe extern "C" fn get_np_modifying_probability(mut as1: libc::c_int,
     value = db_get(case_db, key);
     if !value.is_null() {
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (RE) %s -> %s: P(%s,%d|R) = %s\n\x00" as *const u8 as
                         *const libc::c_char,
@@ -6225,7 +6232,7 @@ pub unsafe extern "C" fn get_np_modifying_probability(mut as1: libc::c_int,
                             *const libc::c_char
                     } else { b"NIL\x00" as *const u8 as *const libc::c_char },
                     (*(*(*(*(*cfd).pred_b_ptr).cpm_ptr).elem_b_ptr[as1 as
-                                                                       usize]).head_ptr).Goi.as_mut_ptr(),
+                        usize]).head_ptr).Goi.as_mut_ptr(),
                     if !type_0.is_null() {
                         type_0 as *const libc::c_char
                     } else { b"NIL\x00" as *const u8 as *const libc::c_char },
@@ -6239,19 +6246,19 @@ pub unsafe extern "C" fn get_np_modifying_probability(mut as1: libc::c_int,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_topic_generating_probability(mut have_topic:
-                                                              libc::c_int,
+                                                          libc::c_int,
                                                           mut g_ptr:
-                                                              *mut TAG_DATA)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                          *mut TAG_DATA)
+                                                          -> libc::c_double
+/*==================================================================*/
+{
     let mut topic_score: libc::c_int = 0 as libc::c_int;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0.;
     if CaseExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     /* 提題スコア */
     cp =
@@ -6271,7 +6278,7 @@ pub unsafe extern "C" fn get_topic_generating_probability(mut have_topic:
     value = db_get(case_db, key);
     if !value.is_null() {
         if VerboseLevel as libc::c_uint >=
-               VERBOSE3 as libc::c_int as libc::c_uint {
+            VERBOSE3 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (W) %s: P(%d|W:%d) = %s\n\x00" as *const u8 as
                         *const libc::c_char,
@@ -6286,25 +6293,25 @@ pub unsafe extern "C" fn get_topic_generating_probability(mut have_topic:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_key_probability(mut tag_ptr: *mut TAG_DATA)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                             -> libc::c_double
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut mrph_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut rep_malloc_flag: libc::c_int = 0 as libc::c_int;
     key =
         malloc_db_buf(strlen(b"<\xe8\xa3\x9c\xe6\x96\x87>\x00" as *const u8 as
-                                 *const libc::c_char).wrapping_add(3 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       libc::c_ulong)
-                          as libc::c_int);
+            *const libc::c_char).wrapping_add(3 as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     *key = '\u{0}' as i32 as libc::c_char;
     if !check_feature((*tag_ptr).f,
                       b"\xe8\xa3\x9c\xe6\x96\x87\x00" as *const u8 as
                           *const libc::c_char as *mut libc::c_char).is_null()
-       {
+    {
         sprintf(key,
                 b"<\xe8\xa3\x9c\xe6\x96\x87>\x00" as *const u8 as
                     *const libc::c_char);
@@ -6327,16 +6334,16 @@ pub unsafe extern "C" fn get_key_probability(mut tag_ptr: *mut TAG_DATA)
         return get_general_probability(key,
                                        b"KEY\x00" as *const u8 as
                                            *const libc::c_char as
-                                           *mut libc::c_char)
+                                           *mut libc::c_char);
     }
     if OptCaseFlag & 1024 as libc::c_int != 0 &&
-           {
-               cp =
-                   get_bnst_head_canonical_rep((*tag_ptr).b_ptr,
-                                               OptCaseFlag &
-                                                   512 as libc::c_int);
-               !cp.is_null()
-           } {
+        {
+            cp =
+                get_bnst_head_canonical_rep((*tag_ptr).b_ptr,
+                                            OptCaseFlag &
+                                                512 as libc::c_int);
+            !cp.is_null()
+        } {
         mrph_str = strdup(cp);
         rep_malloc_flag = 1 as libc::c_int
     } else {
@@ -6348,8 +6355,8 @@ pub unsafe extern "C" fn get_key_probability(mut tag_ptr: *mut TAG_DATA)
     }
     key =
         malloc_db_buf(strlen(mrph_str).wrapping_add(3 as libc::c_int as
-                                                        libc::c_ulong) as
-                          libc::c_int);
+            libc::c_ulong) as
+            libc::c_int);
     sprintf(key, b"%s\x00" as *const u8 as *const libc::c_char, mrph_str);
     if rep_malloc_flag != 0 {
         free(mrph_str as *mut libc::c_void);
@@ -6362,9 +6369,9 @@ pub unsafe extern "C" fn get_key_probability(mut tag_ptr: *mut TAG_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_class_prob() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_class_prob()
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut cp: [libc::c_char; 8] = [0; 8];
     i = 0 as libc::c_int;
@@ -6384,9 +6391,9 @@ pub unsafe extern "C" fn init_class_prob()
 pub unsafe extern "C" fn get_class_probability(mut key: *mut libc::c_char,
                                                mut as_0: libc::c_int,
                                                mut cfp: *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                               -> libc::c_double
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut key_class_prob: [libc::c_double; 2000] = [0.; 2000];
     let mut prob: libc::c_double = 0.;
@@ -6403,30 +6410,30 @@ pub unsafe extern "C" fn get_class_probability(mut key: *mut libc::c_char,
             i += 1
         }
         while !cp.is_null() &&
-                  sscanf(cp,
-                         b"%d:%lf\x00" as *const u8 as *const libc::c_char,
-                         &mut i as *mut libc::c_int,
-                         &mut prob as *mut libc::c_double) != 0 {
+            sscanf(cp,
+                   b"%d:%lf\x00" as *const u8 as *const libc::c_char,
+                   &mut i as *mut libc::c_int,
+                   &mut prob as *mut libc::c_double) != 0 {
             key_class_prob[i as usize] = prob;
             cp = strstr(cp, b",\x00" as *const u8 as *const libc::c_char);
             if !cp.is_null() { cp = cp.offset(1) }
         }
-    } else { return 0 as libc::c_int as libc::c_double }
+    } else { return 0 as libc::c_int as libc::c_double; }
     ret = 0 as libc::c_int as libc::c_double;
     i = 0 as libc::c_int;
     while i < (*cfp).gex_num[as_0 as usize] {
         cp = *(*cfp).gex_list[as_0 as usize].offset(i as isize);
         if strncmp(cp, b"CL:\x00" as *const u8 as *const libc::c_char,
                    3 as libc::c_int as libc::c_ulong) == 0 &&
-               key_class_prob[atoi(cp.offset(3 as libc::c_int as isize)) as
-                                  usize] > 0 as libc::c_int as libc::c_double
-           {
+            key_class_prob[atoi(cp.offset(3 as libc::c_int as isize)) as
+                usize] > 0 as libc::c_int as libc::c_double
+        {
             ret +=
                 *(*cfp).gex_freq[as_0 as usize].offset(i as isize) /
                     ClassProb[atoi(cp.offset(3 as libc::c_int as isize)) as
-                                  usize] *
+                        usize] *
                     key_class_prob[atoi(cp.offset(3 as libc::c_int as isize))
-                                       as usize]
+                        as usize]
         }
         i += 1
     }
@@ -6436,20 +6443,20 @@ pub unsafe extern "C" fn get_class_probability(mut key: *mut libc::c_char,
 #[no_mangle]
 pub unsafe extern "C" fn get_general_probability(mut key1: *mut libc::c_char,
                                                  mut key2: *mut libc::c_char)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                 -> libc::c_double
+/*==================================================================*/
+{
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0.;
     //return FREQ0_ASSINED_SCORE / 2;
     key =
         malloc_db_buf(strlen(key1).wrapping_add(strlen(key2)).wrapping_add(2
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               libc::c_ulong)
-                          as libc::c_int);
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     sprintf(key, b"%s|%s\x00" as *const u8 as *const libc::c_char, key1,
             key2);
     value = db_get(case_db, key);
@@ -6464,25 +6471,25 @@ pub unsafe extern "C" fn get_general_probability(mut key1: *mut libc::c_char,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_case_interpret_probability(mut scase:
-                                                            *mut libc::c_char,
+                                                        *mut libc::c_char,
                                                         mut cfcase:
-                                                            *mut libc::c_char)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                        *mut libc::c_char)
+                                                        -> libc::c_double
+/*==================================================================*/
+{
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0.;
     if CaseExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     key =
         malloc_db_buf(strlen(scase).wrapping_add(strlen(cfcase)).wrapping_add(20
-                                                                                  as
-                                                                                  libc::c_int
-                                                                                  as
-                                                                                  libc::c_ulong)
-                          as libc::c_int);
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     sprintf(key, b"%s|C:%s\x00" as *const u8 as *const libc::c_char, scase,
             cfcase);
     value = db_get(case_db, key);
@@ -6496,28 +6503,28 @@ pub unsafe extern "C" fn get_case_interpret_probability(mut scase:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_punctuation_generating_probability(mut np_modifying_flag:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut touten_flag:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut dist:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut closest_pred_flag:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut topic_score:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut wa_flag:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut genitive_flag:
-                                                                    libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                                libc::c_int)
+                                                                -> libc::c_double
+/*==================================================================*/
+{
     /* 読点の生成 */
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0.;
     if CaseExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     key = malloc_db_buf(20 as libc::c_int);
     if genitive_flag != 0 {
@@ -6537,7 +6544,7 @@ pub unsafe extern "C" fn get_punctuation_generating_probability(mut np_modifying
     }
     value = db_get(case_db, key);
     if VerboseLevel as libc::c_uint >= VERBOSE3 as libc::c_int as libc::c_uint
-       {
+    {
         fprintf(Outfp,
                 b";; (T) P(%s) = %s\n\x00" as *const u8 as
                     *const libc::c_char, key, value);
@@ -6552,18 +6559,18 @@ pub unsafe extern "C" fn get_punctuation_generating_probability(mut np_modifying
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_case_function_probability_for_noun(mut as1:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut cfd:
-                                                                    *mut CASE_FRAME,
+                                                                *mut CASE_FRAME,
                                                                 mut as2:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut cfp:
-                                                                    *mut CASE_FRAME,
+                                                                *mut CASE_FRAME,
                                                                 mut ellipsis_flag:
-                                                                    libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                                libc::c_int)
+                                                                -> libc::c_double
+/*==================================================================*/
+{
     let mut dist: libc::c_int = 0;
     let mut np_modifying_flag: libc::c_int = 0;
     let mut touten_flag: libc::c_int = 0;
@@ -6572,7 +6579,7 @@ pub unsafe extern "C" fn get_case_function_probability_for_noun(mut as1:
     let mut hp: *mut TAG_DATA = 0 as *mut TAG_DATA;
     /* tp -> hp */
     if (*(*(*(*cfd).pred_b_ptr).cpm_ptr).elem_b_ptr[as1 as usize]).num >
-           (*(*cfd).pred_b_ptr).num {
+        (*(*cfd).pred_b_ptr).num {
         /* 連体修飾 */
         tp = (*cfd).pred_b_ptr;
         hp = (*(*(*cfd).pred_b_ptr).cpm_ptr).elem_b_ptr[as1 as usize];
@@ -6596,8 +6603,8 @@ pub unsafe extern "C" fn get_case_function_probability_for_noun(mut as1:
         let mut closest_ok_flag: libc::c_int = 0 as libc::c_int;
         if get_dist_from_work_mgr((*tp).b_ptr,
                                   (*tp).b_ptr.offset(1 as libc::c_int as
-                                                         isize)) >
-               0 as libc::c_int {
+                                      isize)) >
+            0 as libc::c_int {
             closest_ok_flag = 1 as libc::c_int
         }
         ret =
@@ -6617,29 +6624,29 @@ pub unsafe extern "C" fn get_case_function_probability_for_noun(mut as1:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_wa_generating_probability(mut np_modifying_flag:
-                                                           libc::c_int,
+                                                       libc::c_int,
                                                        mut touten_flag:
-                                                           libc::c_int,
+                                                       libc::c_int,
                                                        mut dist: libc::c_int,
                                                        mut closest_pred_flag:
-                                                           libc::c_int,
+                                                       libc::c_int,
                                                        mut topic_score:
-                                                           libc::c_int,
+                                                       libc::c_int,
                                                        mut wa_flag:
-                                                           libc::c_int,
+                                                       libc::c_int,
                                                        mut negation_flag:
-                                                           libc::c_int,
+                                                       libc::c_int,
                                                        mut vtype:
-                                                           *mut libc::c_char)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                       *mut libc::c_char)
+                                                       -> libc::c_double
+/*==================================================================*/
+{
     /* 「は」の生成 */
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0.;
     if CaseExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     if np_modifying_flag != 0 || vtype.is_null() {
         value =
@@ -6669,9 +6676,9 @@ pub unsafe extern "C" fn make_cf_case_string(mut as1: libc::c_int,
                                              mut cfd: *mut CASE_FRAME,
                                              mut as2: libc::c_int,
                                              mut cfp: *mut CASE_FRAME)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                             -> *mut libc::c_char
+/*==================================================================*/
+{
     /* 格フレームの格スロット表記をかえす */
     return if as2 != -(2 as libc::c_int) {
         pp_code_to_kstr((*cfp).pp[as2 as
@@ -6692,18 +6699,18 @@ pub unsafe extern "C" fn make_cf_case_string(mut as1: libc::c_int,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut cfd:
-                                                                    *mut CASE_FRAME,
+                                                                *mut CASE_FRAME,
                                                                 mut as2:
-                                                                    libc::c_int,
+                                                                libc::c_int,
                                                                 mut cfp:
-                                                                    *mut CASE_FRAME,
+                                                                *mut CASE_FRAME,
                                                                 mut ellipsis_flag:
-                                                                    libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                                libc::c_int)
+                                                                -> libc::c_double
+/*==================================================================*/
+{
     let mut wa_flag: libc::c_int = 0;
     let mut topic_score: libc::c_int = 0 as libc::c_int;
     let mut touten_flag: libc::c_int = 0;
@@ -6723,11 +6730,11 @@ pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
     let mut tp2: *mut TAG_DATA = 0 as *mut TAG_DATA;
     let mut hp: *mut TAG_DATA = 0 as *mut TAG_DATA;
     if CaseExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     /* tp -> hp */
     if (*(*(*(*cfd).pred_b_ptr).cpm_ptr).elem_b_ptr[as1 as usize]).num >
-           (*(*cfd).pred_b_ptr).num {
+        (*(*cfd).pred_b_ptr).num {
         /* 連体修飾 */
         tp = (*cfd).pred_b_ptr;
         hp = (*(*(*cfd).pred_b_ptr).cpm_ptr).elem_b_ptr[as1 as usize];
@@ -6744,20 +6751,20 @@ pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
     if !vtype.is_null() {
         vtype =
             vtype.offset(strlen(b"\xe7\x94\xa8\xe8\xa8\x80:\x00" as *const u8
-                                    as *const libc::c_char) as isize)
+                as *const libc::c_char) as isize)
     }
     /* 複合辞 */
     if (*cfd).pp[as1 as usize][0 as libc::c_int as usize] >= 9 as libc::c_int
-           &&
-           (*cfd).pp[as1 as usize][0 as libc::c_int as usize] <=
-               37 as libc::c_int {
+        &&
+        (*cfd).pp[as1 as usize][0 as libc::c_int as usize] <=
+            37 as libc::c_int {
         scase =
             pp_code_to_kstr((*cfd).pp[as1 as
-                                          usize][0 as libc::c_int as usize]);
+                usize][0 as libc::c_int as usize]);
         tp2 =
             &mut *current_sentence_data.tag_data.offset(((*tp).num +
-                                                             1 as libc::c_int)
-                                                            as isize) as
+                1 as libc::c_int)
+                as isize) as
                 *mut TAG_DATA /* 入力側の表層格 */
         /* 読点や「は」などをチェックするタグ単位 */
     } else {
@@ -6771,11 +6778,11 @@ pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
                               b"\xe4\xbf\x82\x00" as *const u8 as
                                   *const libc::c_char as *mut libc::c_char);
             if scase.is_null() {
-                return -11.512925f64
+                return -11.512925f64;
             } else {
                 scase =
                     scase.offset(strlen(b"\xe4\xbf\x82:\x00" as *const u8 as
-                                            *const libc::c_char) as isize)
+                        *const libc::c_char) as isize)
                 /* 入力側の表層格 */
             }
         }
@@ -6785,13 +6792,13 @@ pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
     if np_modifying_flag == 0 as libc::c_int {
         if get_dist_from_work_mgr((*tp2).b_ptr,
                                   (*current_sentence_data.tag_data.offset(((*tp2).num
-                                                                               +
-                                                                               1
-                                                                                   as
-                                                                                   libc::c_int)
-                                                                              as
-                                                                              isize)).b_ptr)
-               > 0 as libc::c_int {
+                                      +
+                                      1
+                                          as
+                                          libc::c_int)
+                                      as
+                                      isize)).b_ptr)
+            > 0 as libc::c_int {
             closest_pred_flag = 1 as libc::c_int
         }
     }
@@ -6837,12 +6844,12 @@ pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
     /* 候補チェック */
     dist = get_dist_from_work_mgr((*tp2).b_ptr, (*hp).b_ptr);
     if dist <= 0 as libc::c_int && ellipsis_flag == 0 {
-        return -11.512925f64
+        return -11.512925f64;
     } else { if dist > 1 as libc::c_int { dist = 2 as libc::c_int } }
     /* 格の解釈 */
     cfcase = make_cf_case_string(as1, cfd, as2, cfp);
     score1 = get_case_interpret_probability(scase, cfcase);
-    if ellipsis_flag != 0 { return score1 }
+    if ellipsis_flag != 0 { return score1; }
     /* 読点の生成 */
     score2 =
         get_punctuation_generating_probability(np_modifying_flag, touten_flag,
@@ -6855,7 +6862,7 @@ pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
                                       closest_pred_flag, topic_score, wa_flag,
                                       negation_flag, vtype);
     if VerboseLevel as libc::c_uint >= VERBOSE3 as libc::c_int as libc::c_uint
-       {
+    {
         fprintf(Outfp,
                 b";; (CC) %s -> %s: P(%s,%d,%d|%s,%d,%d,%d,%d) = %lf (C:%lf * P:%lf * T:%lf)\n\x00"
                     as *const u8 as *const libc::c_char,
@@ -6866,8 +6873,8 @@ pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
                     b"--\x00" as *const u8 as *const libc::c_char
                 } else {
                     pp_code_to_kstr((*cfp).pp[as2 as
-                                                  usize][0 as libc::c_int as
-                                                             usize]) as
+                        usize][0 as libc::c_int as
+                        usize]) as
                         *const libc::c_char
                 }, dist, closest_pred_flag, topic_score, negation_flag,
                 score1 + score2 + score3, exp(score1), exp(score2),
@@ -6879,15 +6886,15 @@ pub unsafe extern "C" fn get_case_function_probability_for_pred(mut as1:
 #[no_mangle]
 pub unsafe extern "C" fn get_case_function_probability(mut as1: libc::c_int,
                                                        mut cfd:
-                                                           *mut CASE_FRAME,
+                                                       *mut CASE_FRAME,
                                                        mut as2: libc::c_int,
                                                        mut cfp:
-                                                           *mut CASE_FRAME,
+                                                       *mut CASE_FRAME,
                                                        mut ellipsis_flag:
-                                                           libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                       libc::c_int)
+                                                       -> libc::c_double
+/*==================================================================*/
+{
     return if (*cfp).type_0 == 1 as libc::c_int {
         /* 用言格フレーム */
         get_case_function_probability_for_pred(as1, cfd, as2, cfp,
@@ -6902,13 +6909,13 @@ pub unsafe extern "C" fn get_case_function_probability(mut as1: libc::c_int,
 #[no_mangle]
 pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
                                                        mut g_cf:
-                                                           *mut CASE_FRAME,
+                                                       *mut CASE_FRAME,
                                                        mut dp: *mut TAG_DATA,
                                                        mut d_cf:
-                                                           *mut CASE_FRAME)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                       *mut CASE_FRAME)
+                                                       -> libc::c_double
+/*==================================================================*/
+{
     let mut touten_flag: libc::c_int = 0;
     let mut dist: libc::c_int = 0;
     let mut closest_pred_flag: libc::c_int = 0 as libc::c_int;
@@ -6933,7 +6940,7 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
     } else { g_pred = 0 as *mut libc::c_char }
     /* 用言 -> 用言 */
     if RenyouExist != 0 && !g_pred.is_null() && !d_cf.is_null() &&
-           (!gp.is_null() || OptCaseFlag & 256 as libc::c_int != 0) {
+        (!gp.is_null() || OptCaseFlag & 256 as libc::c_int != 0) {
         /* 文末からの生成は-generate-eos(言語モデル用)時のみ */
         d_pred = strdup((*d_cf).cf_id.as_mut_ptr());
         sscanf((*d_cf).cf_id.as_mut_ptr(),
@@ -6941,11 +6948,11 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
                d_pred);
         key =
             malloc_db_buf(strlen(g_pred).wrapping_add(strlen(d_pred)).wrapping_add(3
-                                                                                       as
-                                                                                       libc::c_int
-                                                                                       as
-                                                                                       libc::c_ulong)
-                              as libc::c_int);
+                as
+                libc::c_int
+                as
+                libc::c_ulong)
+                as libc::c_int);
         sprintf(key, b"%s|%s\x00" as *const u8 as *const libc::c_char, d_pred,
                 g_pred);
         value = db_get(renyou_db, key);
@@ -6962,7 +6969,7 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
             }
         }
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (R) %s: P(%s|%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char,
@@ -6976,7 +6983,7 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
     } else { ret3 = 1 as libc::c_int as libc::c_double }
     if !g_pred.is_null() { free(g_pred as *mut libc::c_void); }
     if gp.is_null() {
-        return if ret3 != 0. { log(ret3) } else { -16.118096f64 }
+        return if ret3 != 0. { log(ret3) } else { -16.118096f64 };
     }
     touten_flag =
         if !check_feature((*(*dp).b_ptr).f,
@@ -6986,20 +6993,20 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
             1 as libc::c_int
         } else { 0 as libc::c_int };
     dist = get_dist_from_work_mgr((*dp).b_ptr, (*gp).b_ptr);
-    if dist < 0 as libc::c_int { return -16.118096f64 }
+    if dist < 0 as libc::c_int { return -16.118096f64; }
     if get_dist_from_work_mgr((*dp).b_ptr,
                               (*dp).b_ptr.offset(1 as libc::c_int as isize)) >
-           0 as libc::c_int {
+        0 as libc::c_int {
         closest_pred_flag = 1 as libc::c_int
     }
     /* 読点の生成 */
     key =
         malloc_db_buf(strlen(b"\xe9\x80\xa3\xe7\x94\xa8\x00" as *const u8 as
-                                 *const libc::c_char).wrapping_add(8 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       libc::c_ulong)
-                          as libc::c_int);
+            *const libc::c_char).wrapping_add(8 as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     sprintf(key,
             b"%d|P\xe9\x80\xa3\xe7\x94\xa8:%d,%d\x00" as *const u8 as
                 *const libc::c_char, touten_flag, dist, closest_pred_flag);
@@ -7007,7 +7014,7 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
     if !value.is_null() {
         ret1 = atof(value);
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (R_P) %s: P(%d|P\xe9\x80\xa3\xe7\x94\xa8:%d,%d) = %lf\n\x00"
                         as *const u8 as *const libc::c_char,
@@ -7017,33 +7024,33 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
         free(value as *mut libc::c_void);
     }
     if RenyouExist == 0 as libc::c_int {
-        return if ret1 != 0. { log(ret1) } else { -16.118096f64 }
+        return if ret1 != 0. { log(ret1) } else { -16.118096f64 };
     }
     /* ID -> ID (未使用) */
     if 0 as libc::c_int != 0 &&
-           {
-               g_id =
-                   check_feature((*gp).f,
-                                 b"ID\x00" as *const u8 as *const libc::c_char
-                                     as *mut libc::c_char);
-               !g_id.is_null()
-           } &&
-           {
-               d_id =
-                   check_feature((*dp).f,
-                                 b"ID\x00" as *const u8 as *const libc::c_char
-                                     as *mut libc::c_char);
-               !d_id.is_null()
-           } {
+        {
+            g_id =
+                check_feature((*gp).f,
+                              b"ID\x00" as *const u8 as *const libc::c_char
+                                  as *mut libc::c_char);
+            !g_id.is_null()
+        } &&
+        {
+            d_id =
+                check_feature((*dp).f,
+                              b"ID\x00" as *const u8 as *const libc::c_char
+                                  as *mut libc::c_char);
+            !d_id.is_null()
+        } {
         g_id = g_id.offset(3 as libc::c_int as isize);
         d_id = d_id.offset(3 as libc::c_int as isize);
         key =
             malloc_db_buf(strlen(g_id).wrapping_add(strlen(d_id)).wrapping_add(3
-                                                                                   as
-                                                                                   libc::c_int
-                                                                                   as
-                                                                                   libc::c_ulong)
-                              as libc::c_int);
+                as
+                libc::c_int
+                as
+                libc::c_ulong)
+                as libc::c_int);
         sprintf(key, b"%s|%s\x00" as *const u8 as *const libc::c_char, d_id,
                 g_id);
         value = db_get(renyou_db, key);
@@ -7060,7 +7067,7 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
             }
         }
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (R) %s: P(%s|%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char,
@@ -7111,14 +7118,14 @@ pub unsafe extern "C" fn calc_vp_modifying_probability(mut gp: *mut TAG_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn calc_vp_modifying_num_probability(mut t_ptr:
-                                                               *mut TAG_DATA,
+                                                           *mut TAG_DATA,
                                                            mut cfp:
-                                                               *mut CASE_FRAME,
+                                                           *mut CASE_FRAME,
                                                            mut num:
-                                                               libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                           libc::c_int)
+                                                           -> libc::c_double
+/*==================================================================*/
+{
     let mut pred: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut id: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -7127,29 +7134,29 @@ pub unsafe extern "C" fn calc_vp_modifying_num_probability(mut t_ptr:
     let mut ret2: libc::c_double = 0 as libc::c_int as libc::c_double;
     /* 個数は未使用 */
     if 1 as libc::c_int != 0 || RenyouExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     /* ID */
     if 0 as libc::c_int != 0 &&
-           {
-               id =
-                   check_feature((*t_ptr).f,
-                                 b"ID\x00" as *const u8 as *const libc::c_char
-                                     as *mut libc::c_char);
-               !id.is_null()
-           } {
+        {
+            id =
+                check_feature((*t_ptr).f,
+                              b"ID\x00" as *const u8 as *const libc::c_char
+                                  as *mut libc::c_char);
+            !id.is_null()
+        } {
         id = id.offset(3 as libc::c_int as isize);
         key =
             malloc_db_buf(strlen(id).wrapping_add(6 as libc::c_int as
-                                                      libc::c_ulong) as
-                              libc::c_int);
+                libc::c_ulong) as
+                libc::c_int);
         sprintf(key, b"%d|N:%s\x00" as *const u8 as *const libc::c_char, num,
                 id);
         value = db_get(renyou_db, key);
         if !value.is_null() {
             ret1 = atof(value);
             if VerboseLevel as libc::c_uint >=
-                   VERBOSE2 as libc::c_int as libc::c_uint {
+                VERBOSE2 as libc::c_int as libc::c_uint {
                 fprintf(Outfp,
                         b";; (RN) %s: P(%d|%s) = %lf\n\x00" as *const u8 as
                             *const libc::c_char,
@@ -7165,8 +7172,8 @@ pub unsafe extern "C" fn calc_vp_modifying_num_probability(mut t_ptr:
                b"%[^0-9]:%*d\x00" as *const u8 as *const libc::c_char, pred);
         key =
             malloc_db_buf(strlen(pred).wrapping_add(6 as libc::c_int as
-                                                        libc::c_ulong) as
-                              libc::c_int);
+                libc::c_ulong) as
+                libc::c_int);
         sprintf(key, b"%d|N:%s\x00" as *const u8 as *const libc::c_char, num,
                 pred);
         value = db_get(renyou_db, key);
@@ -7175,7 +7182,7 @@ pub unsafe extern "C" fn calc_vp_modifying_num_probability(mut t_ptr:
             free(value as *mut libc::c_void);
         }
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (RN) %s: P(%d|%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char,
@@ -7208,11 +7215,11 @@ pub unsafe extern "C" fn calc_vp_modifying_num_probability(mut t_ptr:
 #[no_mangle]
 pub unsafe extern "C" fn calc_adv_modifying_probability(mut gp: *mut TAG_DATA,
                                                         mut cfp:
-                                                            *mut CASE_FRAME,
+                                                        *mut CASE_FRAME,
                                                         mut dp: *mut TAG_DATA)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                        -> libc::c_double
+/*==================================================================*/
+{
     let mut pred: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -7401,14 +7408,14 @@ pub unsafe extern "C" fn calc_adv_modifying_probability(mut gp: *mut TAG_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn calc_adv_modifying_num_probability(mut t_ptr:
-                                                                *mut TAG_DATA,
+                                                            *mut TAG_DATA,
                                                             mut cfp:
-                                                                *mut CASE_FRAME,
+                                                            *mut CASE_FRAME,
                                                             mut num:
-                                                                libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                            libc::c_int)
+                                                            -> libc::c_double
+/*==================================================================*/
+{
     let mut pred: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -7417,7 +7424,7 @@ pub unsafe extern "C" fn calc_adv_modifying_num_probability(mut t_ptr:
     let mut pred_ret: libc::c_double = 0 as libc::c_int as libc::c_double;
     let mut denominator: libc::c_int = 0 as libc::c_int;
     if AdverbExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     return if !cfp.is_null() {
         /* 格フレーム */
@@ -7505,9 +7512,9 @@ pub unsafe extern "C" fn calc_adv_modifying_num_probability(mut t_ptr:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn bin_sim_score(mut score: libc::c_double)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                       -> libc::c_int
+/*==================================================================*/
+{
     return if score < 1.0f64 {
         0 as libc::c_int
     } else if score < 2.0f64 {
@@ -7521,14 +7528,14 @@ pub unsafe extern "C" fn bin_sim_score(mut score: libc::c_double)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_para_exist_probability(mut para_key:
-                                                        *mut libc::c_char,
+                                                    *mut libc::c_char,
                                                     mut score: libc::c_double,
                                                     mut flag: libc::c_int,
                                                     mut dp: *mut TAG_DATA,
                                                     mut gp: *mut TAG_DATA)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                    -> libc::c_double
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret1: libc::c_double = 0 as libc::c_int as libc::c_double;
@@ -7537,12 +7544,12 @@ pub unsafe extern "C" fn get_para_exist_probability(mut para_key:
     let mut touten_flag: libc::c_int = 0;
     let mut dist: libc::c_int = 0;
     if CaseExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     key =
         malloc_db_buf(strlen(para_key).wrapping_add(12 as libc::c_int as
-                                                        libc::c_ulong) as
-                          libc::c_int);
+            libc::c_ulong) as
+            libc::c_int);
     if flag != 0 {
         if OptParaNoFixFlag & 2 as libc::c_int != 0 {
             sprintf(key,
@@ -7560,14 +7567,14 @@ pub unsafe extern "C" fn get_para_exist_probability(mut para_key:
     if !value.is_null() {
         ret1 = atof(value);
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (PARA) : P(%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, key, ret1);
         }
         free(value as *mut libc::c_void);
     } else if VerboseLevel as libc::c_uint >=
-                  VERBOSE2 as libc::c_int as libc::c_uint {
+        VERBOSE2 as libc::c_int as libc::c_uint {
         fprintf(Outfp,
                 b";; (PARA) : P(%s) = 0\n\x00" as *const u8 as
                     *const libc::c_char, key);
@@ -7590,18 +7597,18 @@ pub unsafe extern "C" fn get_para_exist_probability(mut para_key:
     */
     /* 名詞並列のときは読点を生成 */
     if flag != 0 &&
-           check_feature((*dp).f,
-                         b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8 as
-                             *const libc::c_char as
-                             *mut libc::c_char).is_null() {
+        check_feature((*dp).f,
+                      b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8 as
+                          *const libc::c_char as
+                          *mut libc::c_char).is_null() {
         if !check_feature((*(*dp).b_ptr).f,
                           b"\xe8\xaa\xad\xe7\x82\xb9\x00" as *const u8 as
                               *const libc::c_char as
                               *mut libc::c_char).is_null() &&
-               check_feature((*(*dp).b_ptr).f,
-                             b"\xe8\xaa\xad\xe7\x82\xb9\xe4\xb8\xa6\xe3\x82\xad\x00"
-                                 as *const u8 as *const libc::c_char as
-                                 *mut libc::c_char).is_null() {
+            check_feature((*(*dp).b_ptr).f,
+                          b"\xe8\xaa\xad\xe7\x82\xb9\xe4\xb8\xa6\xe3\x82\xad\x00"
+                              as *const u8 as *const libc::c_char as
+                              *mut libc::c_char).is_null() {
             touten_flag = 1 as libc::c_int
         } else { touten_flag = 0 as libc::c_int }
         dist = get_dist_from_work_mgr((*dp).b_ptr, (*gp).b_ptr);
@@ -7610,13 +7617,13 @@ pub unsafe extern "C" fn get_para_exist_probability(mut para_key:
         } else {
             key =
                 malloc_db_buf(strlen(b"\xe4\xb8\xa6\xe5\x88\x97\x00" as
-                                         *const u8 as
-                                         *const libc::c_char).wrapping_add(6
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               libc::c_ulong)
-                                  as libc::c_int);
+                    *const u8 as
+                    *const libc::c_char).wrapping_add(6
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)
+                    as libc::c_int);
             sprintf(key,
                     b"%d|P\xe4\xb8\xa6\xe5\x88\x97:%d\x00" as *const u8 as
                         *const libc::c_char, touten_flag, dist);
@@ -7624,7 +7631,7 @@ pub unsafe extern "C" fn get_para_exist_probability(mut para_key:
             if !value.is_null() {
                 ret2 = atof(value);
                 if VerboseLevel as libc::c_uint >=
-                       VERBOSE2 as libc::c_int as libc::c_uint {
+                    VERBOSE2 as libc::c_int as libc::c_uint {
                     fprintf(Outfp,
                             b";; (PARA_P) [%s -> %s] : P(%s) = %lf\n\x00" as
                                 *const u8 as *const libc::c_char,
@@ -7636,7 +7643,7 @@ pub unsafe extern "C" fn get_para_exist_probability(mut para_key:
             } else {
                 ret2 = -16.118096f64;
                 if VerboseLevel as libc::c_uint >=
-                       VERBOSE2 as libc::c_int as libc::c_uint {
+                    VERBOSE2 as libc::c_int as libc::c_uint {
                     fprintf(Outfp,
                             b";; (PARA_P) [%s -> %s] : P(%s) = 0\n\x00" as
                                 *const u8 as *const libc::c_char,
@@ -7658,13 +7665,13 @@ pub unsafe extern "C" fn get_para_exist_probability(mut para_key:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_para_ex_probability(mut para_key:
-                                                     *mut libc::c_char,
+                                                 *mut libc::c_char,
                                                  mut score: libc::c_double,
                                                  mut dp: *mut TAG_DATA,
                                                  mut gp: *mut TAG_DATA)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                 -> libc::c_double
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -7674,18 +7681,18 @@ pub unsafe extern "C" fn get_para_ex_probability(mut para_key:
     let mut dp_rep_malloc_flag: libc::c_int = 0 as libc::c_int;
     let mut ret: libc::c_double = 0.;
     if ParaExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     if OptCaseFlag & 32 as libc::c_int != 0 {
         /* 代表表記 */
         if OptCaseFlag & 1024 as libc::c_int != 0 &&
-               {
-                   cp =
-                       get_bnst_head_canonical_rep((*gp).b_ptr,
-                                                   OptCaseFlag &
-                                                       512 as libc::c_int);
-                   !cp.is_null()
-               } {
+            {
+                cp =
+                    get_bnst_head_canonical_rep((*gp).b_ptr,
+                                                OptCaseFlag &
+                                                    512 as libc::c_int);
+                !cp.is_null()
+            } {
             gp_mrph_str = strdup(cp);
             gp_rep_malloc_flag = 1 as libc::c_int
         } else {
@@ -7700,13 +7707,13 @@ pub unsafe extern "C" fn get_para_ex_probability(mut para_key:
     if OptCaseFlag & 32 as libc::c_int != 0 {
         /* 代表表記 */
         if OptCaseFlag & 1024 as libc::c_int != 0 &&
-               {
-                   cp =
-                       get_bnst_head_canonical_rep((*dp).b_ptr,
-                                                   OptCaseFlag &
-                                                       512 as libc::c_int);
-                   !cp.is_null()
-               } {
+            {
+                cp =
+                    get_bnst_head_canonical_rep((*dp).b_ptr,
+                                                OptCaseFlag &
+                                                    512 as libc::c_int);
+                !cp.is_null()
+            } {
             dp_mrph_str = strdup(cp);
             dp_rep_malloc_flag = 1 as libc::c_int
         } else {
@@ -7722,15 +7729,15 @@ pub unsafe extern "C" fn get_para_ex_probability(mut para_key:
     /* if (!strcmp(dp_mrph_str, gp_mrph_str) || */
     if strcmp((*(*dp).head_ptr).Goi.as_mut_ptr(),
               (*(*gp).head_ptr).Goi.as_mut_ptr()) == 0 {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     key =
         malloc_db_buf(strlen(dp_mrph_str).wrapping_add(strlen(para_key)).wrapping_add(strlen(gp_mrph_str)).wrapping_add(5
-                                                                                                                            as
-                                                                                                                            libc::c_int
-                                                                                                                            as
-                                                                                                                            libc::c_ulong)
-                          as libc::c_int);
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     if OptParaNoFixFlag & 2 as libc::c_int != 0 {
         sprintf(key, b"%s|%d,%s,%s\x00" as *const u8 as *const libc::c_char,
                 dp_mrph_str, bin_sim_score(score), para_key, gp_mrph_str);
@@ -7744,7 +7751,7 @@ pub unsafe extern "C" fn get_para_ex_probability(mut para_key:
     if !value.is_null() {
         ret = atof(value);
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (PARA_EX) : P(%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, key, ret);
@@ -7752,12 +7759,12 @@ pub unsafe extern "C" fn get_para_ex_probability(mut para_key:
         free(value as *mut libc::c_void);
     } else {
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (PARA_EX) : P(%s) = 0\n\x00" as *const u8 as
                         *const libc::c_char, key);
         }
-        return -13.815511f64
+        return -13.815511f64;
     }
     return if ret != 0. { log(ret) } else { -13.815511f64 };
 }
@@ -7765,9 +7772,9 @@ pub unsafe extern "C" fn get_para_ex_probability(mut para_key:
 #[no_mangle]
 pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
                                                     mut gp: *mut TAG_DATA)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                    -> libc::c_double
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -7786,20 +7793,20 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
     let mut tmp_dp: *mut TAG_DATA = 0 as *mut TAG_DATA;
     let mut tmp_gp: *mut TAG_DATA = gp;
     if NounCoExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     while !tmp_gp.is_null() {
         if OptCaseFlag & 32 as libc::c_int != 0 {
             /* 代表表記 */
             if OptCaseFlag & 1024 as libc::c_int != 0 &&
-                   {
-                       cp =
-                           get_bnst_head_canonical_rep((*tmp_gp).b_ptr,
-                                                       OptCaseFlag &
-                                                           512 as
-                                                               libc::c_int);
-                       !cp.is_null()
-                   } {
+                {
+                    cp =
+                        get_bnst_head_canonical_rep((*tmp_gp).b_ptr,
+                                                    OptCaseFlag &
+                                                        512 as
+                                                            libc::c_int);
+                    !cp.is_null()
+                } {
                 gp_mrph_str = strdup(cp);
                 gp_rep_malloc_flag = 1 as libc::c_int
             } else {
@@ -7813,18 +7820,18 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
         } else { gp_mrph_str = (*(*tmp_gp).head_ptr).Goi.as_mut_ptr() }
         tmp_dp = dp;
         while !tmp_dp.is_null() {
-            if (*tmp_dp).num > (*tmp_gp).num { continue ; }
+            if (*tmp_dp).num > (*tmp_gp).num { continue; }
             if OptCaseFlag & 32 as libc::c_int != 0 {
                 /* 代表表記 */
                 if OptCaseFlag & 1024 as libc::c_int != 0 &&
-                       {
-                           cp =
-                               get_bnst_head_canonical_rep((*tmp_dp).b_ptr,
-                                                           OptCaseFlag &
-                                                               512 as
-                                                                   libc::c_int);
-                           !cp.is_null()
-                       } {
+                    {
+                        cp =
+                            get_bnst_head_canonical_rep((*tmp_dp).b_ptr,
+                                                        OptCaseFlag &
+                                                            512 as
+                                                                libc::c_int);
+                        !cp.is_null()
+                    } {
                     dp_mrph_str = strdup(cp);
                     dp_rep_malloc_flag = 1 as libc::c_int
                 } else {
@@ -7839,11 +7846,11 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
             } else { dp_mrph_str = (*(*tmp_dp).head_ptr).Goi.as_mut_ptr() }
             key =
                 malloc_db_buf(strlen(dp_mrph_str).wrapping_add(strlen(gp_mrph_str)).wrapping_add(2
-                                                                                                     as
-                                                                                                     libc::c_int
-                                                                                                     as
-                                                                                                     libc::c_ulong)
-                                  as libc::c_int);
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)
+                    as libc::c_int);
             sprintf(key, b"%s|%s\x00" as *const u8 as *const libc::c_char,
                     dp_mrph_str, gp_mrph_str);
             if dp_rep_malloc_flag != 0 {
@@ -7853,7 +7860,7 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
             if !value.is_null() {
                 tmp_ret = atof(value);
                 if VerboseLevel as libc::c_uint >=
-                       VERBOSE2 as libc::c_int as libc::c_uint {
+                    VERBOSE2 as libc::c_int as libc::c_uint {
                     fprintf(Outfp,
                             b";; (NOUN_EX) : P(%s) = %lf\n\x00" as *const u8
                                 as *const libc::c_char, key, tmp_ret);
@@ -7865,7 +7872,7 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
                 } else { sub_ret1 += log(tmp_ret) }
             } else {
                 if VerboseLevel as libc::c_uint >=
-                       VERBOSE2 as libc::c_int as libc::c_uint {
+                    VERBOSE2 as libc::c_int as libc::c_uint {
                     fprintf(Outfp,
                             b";; (NOUN_EX) : P(%s) = 0\n\x00" as *const u8 as
                                 *const libc::c_char, key);
@@ -7876,12 +7883,12 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
                 } else { sub_ret1 += -13.815511f64 }
             }
             elem_num += 1;
-            if OptParaNoFixFlag & 2 as libc::c_int != 0 { break ; }
+            if OptParaNoFixFlag & 2 as libc::c_int != 0 { break; }
             tmp_dp = (*tmp_dp).next
         }
         if gp_rep_malloc_flag != 0 { free(gp_mrph_str as *mut libc::c_void); }
         g_elem_num += 1;
-        if OptParaNoFixFlag & 2 as libc::c_int != 0 { break ; }
+        if OptParaNoFixFlag & 2 as libc::c_int != 0 { break; }
         tmp_gp = (*tmp_gp).next
     }
     if OptParaNoFixFlag & 8 as libc::c_int != 0 {
@@ -7898,7 +7905,7 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
         /* 非連体修飾名詞の方は常に正規化 */
     }
     if VerboseLevel as libc::c_uint >= VERBOSE2 as libc::c_int as libc::c_uint
-       {
+    {
         fprintf(Outfp,
                 b";; (NOUN_EX) is divided by %d => %.5f\n\x00" as *const u8 as
                     *const libc::c_char,
@@ -7925,19 +7932,19 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
             let mut closest_ok_flag: libc::c_int = 0 as libc::c_int;
             if get_dist_from_work_mgr((*tmp_dp).b_ptr,
                                       (*tmp_dp).b_ptr.offset(1 as libc::c_int
-                                                                 as isize)) >
-                   0 as libc::c_int {
+                                          as isize)) >
+                0 as libc::c_int {
                 closest_ok_flag = 1 as libc::c_int
             }
             key =
                 malloc_db_buf(strlen(b"\xe9\x80\xa3\xe4\xbd\x93\x00" as
-                                         *const u8 as
-                                         *const libc::c_char).wrapping_add(8
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               libc::c_ulong)
-                                  as libc::c_int);
+                    *const u8 as
+                    *const libc::c_char).wrapping_add(8
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)
+                    as libc::c_int);
             sprintf(key,
                     b"%d|P\xe9\x80\xa3\xe4\xbd\x93:%d,%d\x00" as *const u8 as
                         *const libc::c_char, touten_flag, dist,
@@ -7946,7 +7953,7 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
             if !value.is_null() {
                 tmp_ret = atof(value);
                 if VerboseLevel as libc::c_uint >=
-                       VERBOSE2 as libc::c_int as libc::c_uint {
+                    VERBOSE2 as libc::c_int as libc::c_uint {
                     fprintf(Outfp,
                             b";; (NOUN_N) [%s -> %s] : P(%s) = %lf\n\x00" as
                                 *const u8 as *const libc::c_char,
@@ -7958,7 +7965,7 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
             } else {
                 ret2 += -13.815511f64;
                 if VerboseLevel as libc::c_uint >=
-                       VERBOSE2 as libc::c_int as libc::c_uint {
+                    VERBOSE2 as libc::c_int as libc::c_uint {
                     fprintf(Outfp,
                             b";; (NOUN_N) [%s -> %s] : P(%s) = 0\n\x00" as
                                 *const u8 as *const libc::c_char,
@@ -7968,13 +7975,13 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
             }
         }
         elem_num += 1;
-        if OptParaNoFixFlag & 2 as libc::c_int != 0 { break ; }
+        if OptParaNoFixFlag & 2 as libc::c_int != 0 { break; }
         tmp_dp = (*tmp_dp).next
     }
     if OptParaNoFixFlag & 1 as libc::c_int != 0 {
         ret2 /= elem_num as libc::c_double;
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (NOUN_N) is divided by %d => %.5f\n\x00" as *const u8
                         as *const libc::c_char, elem_num, ret2);
@@ -7987,10 +7994,10 @@ pub unsafe extern "C" fn get_noun_co_ex_probability(mut dp: *mut TAG_DATA,
 pub unsafe extern "C" fn get_noun_co_num_probability(mut gp: *mut TAG_DATA,
                                                      mut num: libc::c_int,
                                                      mut para_cky_ptr:
-                                                         *mut CKY)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                     *mut CKY)
+                                                     -> libc::c_double
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -7999,25 +8006,25 @@ pub unsafe extern "C" fn get_noun_co_num_probability(mut gp: *mut TAG_DATA,
     let mut rep_malloc_flag: libc::c_int = 0 as libc::c_int;
     let mut ret: libc::c_double = 0.;
     if NounCoExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     if OptParaNoFixFlag & 4 as libc::c_int != 0 && !para_cky_ptr.is_null() {
         while !para_cky_ptr.is_null() {
             if !(*para_cky_ptr).left.is_null() &&
-                   (*para_cky_ptr).para_flag == 0 as libc::c_int &&
-                   !(*(*para_cky_ptr).left).b_ptr.is_null() &&
-                   (!check_feature((*(*(*para_cky_ptr).left).b_ptr).f,
-                                   b"\xe4\xbf\x82:\xe3\x83\x8e\xe6\xa0\xbc\x00"
-                                       as *const u8 as *const libc::c_char as
-                                       *mut libc::c_char).is_null() ||
-                        !check_feature((*(*(*para_cky_ptr).left).b_ptr).f,
-                                       b"\xe4\xbf\x82:\xe9\x80\xa3\xe4\xbd\x93\x00"
-                                           as *const u8 as *const libc::c_char
-                                           as *mut libc::c_char).is_null()) {
+                (*para_cky_ptr).para_flag == 0 as libc::c_int &&
+                !(*(*para_cky_ptr).left).b_ptr.is_null() &&
+                (!check_feature((*(*(*para_cky_ptr).left).b_ptr).f,
+                                b"\xe4\xbf\x82:\xe3\x83\x8e\xe6\xa0\xbc\x00"
+                                    as *const u8 as *const libc::c_char as
+                                    *mut libc::c_char).is_null() ||
+                    !check_feature((*(*(*para_cky_ptr).left).b_ptr).f,
+                                   b"\xe4\xbf\x82:\xe9\x80\xa3\xe4\xbd\x93\x00"
+                                       as *const u8 as *const libc::c_char
+                                       as *mut libc::c_char).is_null()) {
                 para_cond =
                     b"PO\x00" as *const u8 as *const libc::c_char as
                         *mut libc::c_char;
-                break ;
+                break;
             } else { para_cky_ptr = (*para_cky_ptr).right }
         }
         if para_cond.is_null() {
@@ -8032,13 +8039,13 @@ pub unsafe extern "C" fn get_noun_co_num_probability(mut gp: *mut TAG_DATA,
     if OptCaseFlag & 32 as libc::c_int != 0 {
         /* 代表表記 */
         if OptCaseFlag & 1024 as libc::c_int != 0 &&
-               {
-                   cp =
-                       get_bnst_head_canonical_rep((*gp).b_ptr,
-                                                   OptCaseFlag &
-                                                       512 as libc::c_int);
-                   !cp.is_null()
-               } {
+            {
+                cp =
+                    get_bnst_head_canonical_rep((*gp).b_ptr,
+                                                OptCaseFlag &
+                                                    512 as libc::c_int);
+                !cp.is_null()
+            } {
             mrph_str = strdup(cp);
             rep_malloc_flag = 1 as libc::c_int
         } else {
@@ -8051,8 +8058,8 @@ pub unsafe extern "C" fn get_noun_co_num_probability(mut gp: *mut TAG_DATA,
     } else { mrph_str = (*(*gp).head_ptr).Goi.as_mut_ptr() }
     key =
         malloc_db_buf(strlen(mrph_str).wrapping_add(9 as libc::c_int as
-                                                        libc::c_ulong) as
-                          libc::c_int);
+            libc::c_ulong) as
+            libc::c_int);
     if OptParaNoFixFlag & 4 as libc::c_int != 0 {
         sprintf(key, b"%d|N:%s,%s\x00" as *const u8 as *const libc::c_char,
                 num, mrph_str, para_cond);
@@ -8065,7 +8072,7 @@ pub unsafe extern "C" fn get_noun_co_num_probability(mut gp: *mut TAG_DATA,
     if !value.is_null() {
         ret = atof(value);
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (NOUN_NUM) : P(%s) = %lf\n\x00" as *const u8 as
                         *const libc::c_char, key, ret);
@@ -8074,7 +8081,7 @@ pub unsafe extern "C" fn get_noun_co_num_probability(mut gp: *mut TAG_DATA,
         ret = log(ret)
     } else {
         if VerboseLevel as libc::c_uint >=
-               VERBOSE2 as libc::c_int as libc::c_uint {
+            VERBOSE2 as libc::c_int as libc::c_uint {
             fprintf(Outfp,
                     b";; (NOUN_NUM) : P(%s) = 0\n\x00" as *const u8 as
                         *const libc::c_char, key);
@@ -8088,22 +8095,22 @@ pub unsafe extern "C" fn get_noun_co_num_probability(mut gp: *mut TAG_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn get_chi_pa(mut ptr1: *mut BNST_DATA,
                                     mut ptr2: *mut BNST_DATA,
-                                    mut dist: libc::c_int) -> libc::c_double 
- /*==================================================================*/
- {
+                                    mut dist: libc::c_int) -> libc::c_double
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_double = 0.;
     if CHIPAExist == 0 as libc::c_int {
-        return 0 as libc::c_int as libc::c_double
+        return 0 as libc::c_int as libc::c_double;
     }
     key =
         malloc_db_buf(strlen((*(*ptr1).head_ptr).Goi.as_mut_ptr()).wrapping_add(strlen((*(*ptr2).head_ptr).Goi.as_mut_ptr())).wrapping_add(strlen((*(*ptr1).head_ptr).Pos.as_mut_ptr())).wrapping_add(strlen((*(*ptr2).head_ptr).Pos.as_mut_ptr())).wrapping_add(11
-                                                                                                                                                                                                                                                                     as
-                                                                                                                                                                                                                                                                     libc::c_int
-                                                                                                                                                                                                                                                                     as
-                                                                                                                                                                                                                                                                     libc::c_ulong)
-                          as libc::c_int);
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     /* 用言表記でやった方がよいみたい */
     if (*ptr1).num < (*ptr2).num {
         sprintf(key,
@@ -8127,9 +8134,11 @@ pub unsafe extern "C" fn get_chi_pa(mut ptr1: *mut BNST_DATA,
     } else { ret = 0.0f64 }
     return ret;
 }
+
 static mut cdb_buf: *mut libc::c_uchar =
     0 as *const libc::c_uchar as *mut libc::c_uchar;
 static mut cdb_blen: libc::c_uint = 0;
+
 unsafe extern "C" fn allocbuf(mut len: libc::c_uint) {
     if cdb_blen < len {
         cdb_buf =
@@ -8144,6 +8153,7 @@ unsafe extern "C" fn allocbuf(mut len: libc::c_uint) {
         cdb_blen = len
     };
 }
+
 unsafe extern "C" fn fget(mut f: libc::c_int, mut b: *mut libc::c_uchar,
                           mut len: libc::c_uint, mut posp: *mut libc::c_uint,
                           mut limit: libc::c_uint) {
@@ -8152,7 +8162,7 @@ unsafe extern "C" fn fget(mut f: libc::c_int, mut b: *mut libc::c_uchar,
                 b"invalid database format\n\x00" as *const u8 as
                     *const libc::c_char);
     }
-    if read(f, b as *mut libc::c_void, len as size_t) != len as libc::c_long {
+    if read(f, b as *mut libc::c_void, len as size_t) != len as libc::ssize_t {
         fprintf(stderr,
                 b"unable to read: short file\n\x00" as *const u8 as
                     *const libc::c_char);
@@ -8160,6 +8170,7 @@ unsafe extern "C" fn fget(mut f: libc::c_int, mut b: *mut libc::c_uchar,
     }
     if !posp.is_null() { *posp = (*posp).wrapping_add(len) };
 }
+
 unsafe extern "C" fn fcpy(mut fi: libc::c_int, mut len: libc::c_uint,
                           mut posp: *mut libc::c_uint,
                           mut limit: libc::c_uint) -> *mut libc::c_uchar {
@@ -8173,10 +8184,11 @@ unsafe extern "C" fn fcpy(mut fi: libc::c_int, mut len: libc::c_uint,
     *retbuf.offset(len as isize) = '\u{0}' as i32 as libc::c_uchar;
     return retbuf;
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn list_db_and_register_caseframe(mut db: DBM_FILE,
                                                         mut flag:
-                                                            libc::c_int) {
+                                                        libc::c_int) {
     let mut eod: libc::c_uint = 0;
     let mut klen: libc::c_uint = 0;
     let mut vlen: libc::c_uint = 0;
@@ -8199,7 +8211,7 @@ pub unsafe extern "C" fn list_db_and_register_caseframe(mut db: DBM_FILE,
         klen = cdb_unpack(cdb_buf as *const libc::c_uchar);
         vlen =
             cdb_unpack(cdb_buf.offset(4 as libc::c_int as isize) as
-                           *const libc::c_uchar);
+                *const libc::c_uchar);
         key = fcpy((*db).fd, klen, &mut pos, eod);
         val = fcpy((*db).fd, vlen, &mut pos, eod);
         fprintf(stderr, b"%s %s\n\t\x00" as *const u8 as *const libc::c_char,
@@ -8207,9 +8219,9 @@ pub unsafe extern "C" fn list_db_and_register_caseframe(mut db: DBM_FILE,
         break_flag = 0 as libc::c_int;
         pre_pos = val;
         cp = pre_pos;
-        loop  {
+        loop {
             if *cp as libc::c_int == '/' as i32 ||
-                   *cp as libc::c_int == '\u{0}' as i32 {
+                *cp as libc::c_int == '\u{0}' as i32 {
                 if *cp as libc::c_int == '\u{0}' as i32 {
                     break_flag = 1 as libc::c_int
                 } else { *cp = '\u{0}' as i32 as libc::c_uchar }
@@ -8232,7 +8244,7 @@ pub unsafe extern "C" fn list_db_and_register_caseframe(mut db: DBM_FILE,
                             address);
                 }
                 pre_pos = cp.offset(1 as libc::c_int as isize);
-                if break_flag != 0 { break ; }
+                if break_flag != 0 { break; }
             }
             cp = cp.offset(1)
         }
@@ -8246,6 +8258,3 @@ pub unsafe extern "C" fn list_db_and_register_caseframe(mut db: DBM_FILE,
                     *const libc::c_char);
     };
 }
-/*====================================================================
-                               END
-====================================================================*/

@@ -1,9 +1,8 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
-use crate::{BNST_DATA, lib_bgh, match_matrix, tools, types};
-use crate::ctools::{check_feature, Language, stderr};
+use libc;
+use crate::{BNST_DATA, Class, FEATURE, fprintf, match_matrix, SENTENCE_DATA, strcat, strcmp, strcpy, strlen, strstr};
+use crate::ctools::{check_feature, Language, stderr, strncpy, THESAURUS};
 use crate::lib_bgh::bgh_code_match;
 use crate::lib_sm::ntt_code_match;
 use crate::similarity::similarity_chinese;
@@ -36,7 +35,7 @@ pub unsafe extern "C" fn str_part_cmp(mut c1: *mut libc::c_char, mut c2: *mut li
     return match_0;
 }
 #[no_mangle]
-pub unsafe extern "C" fn check_fuzoku(mut ptr: *mut types::BNST_DATA, mut Hinshi: libc::c_int, mut Bunrui: libc::c_int, mut cp: *mut libc::c_char) -> libc::c_int {
+pub unsafe extern "C" fn check_fuzoku(mut ptr: *mut BNST_DATA, mut Hinshi: libc::c_int, mut Bunrui: libc::c_int, mut cp: *mut libc::c_char) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if ptr.is_null() { return 0 as libc::c_int }
     i = (*ptr).mrph_num - 1 as libc::c_int;
@@ -56,7 +55,7 @@ pub unsafe extern "C" fn check_fuzoku(mut ptr: *mut types::BNST_DATA, mut Hinshi
     return 0 as libc::c_int;
 }
 #[no_mangle]
-pub unsafe extern "C" fn check_fuzoku_substr(mut ptr: *mut types::BNST_DATA, mut Hinshi: libc::c_int, mut Bunrui: libc::c_int, mut cp: *mut libc::c_char) -> libc::c_int {
+pub unsafe extern "C" fn check_fuzoku_substr(mut ptr: *mut BNST_DATA, mut Hinshi: libc::c_int, mut Bunrui: libc::c_int, mut cp: *mut libc::c_char) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if ptr.is_null() { return 0 as libc::c_int }
     i = (*ptr).mrph_num - 1 as libc::c_int;
@@ -76,7 +75,7 @@ pub unsafe extern "C" fn check_fuzoku_substr(mut ptr: *mut types::BNST_DATA, mut
     return 0 as libc::c_int;
 }
 #[no_mangle]
-pub unsafe extern "C" fn check_bnst_substr(mut ptr: *mut types::BNST_DATA, mut Hinshi: libc::c_int, mut Bunrui: libc::c_int, mut cp: *mut libc::c_char) -> libc::c_int {
+pub unsafe extern "C" fn check_bnst_substr(mut ptr: *mut BNST_DATA, mut Hinshi: libc::c_int, mut Bunrui: libc::c_int, mut cp: *mut libc::c_char) -> libc::c_int {
     let mut i: libc::c_int = 0;
     if ptr.is_null() { return 0 as libc::c_int }
     i = 0 as libc::c_int;
@@ -170,7 +169,7 @@ pub unsafe extern "C" fn sm_match(mut ptr1: *mut BNST_DATA, mut ptr2: *mut BNST_
     }
 }
 #[no_mangle]
-pub unsafe extern "C" fn subordinate_level_comp(mut ptr1: *mut types::BNST_DATA, mut ptr2: *mut types::BNST_DATA) -> libc::c_int {
+pub unsafe extern "C" fn subordinate_level_comp(mut ptr1: *mut BNST_DATA, mut ptr2: *mut BNST_DATA) -> libc::c_int {
     let mut level1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut level2: *mut libc::c_char = 0 as *mut libc::c_char;
     level1 = check_feature(
@@ -195,7 +194,7 @@ pub unsafe extern "C" fn subordinate_level_comp(mut ptr1: *mut types::BNST_DATA,
     }
 }
 #[no_mangle]
-pub unsafe extern "C" fn subordinate_level_check(mut cp: *mut libc::c_char, mut f: *mut types::FEATURE) -> libc::c_int {
+pub unsafe extern "C" fn subordinate_level_check(mut cp: *mut libc::c_char, mut f: *mut FEATURE) -> libc::c_int {
     let mut level1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut level2: *mut libc::c_char = 0 as *mut libc::c_char;
     level1 = cp;
@@ -252,7 +251,7 @@ pub unsafe extern "C" fn levelcmp(mut cp1: *mut libc::c_char, mut cp2: *mut libc
     return level1 - level2;
 }
 #[no_mangle]
-pub unsafe extern "C" fn calc_match(mut sp: *mut types::SENTENCE_DATA, mut pre: libc::c_int, mut pos: libc::c_int) -> libc::c_int {
+pub unsafe extern "C" fn calc_match(mut sp: *mut SENTENCE_DATA, mut pre: libc::c_int, mut pos: libc::c_int) -> libc::c_int {
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut part_mt_point: libc::c_int = 0;
@@ -269,11 +268,11 @@ pub unsafe extern "C" fn calc_match(mut sp: *mut types::SENTENCE_DATA, mut pre: 
     let mut str2_bk: [libc::c_char; 128] = [0; 128];
     let mut cp1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cp2: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut ptr1: *mut types::BNST_DATA = 0 as *mut types::BNST_DATA;
-    let mut ptr2: *mut types::BNST_DATA = 0 as *mut types::BNST_DATA;
+    let mut ptr1: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut ptr2: *mut BNST_DATA = 0 as *mut BNST_DATA;
     let mut similarity: libc::c_float = 0.;
-    ptr1 = &mut *(*sp).bnst_data.offset(pre as isize) as *mut types::BNST_DATA;
-    ptr2 = &mut *(*sp).bnst_data.offset(pos as isize) as *mut types::BNST_DATA;
+    ptr1 = &mut *(*sp).bnst_data.offset(pre as isize) as *mut BNST_DATA;
+    ptr2 = &mut *(*sp).bnst_data.offset(pos as isize) as *mut BNST_DATA;
     if Language != 2 as libc::c_int {
         cp1 =
             check_feature((*ptr1).f,
@@ -820,7 +819,7 @@ pub unsafe extern "C" fn calc_match(mut sp: *mut types::SENTENCE_DATA, mut pre: 
                 i += 3 as libc::c_int
             }
             i = 0 as libc::c_int;
-            while (i as libc::c_ulong) < strlen((*(*ptr2).head_ptr).Goi.as_mut_ptr()).wrapping_sub(3 as libc::c_int as ibc::c_ulong) {
+            while (i as libc::c_ulong) < strlen((*(*ptr2).head_ptr).Goi.as_mut_ptr()).wrapping_sub(3 as libc::c_int as libc::c_ulong) {
                 strcpy(str2.as_mut_ptr(),
                        b"   \x00" as *const u8 as *const libc::c_char);
                 strncpy(str2.as_mut_ptr(),
@@ -863,7 +862,7 @@ pub unsafe extern "C" fn calc_match(mut sp: *mut types::SENTENCE_DATA, mut pre: 
     return point;
 }
 #[no_mangle]
-pub unsafe extern "C" fn calc_match_matrix(mut sp: *mut types::SENTENCE_DATA) {
+pub unsafe extern "C" fn calc_match_matrix(mut sp: *mut SENTENCE_DATA) {
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut calc_flag: libc::c_int = 0;
@@ -894,4 +893,44 @@ pub unsafe extern "C" fn calc_match_matrix(mut sp: *mut types::SENTENCE_DATA) {
         }
         i += 1
     };
+}
+
+pub unsafe extern "C" fn is_figure(mut s: *mut libc::c_char) -> libc::c_int {
+    let mut value = 0;
+    if !strcmp(s, "０" as *const libc::c_char) != 0 ||
+        !strcmp(s, "１" as *const libc::c_char) != 0 ||
+        !strcmp(s, "２" as *const libc::c_char) != 0 ||
+        !strcmp(s, "３" as *const libc::c_char) != 0 ||
+        !strcmp(s, "４" as *const libc::c_char) != 0 ||
+        !strcmp(s, "５" as *const libc::c_char) != 0 ||
+        !strcmp(s, "６" as *const libc::c_char) != 0 ||
+        !strcmp(s, "７" as *const libc::c_char) != 0 ||
+        !strcmp(s, "８" as *const libc::c_char) != 0 ||
+        !strcmp(s, "９" as *const libc::c_char) != 0 ||
+        !strcmp(s, "．" as *const libc::c_char) != 0 ||
+        !strcmp(s, "一" as *const libc::c_char) != 0 ||
+        !strcmp(s, "二" as *const libc::c_char) != 0 ||
+        !strcmp(s, "两" as *const libc::c_char) != 0 ||
+        !strcmp(s, "三" as *const libc::c_char) != 0 ||
+        !strcmp(s, "四" as *const libc::c_char) != 0 ||
+        !strcmp(s, "五" as *const libc::c_char) != 0 ||
+        !strcmp(s, "六" as *const libc::c_char) != 0 ||
+        !strcmp(s, "七" as *const libc::c_char) != 0 ||
+        !strcmp(s, "八" as *const libc::c_char) != 0 ||
+        !strcmp(s, "九" as *const libc::c_char) != 0 ||
+        !strcmp(s, "十" as *const libc::c_char) != 0 ||
+        !strcmp(s, "零" as *const libc::c_char) != 0 ||
+        !strcmp(s, "百" as *const libc::c_char) != 0 ||
+        !strcmp(s, "千" as *const libc::c_char) != 0 ||
+        !strcmp(s, "万" as *const libc::c_char) != 0 ||
+        !strcmp(s, "$ARZ(B" as *const libc::c_char) != 0 ||
+        !strcmp(s, "点" as *const libc::c_char) != 0 ||
+        !strcmp(s, "分" as *const libc::c_char) != 0 ||
+        !strcmp(s, "之" as *const libc::c_char) != 0 ||
+        !strcmp(s, "年" as *const libc::c_char) != 0 ||
+        !strcmp(s, "月" as *const libc::c_char) != 0 ||
+        !strcmp(s, "日" as *const libc::c_char) != 0 {
+        value = 1;
+    }
+    return value;
 }

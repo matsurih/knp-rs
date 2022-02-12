@@ -1,7 +1,5 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-         non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
+
 /* cdb_unpack.c: unpack 32bit integer
  *
  * This file is a part of tinycdb package by Michael Tokarev, mjt@corpit.ru.

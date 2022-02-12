@@ -1,17 +1,15 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
-
+use libc;
 use crate::case_analysis::{make_print_string, pp_code_to_kstr};
 use crate::case_ipal::CFSimExist;
 use crate::case_match::count_pat_element;
 use crate::context::OptUseSmfix;
-use crate::ctools::{check_feature, malloc_data, Outfp};
+use crate::ctools::{check_feature, fputc, malloc_data, Outfp, qsort, sqrt};
 use crate::lib_print::{_print_bnst, print_eos};
 use crate::structs::{_sort_kv, CDB_FILE, CF_MATCH_MGR};
 use crate::tools::{OptCaseFlag, OptEllipsis, OptExpress};
-use crate::TOTAL_MGR;
+use crate::{fprintf, fputs, free, printf, strcpy, TOTAL_MGR};
 use crate::types::{CF_PRED_MGR, DBM_FILE, SENTENCE_DATA, size_t};
 
 #[no_mangle]

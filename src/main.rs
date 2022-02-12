@@ -1,8 +1,7 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, const_transmute, extern_types, main, register_tool)]
+
 //! KNP
-use std::thread::sleep;
+use libc;
 use crate::anaphora::{all_sentence_anaphora_analysis, assign_mrph_num, clear_context};
 use crate::base_phrase::fragment;
 use crate::bnst_compare::calc_match_matrix;
@@ -13,7 +12,8 @@ use crate::case_print::{EX_PRINT_NUM, PrintFrequency};
 use crate::configfile::{init_configfile, server_read_rc};
 use crate::consts::SOCK_STREAM;
 use crate::context::{CFSimThreshold, DiscourseAnalysis, OptUseSmfix, PreserveCPM, PreserveSentence, PrintEx, PrintFeatures};
-use crate::ctools::{__errno_location, accept, AntecedentDecideThresholdForNoun, assign_cfeature, bind, check_feature, exit, getgrgid, getpwnam, grammar, Language, listen, OptAnalysis, OptChiPos, Outfp, setgroups, shutdown, socket, stderr, waitpid};
+use crate::corefer::corefer_analysis;
+use crate::ctools::{__bswap_16, __bswap_32, __errno_location, _setjmp, accept, alarm, AntecedentDecideThresholdForNoun, assign_cfeature, atof, atoi, atol, bind, check_feature, Class, close, connect, exit, fclose, fdopen, fflush, fgets, fopen, fork, fprintf, fputs, free, fwrite, getgrgid, gethostbyname, getpid, getpwnam, grammar, Infp, init_crf_for_NE, init_distsim, katuyou, Language, listen, longjmp, malloc_data, memset, OptAnalysis, OptCFMode, OptChiPos, Options, OptKatakanaNormalize, OptMergeCFResult, OptNbest, OptNEend, Outfp, perror, printf, setgid, setgroups, setuid, shutdown, sigfillset, signal, sigprocmask, sleep, socket, sprintf, sscanf, stderr, stdin, stdout, strcasecmp, strcat, strchr, strcmp, strcpy, strdup, strerror, strlen, strncasecmp, strncmp, strstr, umask, waitpid};
 use crate::dpnd_analysis::{after_decide_dpnd, assign_dpnd_rule, calc_chi_dpnd_matrix_forProbModel, calc_chi_dpnd_matrix_wpos, calc_chi_pos_matrix, calc_dpnd_matrix, calc_gigaword_pa_matrix, check_candidates, close_chi_dpnd_db, detect_dpnd_case_struct, dpnd_info_to_bnst, dpnd_info_to_mrph, dpnd_info_to_tag, free_chi_pos, free_chi_type, init_chi_dpnd_db, init_chi_pos, init_chi_type, memo_by_program, para_postprocess, relax_dpnd_matrix, when_no_dpnd_struct};
 use crate::feature::{clear_feature, copy_feature, delete_cfeature};
 use crate::lib_print::{assign_para_similarity_feature, check_bnst, do_postprocess, prepare_all_entity, print_all_result, print_bnst_with_mrphs, print_matrix, print_para_relation, print_result};
@@ -27,11 +27,11 @@ use crate::quote::{prepare_paren_sentence, process_input_paren};
 use crate::read_data::{assign_cc_feature_to_bnst, assign_cc_feature_to_bp, assign_general_feature, make_bunsetsu, make_bunsetsu_pm, make_tag_units, preprocess_mrph, read_mrph};
 use crate::read_rule::{ContRuleArray, ContRuleSize, read_bnst_rule, read_dpnd_rule, read_dpnd_rule_for_chinese, read_general_rule, read_homo_rule, read_koou_rule};
 use crate::similarity::init_hownet;
-use crate::structs::{__sigset_t, _FEATURE, CF_ALIGNMENT, cf_def, CF_MATCH_MGR, CHI_POS, cpm_def, ctm_def, DPND, DpndRule, entity, FEATURE_PATTERN, group, hostent, in_addr, LIST, mention, MRPH_DATA, node_para_manager, passwd, sentence, sockaddr, sockaddr_in, tcf_def, tnode_b, tnode_t, TOTAL_MGR};
+use crate::structs::{__sigset_t, _FEATURE, CF_ALIGNMENT, cf_def, CF_MATCH_MGR, CHI_DPND, CHI_POS, cpm_def, ctm_def, DPND, DpndRule, entity, FEATURE_PATTERN, group, hostent, in_addr, LIST, mention, MRPH_DATA, node_para_manager, passwd, sentence, sockaddr, sockaddr_in, tcf_def, tnode_b, tnode_t, TOTAL_MGR};
 use crate::thesaurus::{close_thesaurus, get_bnst_code_all, init_thesaurus};
-use crate::tools::{author_score, author_sen, author_tag, CLASS_num, CurrentRuleNum, init_hash, is_frag, Opt_knprc, OptAddSvmFeatureDiscourseDepth, OptAddSvmFeatureObjectRecognition, OptAddSvmFeatureReferedNum, OptAddSvmFeatureUtype, OptAnaphora, OptAnaphoraBaseline, OptArticle, OptBeam, OptCaseFlag, OptCheck, OptChiGenerative, OptCKY, OptCopula, OptCorefer, OptDiscFlag, OptDiscNounMethod, OptDiscPredMethod, OptDisplay, OptDisplayNE, OptEllipsis, OptExpandP, OptExpress, OptGeneralCF, OptHostname, OptIgnoreChar, OptInput, OptLearn, OptMode, OptNE, OptNEcache, OptNEcase, OptNECRF, OptNElearn, OptNEparent, OptNoCandidateBehind, OptParaFix, OptParaNoFixFlag, OptPort, OptPosModification, OptPostProcess, OptProcessParen, OptReadFeature, OptReadNE, OptRecoverPerson, OptSemanticHead, OptServerFlag, OptTimeoutExit, OptUseCF, OptUseCPNCF, OptUseNCF, OptUseRN, ParaThesaurus, ParseTimeout, PrintNum, reader_score, reader_sen, reader_tag, RULE, sen_num, Thesaurus, timeout, VerboseLevel};
+use crate::tools::{author_score, author_sen, author_tag, CLASS_num, CurrentRuleNum, fd, init_hash, is_frag, Opt_knprc, OptAddSvmFeatureDiscourseDepth, OptAddSvmFeatureObjectRecognition, OptAddSvmFeatureReferedNum, OptAddSvmFeatureUtype, OptAnaphora, OptAnaphoraBaseline, OptArticle, OptBeam, OptCaseFlag, OptCheck, OptChiGenerative, OptCKY, OptCopula, OptCorefer, OptDiscFlag, OptDiscNounMethod, OptDiscPredMethod, OptDisplay, OptDisplayNE, OptEllipsis, OptExpandP, OptExpress, OptGeneralCF, OptHostname, OptIgnoreChar, OptInput, OptLearn, OptMode, OptNE, OptNEcache, OptNEcase, OptNECRF, OptNEdelete, OptNElearn, OptNEparent, OptNoCandidateBehind, OptParaFix, OptParaNoFixFlag, OptPort, OptPosModification, OptPostProcess, OptProcessParen, OptReadFeature, OptReadNE, OptRecoverPerson, OptSemanticHead, OptServerFlag, OptTimeoutExit, OptUseCF, OptUseCPNCF, OptUseNCF, OptUseRN, ParaThesaurus, ParseTimeout, PrintNum, reader_score, reader_sen, reader_tag, RULE, sen_num, sfd, Thesaurus, timeout, VerboseLevel};
 use crate::tree_conv::make_dpnd_tree;
-use crate::types::{__mode_t, __sighandler_t, __uint16_t, BNST_DATA, CASE_FRAME, CF_PRED_MGR, CHECK_DATA, FEATURE, FEATUREptr, FILE, gid_t, in_addr_t, MENTION, MENTION_MGR, PARA_DATA, PARA_MANAGER, sa_family_t, SENTENCE_DATA, sigset_t, size_t, socklen_t, TAG_DATA, VerboseType};
+use crate::types::{__mode_t, __sighandler_t, __uint16_t, BNST_DATA, CASE_FRAME, CF_PRED_MGR, CHECK_DATA, ENTITY, ENTITY_MGR, FEATURE, FEATUREptr, FILE, gid_t, in_addr_t, MENTION, MENTION_MGR, PARA_DATA, PARA_MANAGER, sa_family_t, SENTENCE_DATA, sigset_t, size_t, socklen_t, TAG_DATA, VerboseType};
 
 mod anaphora;
 mod base_phrase;
@@ -77,9 +77,11 @@ mod types;
 mod ctools;
 mod consts;
 mod structs;
+mod juman;
+mod cdb;
 
 #[no_mangle]
-pub static mut current_sentence_data: types::SENTENCE_DATA = types::SENTENCE_DATA{
+pub static mut current_sentence_data: SENTENCE_DATA = SENTENCE_DATA{
     Sen_num: 0,
     available: 0,
     Mrph_num: 0,
@@ -92,21 +94,21 @@ pub static mut current_sentence_data: types::SENTENCE_DATA = types::SENTENCE_DAT
     Para_M_num: 0,
     Para_num: 0,
     frame_num_max: 0,
-    mrph_data: 0 as *const types::MRPH_DATA as *mut types::MRPH_DATA,
-    bnst_data: 0 as *const types::BNST_DATA as *mut types::BNST_DATA,
-    tag_data: 0 as *const types::TAG_DATA as *mut types::TAG_DATA,
-    para_data: 0 as *const types::PARA_DATA as *mut types::PARA_DATA,
-    para_manager: 0 as *const types::PARA_MANAGER as *mut types::PARA_MANAGER,
-    cpm: 0 as *const types::CF_PRED_MGR as *mut types::CF_PRED_MGR,
-    cf: 0 as *const types::CASE_FRAME as *mut types::CASE_FRAME,
-    Best_mgr: 0 as *const types::TOTAL_MGR as *mut types::TOTAL_MGR,
+    mrph_data: 0 as *const MRPH_DATA as *mut MRPH_DATA,
+    bnst_data: 0 as *const BNST_DATA as *mut BNST_DATA,
+    tag_data: 0 as *const TAG_DATA as *mut TAG_DATA,
+    para_data: 0 as *const PARA_DATA as *mut PARA_DATA,
+    para_manager: 0 as *const PARA_MANAGER as *mut PARA_MANAGER,
+    cpm: 0 as *const CF_PRED_MGR as *mut CF_PRED_MGR,
+    cf: 0 as *const CASE_FRAME as *mut CASE_FRAME,
+    Best_mgr: 0 as *const TOTAL_MGR as *mut TOTAL_MGR,
     KNPSID: 0 as *const libc::c_char as *mut libc::c_char,
     Comment: 0 as *const libc::c_char as *mut libc::c_char,
     score: 0.,
 };
 #[no_mangle]
-pub static mut sentence_data: [types::SENTENCE_DATA; 512] =
-    [types::SENTENCE_DATA{Sen_num: 0,
+pub static mut sentence_data: [SENTENCE_DATA; 512] =
+    [SENTENCE_DATA{Sen_num: 0,
                    available: 0,
                    Mrph_num: 0,
                    New_Mrph_num: 0,
@@ -118,25 +120,25 @@ pub static mut sentence_data: [types::SENTENCE_DATA; 512] =
                    Para_M_num: 0,
                    Para_num: 0,
                    frame_num_max: 0,
-                   mrph_data: 0 as *const structs::MRPH_DATA as *mut structs::MRPH_DATA,
-                   bnst_data: 0 as *const types::BNST_DATA as *mut types::BNST_DATA,
-                   tag_data: 0 as *const types::TAG_DATA as *mut types::TAG_DATA,
-                   para_data: 0 as *const types::PARA_DATA as *mut types::PARA_DATA,
-                   para_manager: 0 as *const types::PARA_MANAGER as *mut types::PARA_MANAGER,
-                   cpm: 0 as *const types::CF_PRED_MGR as *mut types::CF_PRED_MGR,
-                   cf: 0 as *const types::CASE_FRAME as *mut types::CASE_FRAME,
-                   Best_mgr: 0 as *const structs::TOTAL_MGR as *mut structs::TOTAL_MGR,
+                   mrph_data: 0 as *const MRPH_DATA as *mut MRPH_DATA,
+                   bnst_data: 0 as *const BNST_DATA as *mut BNST_DATA,
+                   tag_data: 0 as *const TAG_DATA as *mut TAG_DATA,
+                   para_data: 0 as *const PARA_DATA as *mut PARA_DATA,
+                   para_manager: 0 as *const PARA_MANAGER as *mut PARA_MANAGER,
+                   cpm: 0 as *const CF_PRED_MGR as *mut CF_PRED_MGR,
+                   cf: 0 as *const CASE_FRAME as *mut CASE_FRAME,
+                   Best_mgr: 0 as *const TOTAL_MGR as *mut TOTAL_MGR,
                    KNPSID: 0 as *const libc::c_char as *mut libc::c_char,
                    Comment: 0 as *const libc::c_char as *mut libc::c_char,
                    score: 0.,}; 512];
 #[no_mangle]
-pub static mut paren_sentence_data: *mut types::SENTENCE_DATA = 0 as *const types::SENTENCE_DATA as *mut types::SENTENCE_DATA;
+pub static mut paren_sentence_data: *mut SENTENCE_DATA = 0 as *const SENTENCE_DATA as *mut SENTENCE_DATA;
 #[no_mangle]
-pub static mut mrph_data: [structs::MRPH_DATA; 200] =
-    [structs::MRPH_DATA{type_0: 0,
+pub static mut mrph_data: [MRPH_DATA; 200] =
+    [MRPH_DATA{type_0: 0,
                num: 0,
-               parent: 0 as *const structs::tnode_b as *mut structs::tnode_b,
-               child: [0 as *const structs::tnode_b as *mut structs::tnode_b; 32],
+               parent: 0 as *const tnode_b as *mut tnode_b,
+               child: [0 as *const tnode_b as *mut tnode_b; 32],
                length: 0,
                space: 0,
                dpnd_head: 0,
@@ -327,8 +329,8 @@ pub static mut Best_mgr: TOTAL_MGR =
               score: 0.,
               pred_num: 0,
               cpm:
-                  [types::CF_PRED_MGR{cf:
-                  types::CASE_FRAME{type_0: 0,
+                  [CF_PRED_MGR{cf:
+                  CASE_FRAME{type_0: 0,
                                               type_flag: 0,
                                               element_num: 0,
                                               oblig: [0; 24],
@@ -587,10 +589,10 @@ pub static mut Op_Best_mgr: TOTAL_MGR =
                                decided: 0,}; 64],
               ID: 0,};
 #[no_mangle]
-pub static mut entity_manager: types::ENTITY_MGR =
-    types::ENTITY_MGR{num: 0,
+pub static mut entity_manager: ENTITY_MGR =
+    ENTITY_MGR{num: 0,
                entity:
-                   [types::ENTITY{num: 0,
+                   [ENTITY{num: 0,
                            output_num: 0,
                            mentioned_num: 0,
                            link_entity: 0,
@@ -604,7 +606,7 @@ pub static mut entity_manager: types::ENTITY_MGR =
                            skip_flag: 0,
                            hypothetical_name: [0; 129],
                            mention:
-                               [0 as *const types::MENTION as *mut types::MENTION; 256],
+                               [0 as *const MENTION as *mut MENTION; 256],
                            named_entity: [0; 128],
                            name: [0; 129],
                            corefer_id: 0,
@@ -656,8 +658,8 @@ pub static mut Chi_quote_start_matrix: [[libc::c_int; 200]; 200] = [[0; 200]; 20
 #[no_mangle]
 pub static mut Chi_quote_end_matrix: [[libc::c_int; 200]; 200] = [[0; 200]; 200];
 #[no_mangle]
-pub static mut Chi_dpnd_matrix: [[structs::CHI_DPND; 200]; 200] =
-    [[structs::CHI_DPND{direction: [0; 10],
+pub static mut Chi_dpnd_matrix: [[CHI_DPND; 200]; 200] =
+    [[CHI_DPND{direction: [0; 10],
                prob_LtoR: [0.; 10],
                prob_RtoL: [0.; 10],
                prob_pos_LtoR: 0.,
@@ -686,10 +688,10 @@ pub static mut Chi_pos_matrix: [CHI_POS; 200] =
 pub unsafe extern "C" fn usage() 
  /*==================================================================*/
  {
-    fprintf(ctools::stderr,
+    fprintf(stderr,
             b"Usage: knp [-case|dpnd|dpnd-fast|bnst|anaphora] [-ne-crf]\n           [-tree|bnsttree|sexp|tab|bnsttab|mrphtab]\n           [-normal|detail|debug]\n           [-expand] [-semantic-head]\n           [-C host:port] [-S|F] [-N port]\n           [-timeout second] [-r rcfile]\n\x00"
                 as *const u8 as *const libc::c_char);
-     ctools::exit(1 as libc::c_int);
+     exit(1 as libc::c_int);
 }
 /*==================================================================*/
 #[no_mangle]
@@ -697,69 +699,69 @@ pub unsafe extern "C" fn option_proc(mut argc: libc::c_int, mut argv: *mut *mut 
     let mut i: libc::c_int = 0;
     let mut count: libc::c_int = 0 as libc::c_int;
     /* 引数処理 */
-    ctools::Language = 1 as libc::c_int;
-    ctools::OptAnalysis = 1 as libc::c_int;
-    tools::OptCKY = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptEllipsis = 0 as libc::c_int;
-    tools::OptGeneralCF = 0 as libc::c_int;
-    tools::OptCorefer = 4 as libc::c_int;
-    tools::OptInput = 0 as libc::c_int;
-    tools::OptExpress = 65 as libc::c_int;
-    tools::OptDisplay = 5 as libc::c_int;
-    tools::OptDisplayNE = 1 as libc::c_int;
-    tools::OptArticle = 0 as libc::c_int;
-    tools::OptExpandP = 0 as libc::c_int;
-    tools::OptCFMode = 2 as libc::c_int;
-    tools::OptProcessParen = 0 as libc::c_int;
-    tools::OptCheck = 0 as libc::c_int;
-    tools::OptUseCF = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptUseNCF = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptUseCPNCF = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptMergeCFResult = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptUseRN = 32 as libc::c_int;
-    tools::OptUseScase = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptUseSmfix = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptKatakanaNormalize = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptDiscPredMethod = 1 as libc::c_int;
-    tools::OptDiscNounMethod = 1 as libc::c_int;
-    tools::OptLearn = 0 as libc::c_int;
-    tools::OptCaseFlag = 32 as libc::c_int | 1024 as libc::c_int | 512 as libc::c_int | 16 as libc::c_int | 64 as libc::c_int | 128 as libc::c_int | 2048 as libc::c_int | 32768 as libc::c_int | 131072 as libc::c_int | 1048576 as libc::c_int | 65536 as libc::c_int | 8192 as libc::c_int;
-    tools::OptDiscFlag = 0 as libc::c_int;
-    tools::OptServerFlag = 0 as libc::c_int;
-    tools::OptIgnoreChar = '\u{0}' as i32 as libc::c_char;
-    tools::OptReadFeature = 0 as libc::c_int;
-    tools::OptAddSvmFeatureUtype = 0 as libc::c_int;
-    tools::OptAddSvmFeatureDiscourseDepth = 0 as libc::c_int;
-    tools::OptAddSvmFeatureObjectRecognition = 0 as libc::c_int;
-    tools::OptAddSvmFeatureReferedNum = 0 as libc::c_int;
-    tools::OptNoCandidateBehind = 0 as libc::c_int;
-    tools::OptCopula = 0 as libc::c_int;
-    tools::OptPostProcess = 0 as libc::c_int;
-    tools::OptRecoverPerson = 0 as libc::c_int;
-    tools::OptNE = 0 as libc::c_int;
-    tools::OptNECRF = 0 as libc::c_int;
-    tools::OptReadNE = 0 as libc::c_int;
-    tools::OptNEcache = 0 as libc::c_int;
-    tools::OptNEend = 0 as libc::c_int;
-    tools::OptNEdelete = 0 as libc::c_int;
-    tools::OptNEcase = 0 as libc::c_int;
-    tools::OptNElearn = 0 as libc::c_int;
-    tools::OptNEparent = 0 as libc::c_int;
-    tools::OptAnaphora = 0 as libc::c_int;
-    tools::OptAnaphoraBaseline = 0 as libc::c_int;
-    tools::OptTimeoutExit = 0 as libc::c_int;
-    tools::OptParaFix = (0 as libc::c_int == 0) as libc::c_int;
-    tools::OptParaNoFixFlag = 0 as libc::c_int;
-    tools::OptNbest = 0 as libc::c_int;
-    tools::OptBeam = 0 as libc::c_int;
-    tools::OptSemanticHead = 0 as libc::c_int;
-    tools::OptChiGenerative = 0 as libc::c_int;
-    tools::OptChiPos = 0 as libc::c_int;
-    tools::OptSemanticHead = 0 as libc::c_int;
-    tools::OptPosModification = (0 as libc::c_int == 0) as libc::c_int;
+    Language = 1 as libc::c_int;
+    OptAnalysis = 1 as libc::c_int;
+    OptCKY = (0 as libc::c_int == 0) as libc::c_int;
+    OptEllipsis = 0 as libc::c_int;
+    OptGeneralCF = 0 as libc::c_int;
+    OptCorefer = 4 as libc::c_int;
+    OptInput = 0 as libc::c_int;
+    OptExpress = 65 as libc::c_int;
+    OptDisplay = 5 as libc::c_int;
+    OptDisplayNE = 1 as libc::c_int;
+    OptArticle = 0 as libc::c_int;
+    OptExpandP = 0 as libc::c_int;
+    OptCFMode = 2 as libc::c_int;
+    OptProcessParen = 0 as libc::c_int;
+    OptCheck = 0 as libc::c_int;
+    OptUseCF = (0 as libc::c_int == 0) as libc::c_int;
+    OptUseNCF = (0 as libc::c_int == 0) as libc::c_int;
+    OptUseCPNCF = (0 as libc::c_int == 0) as libc::c_int;
+    OptMergeCFResult = (0 as libc::c_int == 0) as libc::c_int;
+    OptUseRN = 32 as libc::c_int;
+    OptUseScase = (0 as libc::c_int == 0) as libc::c_int;
+    OptUseSmfix = (0 as libc::c_int == 0) as libc::c_int;
+    OptKatakanaNormalize = (0 as libc::c_int == 0) as libc::c_int;
+    OptDiscPredMethod = 1 as libc::c_int;
+    OptDiscNounMethod = 1 as libc::c_int;
+    OptLearn = 0 as libc::c_int;
+    OptCaseFlag = 32 as libc::c_int | 1024 as libc::c_int | 512 as libc::c_int | 16 as libc::c_int | 64 as libc::c_int | 128 as libc::c_int | 2048 as libc::c_int | 32768 as libc::c_int | 131072 as libc::c_int | 1048576 as libc::c_int | 65536 as libc::c_int | 8192 as libc::c_int;
+    OptDiscFlag = 0 as libc::c_int;
+    OptServerFlag = 0 as libc::c_int;
+    OptIgnoreChar = '\u{0}' as i32 as libc::c_char;
+    OptReadFeature = 0 as libc::c_int;
+    OptAddSvmFeatureUtype = 0 as libc::c_int;
+    OptAddSvmFeatureDiscourseDepth = 0 as libc::c_int;
+    OptAddSvmFeatureObjectRecognition = 0 as libc::c_int;
+    OptAddSvmFeatureReferedNum = 0 as libc::c_int;
+    OptNoCandidateBehind = 0 as libc::c_int;
+    OptCopula = 0 as libc::c_int;
+    OptPostProcess = 0 as libc::c_int;
+    OptRecoverPerson = 0 as libc::c_int;
+    OptNE = 0 as libc::c_int;
+    OptNECRF = 0 as libc::c_int;
+    OptReadNE = 0 as libc::c_int;
+    OptNEcache = 0 as libc::c_int;
+    OptNEend = 0 as libc::c_int;
+    OptNEdelete = 0 as libc::c_int;
+    OptNEcase = 0 as libc::c_int;
+    OptNElearn = 0 as libc::c_int;
+    OptNEparent = 0 as libc::c_int;
+    OptAnaphora = 0 as libc::c_int;
+    OptAnaphoraBaseline = 0 as libc::c_int;
+    OptTimeoutExit = 0 as libc::c_int;
+    OptParaFix = (0 as libc::c_int == 0) as libc::c_int;
+    OptParaNoFixFlag = 0 as libc::c_int;
+    OptNbest = 0 as libc::c_int;
+    OptBeam = 0 as libc::c_int;
+    OptSemanticHead = 0 as libc::c_int;
+    OptChiGenerative = 0 as libc::c_int;
+    OptChiPos = 0 as libc::c_int;
+    OptSemanticHead = 0 as libc::c_int;
+    OptPosModification = (0 as libc::c_int == 0) as libc::c_int;
     /* オプションの保存 */
-    tools::Options =
-        ctools::malloc_data((::std::mem::size_of::<*mut libc::c_char>() as
+    Options =
+        malloc_data((::std::mem::size_of::<*mut libc::c_char>() as
                          libc::c_ulong).wrapping_mul(argc as libc::c_ulong),
                     b"option_proc\x00" as *const u8 as *const libc::c_char as
                         *mut libc::c_char) as *mut *mut libc::c_char;
@@ -768,15 +770,12 @@ pub unsafe extern "C" fn option_proc(mut argc: libc::c_int, mut argv: *mut *mut 
         if **argv.offset(i as isize) as libc::c_int == '-' as i32 {
             let fresh0 = count;
             count = count + 1;
-            let ref mut fresh1 = *tools::Options.offset(fresh0 as isize);
-            *fresh1 =
-                strdup((*argv.offset(i as
-                                         isize)).offset(1 as libc::c_int as
-                                                            isize))
+            let ref mut fresh1 = *Options.offset(fresh0 as isize);
+            *fresh1 = strdup((*argv.offset(i as isize)).offset(1 as libc::c_int as isize))
         }
         i += 1
     }
-    let ref mut fresh2 = *tools::Options.offset(count as isize);
+    let ref mut fresh2 = *Options.offset(count as isize);
     *fresh2 = 0 as *mut libc::c_char;
     loop  {
         argc -= 1;
@@ -790,141 +789,141 @@ pub unsafe extern "C" fn option_proc(mut argc: libc::c_int, mut argv: *mut *mut 
         }
         if strcmp(*argv.offset(0 as libc::c_int as isize),
                   b"-case\x00" as *const u8 as *const libc::c_char) == 0 {
-            tools::OptAnalysis = 1 as libc::c_int
+            OptAnalysis = 1 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-case2\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptAnalysis = 6 as libc::c_int
+            OptAnalysis = 6 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-cfsm\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptCFMode = 1 as libc::c_int
+            OptCFMode = 1 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-sexp\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptExpress = 8 as libc::c_int
+            OptExpress = 8 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-notag\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptExpress = 2 as libc::c_int
+            OptExpress = 2 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-notagtab\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            tools::OptExpress = 2 as libc::c_int
+            OptExpress = 2 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-bnsttab\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            tools::OptExpress = 2 as libc::c_int
+            OptExpress = 2 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-bnsttree\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            tools::OptExpress = 3 as libc::c_int
+            OptExpress = 3 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-pa\x00" as *const u8 as *const libc::c_char) == 0
          {
-             tools::OptExpress = 32 as libc::c_int
+             OptExpress = 32 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-table\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptExpress = 16 as libc::c_int
+            OptExpress = 16 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-entity\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            tools::OptDisplay = 4 as libc::c_int
+            OptDisplay = 4 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-article\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            tools::OptArticle = (0 as libc::c_int == 0) as libc::c_int
+            OptArticle = (0 as libc::c_int == 0) as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-normal\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            tools::OptDisplay = 1 as libc::c_int
+            OptDisplay = 1 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-detail\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            tools::OptDisplay = 2 as libc::c_int
+            OptDisplay = 2 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-para-detail\x00" as *const u8 as
                              *const libc::c_char) == 0 {
-            tools::OptDisplay = 6 as libc::c_int
+            OptDisplay = 6 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-debug\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptDisplay = 3 as libc::c_int
+            OptDisplay = 3 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-nbest\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptNbest = (0 as libc::c_int == 0) as libc::c_int
+            OptNbest = (0 as libc::c_int == 0) as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-expand\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            tools::OptExpandP = (0 as libc::c_int == 0) as libc::c_int
+            OptExpandP = (0 as libc::c_int == 0) as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-S\x00" as *const u8 as *const libc::c_char) == 0 {
-            tools::OptMode = 1 as libc::c_int
+            OptMode = 1 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-no-use-cf\x00" as *const u8 as
                              *const libc::c_char) == 0 {
-            tools::OptUseCF = 0 as libc::c_int
+            OptUseCF = 0 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-no-use-ncf\x00" as *const u8 as
                              *const libc::c_char) == 0 {
-            tools::OptUseNCF = 0 as libc::c_int
+            OptUseNCF = 0 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-process-paren\x00" as *const u8 as
                              *const libc::c_char) == 0 {
-            tools::OptProcessParen = (0 as libc::c_int == 0) as libc::c_int
+            OptProcessParen = (0 as libc::c_int == 0) as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-suppress-katakana-normalization\x00" as *const u8
                              as *const libc::c_char) == 0 {
-            tools::OptKatakanaNormalize = 0 as libc::c_int
+            OptKatakanaNormalize = 0 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-tab\x00" as *const u8 as *const libc::c_char) == 0
          {
-            if tools::OptDisplay == 5 as libc::c_int {
+            if OptDisplay == 5 as libc::c_int {
                 /* if it's still default */
-                tools::OptDisplay = 1 as libc::c_int
+                OptDisplay = 1 as libc::c_int
             }
-             tools::OptExpress = 0 as libc::c_int
+             OptExpress = 0 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-mrphtab\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            if tools::OptDisplay == 5 as libc::c_int {
+            if OptDisplay == 5 as libc::c_int {
                 /* if it's still default */
-                tools::OptDisplay = 1 as libc::c_int
+                OptDisplay = 1 as libc::c_int
             }
-            tools::OptExpress = 4 as libc::c_int
+            OptExpress = 4 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-tree\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptExpress = 65 as libc::c_int
+            OptExpress = 65 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-mrphtree\x00" as *const u8 as *const libc::c_char)
                       == 0 {
-            if tools::OptSemanticHead != 0 { usage(); }
-            tools::OptExpress = 5 as libc::c_int
+            if OptSemanticHead != 0 { usage(); }
+            OptExpress = 5 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-dpnd\x00" as *const u8 as *const libc::c_char) ==
                       0 {
-            tools::OptAnalysis = 2 as libc::c_int;
-            tools::OptUseCF = 0 as libc::c_int;
-            tools::OptUseNCF = 0 as libc::c_int
+            OptAnalysis = 2 as libc::c_int;
+            OptUseCF = 0 as libc::c_int;
+            OptUseNCF = 0 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-dpnd-fast\x00" as *const u8 as
                              *const libc::c_char) == 0 {
-            tools::OptAnalysis = 2 as libc::c_int;
-            tools::OptUseCF = 0 as libc::c_int;
-            tools::OptUseNCF = 0 as libc::c_int;
-            tools::ParaThesaurus = 1 as libc::c_int
+            OptAnalysis = 2 as libc::c_int;
+            OptUseCF = 0 as libc::c_int;
+            OptUseNCF = 0 as libc::c_int;
+            ParaThesaurus = 1 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-dpnd-use-ncf\x00" as *const u8 as
                              *const libc::c_char) == 0 {
-            tools::OptAnalysis = 2 as libc::c_int;
-            tools::OptUseCF = 0 as libc::c_int
+            OptAnalysis = 2 as libc::c_int;
+            OptUseCF = 0 as libc::c_int
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-no-fallback-to-dpnd\x00" as *const u8 as
                              *const libc::c_char) == 0 {
-            tools::OptCaseFlag &= !(65536 as libc::c_int)
+            OptCaseFlag &= !(65536 as libc::c_int)
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-filter\x00" as *const u8 as *const libc::c_char)
                       == 0 {
@@ -1409,10 +1408,10 @@ pub unsafe extern "C" fn option_proc(mut argc: libc::c_int, mut argv: *mut *mut 
             argv = argv.offset(1);
             argc -= 1;
             if argc < 1 as libc::c_int { usage(); }
-            Infp =
-                fopen(*argv.offset(0 as libc::c_int as isize),
-                      b"r\x00" as *const u8 as *const libc::c_char);
-            if Infp.is_null() { usage(); }
+            Infp = fopen(*argv.offset(0 as libc::c_int as isize), b"r\x00" as *const u8 as *const libc::c_char);
+            if Infp.is_null() {
+                usage();
+            }
         } else if strcmp(*argv.offset(0 as libc::c_int as isize),
                          b"-use-ex-all\x00" as *const u8 as
                              *const libc::c_char) == 0 {
@@ -2330,7 +2329,7 @@ pub unsafe extern "C" fn one_sentence_analysis(mut sp: *mut SENTENCE_DATA,
         /* get count of gigaword pa for Chinese */
     }
     /* 呼応表現の処理 */
-    if koou(sp) == (0 as libc::c_int == 0) as libc::c_int &&
+    if ctools::koou(sp) == (0 as libc::c_int == 0) as libc::c_int &&
            OptDisplay == 3 as libc::c_int {
         print_matrix(sp, 1 as libc::c_int, 0 as libc::c_int);
     }
@@ -2345,7 +2344,7 @@ pub unsafe extern "C" fn one_sentence_analysis(mut sp: *mut SENTENCE_DATA,
         }
     }
     /* 鍵括弧の処理 */
-    flag = quote(sp);
+    flag = ctools::quote(sp);
     if flag == (0 as libc::c_int == 0) as libc::c_int &&
            OptDisplay == 3 as libc::c_int {
         print_matrix(sp, 3 as libc::c_int, 0 as libc::c_int);
@@ -2353,7 +2352,7 @@ pub unsafe extern "C" fn one_sentence_analysis(mut sp: *mut SENTENCE_DATA,
     /* 返り値がCONTINUEとなりquote()が失敗したときは、QUOTE MATRIXがすべて1となり制約なしとなる */
     /* base phrase for Chinese */
     if Language == 2 as libc::c_int && OptChiPos == 0 {
-        base_phrase(sp, is_frag);
+        ctools::base_phrase(sp, is_frag);
         print_matrix(sp, 1 as libc::c_int, 0 as libc::c_int);
     }
     /* 係り受け関係がない場合の弛緩 */
@@ -2463,7 +2462,7 @@ pub unsafe extern "C" fn one_sentence_analysis(mut sp: *mut SENTENCE_DATA,
         para_postprocess(sp);
         if OptCKY != 0 {
             /* CKY */
-            if cky(sp, (*sp).Best_mgr, eos_flag) == 0 as libc::c_int {
+            if ctools::cky(sp, (*sp).Best_mgr, eos_flag) == 0 as libc::c_int {
                 if Language == 2 as libc::c_int {
                     printf(b"sentence %d cannot be parsed\n\x00" as *const u8
                                as *const libc::c_char, sen_num);
@@ -2473,7 +2472,7 @@ pub unsafe extern "C" fn one_sentence_analysis(mut sp: *mut SENTENCE_DATA,
                            OptCaseFlag & 65536 as libc::c_int != 0 {
                         /* fallback to dpnd */
                         OptAnalysis = 2 as libc::c_int;
-                        if cky(sp, (*sp).Best_mgr, eos_flag) ==
+                        if ctools::cky(sp, (*sp).Best_mgr, eos_flag) ==
                                0 as libc::c_int {
                             (*sp).available = 0 as libc::c_int;
                             ErrorComment =
@@ -2576,7 +2575,7 @@ pub unsafe extern "C" fn one_sentence_analysis(mut sp: *mut SENTENCE_DATA,
             clear_context(sp, 0 as libc::c_int); /* 共参照解析 */
         }
         PreserveSentence(sp);
-        if OptEllipsis & 8 as libc::c_int != 0 { context::corefer_analysis(sp); }
+        if OptEllipsis & 8 as libc::c_int != 0 { corefer_analysis(sp); }
         //if (OptAnaphora) anaphora_analysis(sp->Sen_num);
         if OptAnaphora & 65536 as libc::c_int != 0 {
             anaphora::each_sentence_anaphora_analysis(sp);
@@ -2747,9 +2746,7 @@ pub unsafe extern "C" fn init_knp_main()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn knp_main() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn knp_main() {
     let mut i: libc::c_int = 0;
     let mut success: libc::c_int = 1 as libc::c_int;
     let mut flag: libc::c_int = 0;
@@ -2856,12 +2853,7 @@ unsafe extern "C" fn sig_child() {
     }
     signal(17 as libc::c_int,
            ::std::mem::transmute::<Option<unsafe extern "C" fn() -> ()>,
-                                   __sighandler_t>(Some(::std::mem::transmute::<unsafe extern "C" fn()
-                                                                                    ->
-                                                                                        (),
-                                                                                unsafe extern "C" fn()
-                                                                                    ->
-                                                                                        ()>(sig_child))));
+                                   __sighandler_t>(Some(::std::mem::transmute::<unsafe extern "C" fn() -> (), unsafe extern "C" fn() -> ()>(sig_child))));
 }
 unsafe extern "C" fn sig_term() {
     shutdown(sfd, 2 as libc::c_int);
@@ -3256,30 +3248,30 @@ pub unsafe extern "C" fn client_mode()
         port = atoi(p)
     }
     /* つなげる準備 */
-    hp = ctools::gethostbyname(OptHostname.as_mut_ptr());
+    hp = gethostbyname(OptHostname.as_mut_ptr());
     if hp.is_null() {
         fprintf(stderr,
                 b";; host unkown\n\x00" as *const u8 as *const libc::c_char);
         clean_and_exit(1 as libc::c_int);
     }
     fd_0 =
-        ctools::socket(2 as libc::c_int, SOCK_STREAM as libc::c_int,
+        socket(2 as libc::c_int, SOCK_STREAM as libc::c_int,
                0 as libc::c_int);
     if fd_0 < 0 as libc::c_int {
-        fprintf(ctools::stderr,
+        fprintf(stderr,
                 b";; socket error\n\x00" as *const u8 as *const libc::c_char);
         clean_and_exit(1 as libc::c_int);
     }
-    sin.sin_family = 2 as libc::c_int as types::sa_family_t;
-    sin.sin_port = __bswap_16(port as types::__uint16_t);
+    sin.sin_family = 2 as libc::c_int as sa_family_t;
+    sin.sin_port = __bswap_16(port as __uint16_t);
     sin.sin_addr =
-        *(*(*hp).h_addr_list.offset(0 as libc::c_int as isize) as *mut structs::in_addr);
-    if ctools::connect(
+        *(*(*hp).h_addr_list.offset(0 as libc::c_int as isize) as *mut in_addr);
+    if connect(
         fd_0,
-        &mut sin as *mut structs::sockaddr_in as *mut structs::sockaddr,
-        ::std::mem::size_of::<structs::sockaddr_in>() as libc::c_ulong as structs::socklen_t
+        &mut sin as *mut sockaddr_in as *mut sockaddr,
+        ::std::mem::size_of::<sockaddr_in>() as libc::c_ulong as socklen_t
     ) < 0 as libc::c_int {
-        fprintf(ctools::stderr, b";; connect error\n\x00" as *const u8 as *const libc::c_char);
+        fprintf(stderr, b";; connect error\n\x00" as *const u8 as *const libc::c_char);
         clean_and_exit(1 as libc::c_int);
     }
     fi = fdopen(fd_0, b"r\x00" as *const u8 as *const libc::c_char);
@@ -3288,12 +3280,12 @@ pub unsafe extern "C" fn client_mode()
         fo.is_null()
     } {
         close(fd_0);
-        fprintf(ctools::stderr, b";; fd error\n\x00" as *const u8 as *const libc::c_char);
+        fprintf(stderr, b";; fd error\n\x00" as *const u8 as *const libc::c_char);
         clean_and_exit(1 as libc::c_int);
     }
     /* 挨拶 */
     if send_string(fi, fo, 0 as *mut libc::c_char) != 200 as libc::c_int {
-        fprintf(ctools::stderr, b";; greet error\n\x00" as *const u8 as *const libc::c_char);
+        fprintf(stderr, b";; greet error\n\x00" as *const u8 as *const libc::c_char);
         clean_and_exit(1 as libc::c_int);
     }
     /* オプション解析 (いいかげん) */
@@ -3352,7 +3344,7 @@ pub unsafe extern "C" fn client_mode()
             b"RUN%s\n\x00" as *const u8 as *const libc::c_char,
             option.as_mut_ptr());
     if send_string(fi, fo, buf.as_mut_ptr()) != 200 as libc::c_int {
-        fprintf(ctools::stderr,
+        fprintf(stderr,
                 b";; argument error OK? [%s]\n\x00" as *const u8 as
                     *const libc::c_char, option.as_mut_ptr());
         close(fd_0);
@@ -3362,7 +3354,7 @@ pub unsafe extern "C" fn client_mode()
     strnum = 0 as libc::c_int;
     while !fgets(buf.as_mut_ptr(),
                  ::std::mem::size_of::<[libc::c_char; 8192]>() as
-                     libc::c_ulong as libc::c_int, ctools::stdin).is_null() {
+                     libc::c_ulong as libc::c_int, stdin).is_null() {
         if strncmp(buf.as_mut_ptr(),
                    b"EOS\x00" as *const u8 as *const libc::c_char,
                    3 as libc::c_int as libc::c_ulong) == 0 as libc::c_int {
@@ -3378,8 +3370,8 @@ pub unsafe extern "C" fn client_mode()
                     fwrite(buf.as_mut_ptr() as *const libc::c_void,
                            ::std::mem::size_of::<libc::c_char>() as
                                libc::c_ulong, strlen(buf.as_mut_ptr()),
-                           ctools::stdout);
-                    fflush(ctools::stdout);
+                           stdout);
+                    fflush(stdout);
                     if strncmp(buf.as_mut_ptr(),
                                b"EOS\x00" as *const u8 as *const libc::c_char,
                                3 as libc::c_int as libc::c_ulong) ==
@@ -3406,22 +3398,20 @@ pub unsafe extern "C" fn client_mode()
 }
 /*==================================================================*/
 unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> libc::c_int  {
-    tools::Infp = ctools::stdin;
-    tools::Outfp = ctools::stdout;
     option_proc(argc, argv);
     /* モードによって処理を分岐 */
-    if tools::OptMode == 0 as libc::c_int {
+    if OptMode == 0 as libc::c_int {
         init_all();
         init_knp_main();
         knp_main();
         close_all();
-    } else if tools::OptMode == 1 as libc::c_int {
+    } else if OptMode == 1 as libc::c_int {
         init_all();
         server_mode();
         close_all();
-    } else if tools::OptMode == 2 as libc::c_int { client_mode(); }
-    if tools::Infp != ctools::stdin { fclose(tools::Infp); }
-    ctools::exit(0 as libc::c_int);
+    } else if OptMode == 2 as libc::c_int { client_mode(); }
+    if Infp != stdin { fclose(Infp); }
+    exit(0 as libc::c_int);
 }
 #[main]
 pub fn main() {

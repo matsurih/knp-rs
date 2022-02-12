@@ -1,13 +1,10 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-         non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(c_variadic, const_raw_ptr_to_usize_cast, extern_types, main,
-           register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
+
+use std::env::args;
+use crate::ctools::{_IO_codecvt, _IO_marker, _IO_wide_data, cdb_rl};
+use crate::juman::ctools::error;
+
 extern "C" {
-    pub type _IO_wide_data;
-    pub type _IO_codecvt;
-    pub type _IO_marker;
-    pub type cdb_rl;
     #[no_mangle]
     fn close(__fd: libc::c_int) -> libc::c_int;
     #[no_mangle]
@@ -17,8 +14,7 @@ extern "C" {
     #[no_mangle]
     static mut optind: libc::c_int;
     #[no_mangle]
-    fn getopt(___argc: libc::c_int, ___argv: *const *mut libc::c_char,
-              __shortopts: *const libc::c_char) -> libc::c_int;
+    fn getopt(___argc: libc::c_int, ___argv: *const *mut libc::c_char, __shortopts: *const libc::c_char) -> libc::c_int;
     #[no_mangle]
     static mut stdin: *mut FILE;
     #[no_mangle]
@@ -26,8 +22,7 @@ extern "C" {
     #[no_mangle]
     static mut stderr: *mut FILE;
     #[no_mangle]
-    fn rename(__old: *const libc::c_char, __new: *const libc::c_char)
-     -> libc::c_int;
+    fn rename(__old: *const libc::c_char, __new: *const libc::c_char) -> libc::c_int;
     #[no_mangle]
     fn fclose(__stream: *mut FILE) -> libc::c_int;
     #[no_mangle]
@@ -39,28 +34,23 @@ extern "C" {
     #[no_mangle]
     fn printf(_: *const libc::c_char, _: ...) -> libc::c_int;
     #[no_mangle]
-    fn vfprintf(_: *mut FILE, _: *const libc::c_char, _: ::std::ffi::VaList)
-     -> libc::c_int;
+    fn vfprintf(_: *mut FILE, _: *const libc::c_char, _: ::std::ffi::VaList) -> libc::c_int;
     #[no_mangle]
     fn getc(__stream: *mut FILE) -> libc::c_int;
     #[no_mangle]
     fn putc(__c: libc::c_int, __stream: *mut FILE) -> libc::c_int;
     #[no_mangle]
-    fn fgets(__s: *mut libc::c_char, __n: libc::c_int, __stream: *mut FILE)
-     -> *mut libc::c_char;
+    fn fgets(__s: *mut libc::c_char, __n: libc::c_int, __stream: *mut FILE) -> *mut libc::c_char;
     #[no_mangle]
     fn fputs(__s: *const libc::c_char, __stream: *mut FILE) -> libc::c_int;
     #[no_mangle]
-    fn fread(_: *mut libc::c_void, _: libc::c_ulong, _: libc::c_ulong,
-             _: *mut FILE) -> libc::c_ulong;
+    fn fread(_: *mut libc::c_void, _: libc::c_ulong, _: libc::c_ulong, _: *mut FILE) -> libc::c_ulong;
     #[no_mangle]
-    fn fwrite(_: *const libc::c_void, _: libc::c_ulong, _: libc::c_ulong,
-              _: *mut FILE) -> libc::c_ulong;
+    fn fwrite(_: *const libc::c_void, _: libc::c_ulong, _: libc::c_ulong, _: *mut FILE) -> libc::c_ulong;
     #[no_mangle]
     fn ferror(__stream: *mut FILE) -> libc::c_int;
     #[no_mangle]
-    fn strtol(_: *const libc::c_char, _: *mut *mut libc::c_char,
-              _: libc::c_int) -> libc::c_long;
+    fn strtol(_: *const libc::c_char, _: *mut *mut libc::c_char, _: libc::c_int) -> libc::c_long;
     #[no_mangle]
     fn malloc(_: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
@@ -68,8 +58,7 @@ extern "C" {
     #[no_mangle]
     fn realloc(_: *mut libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
-    fn strcat(_: *mut libc::c_char, _: *const libc::c_char)
-     -> *mut libc::c_char;
+    fn strcat(_: *mut libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
     #[no_mangle]
     fn strcmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
     #[no_mangle]
@@ -77,11 +66,9 @@ extern "C" {
     #[no_mangle]
     fn strerror(_: libc::c_int) -> *mut libc::c_char;
     #[no_mangle]
-    fn strcpy(_: *mut libc::c_char, _: *const libc::c_char)
-     -> *mut libc::c_char;
+    fn strcpy(_: *mut libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
     #[no_mangle]
-    fn open(__file: *const libc::c_char, __oflag: libc::c_int, _: ...)
-     -> libc::c_int;
+    fn open(__file: *const libc::c_char, __oflag: libc::c_int, _: ...) -> libc::c_int;
     #[no_mangle]
     static mut program_invocation_short_name: *mut libc::c_char;
     #[no_mangle]
@@ -93,23 +80,19 @@ extern "C" {
     #[no_mangle]
     fn cdb_init(cdbp: *mut cdb, fd: libc::c_int) -> libc::c_int;
     #[no_mangle]
-    fn cdb_read(cdbp: *const cdb, buf_0: *mut libc::c_void, len: libc::c_uint,
-                pos: libc::c_uint) -> libc::c_int;
+    fn cdb_read(cdbp: *const cdb, buf_0: *mut libc::c_void, len: libc::c_uint, pos: libc::c_uint) -> libc::c_int;
     #[no_mangle]
-    fn cdb_findinit(cdbfp: *mut cdb_find, cdbp: *mut cdb,
-                    key: *const libc::c_void, klen: libc::c_uint)
-     -> libc::c_int;
+    fn cdb_findinit(cdbfp: *mut cdb_find, cdbp: *mut cdb, key: *const libc::c_void, klen: libc::c_uint) -> libc::c_int;
     #[no_mangle]
     fn cdb_findnext(cdbfp: *mut cdb_find) -> libc::c_int;
     #[no_mangle]
     fn cdb_make_start(cdbmp: *mut cdb_make, fd: libc::c_int) -> libc::c_int;
     #[no_mangle]
-    fn cdb_make_put(cdbmp: *mut cdb_make, key: *const libc::c_void,
-                    klen: libc::c_uint, val: *const libc::c_void,
-                    vlen: libc::c_uint, mode: cdb_put_mode) -> libc::c_int;
+    fn cdb_make_put(cdbmp: *mut cdb_make, key: *const libc::c_void, klen: libc::c_uint, val: *const libc::c_void, vlen: libc::c_uint, mode: cdb_put_mode) -> libc::c_int;
     #[no_mangle]
     fn cdb_make_finish(cdbmp: *mut cdb_make) -> libc::c_int;
 }
+
 pub type __builtin_va_list = [__va_list_tag; 1];
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -124,6 +107,7 @@ pub type __off_t = libc::c_long;
 pub type __off64_t = libc::c_long;
 pub type size_t = libc::c_ulong;
 pub type va_list = __builtin_va_list;
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _IO_FILE {
@@ -224,28 +208,7 @@ unsafe extern "C" fn ufgets(mut s: *mut libc::c_uchar, mut size: libc::c_int,
 static mut buf: *mut libc::c_uchar =
     0 as *const libc::c_uchar as *mut libc::c_uchar;
 static mut blen: libc::c_uint = 0;
-unsafe extern "C" fn error(mut errnum: libc::c_int,
-                           mut fmt: *const libc::c_char, mut args: ...) -> ! {
-    if !fmt.is_null() {
-        let mut ap: ::std::ffi::VaListImpl;
-        fprintf(stderr, b"%s: \x00" as *const u8 as *const libc::c_char,
-                program_invocation_short_name);
-        ap = args.clone();
-        vfprintf(stderr, fmt, ap.as_va_list());
-    }
-    if errnum != 0 {
-        fprintf(stderr, b": %s\n\x00" as *const u8 as *const libc::c_char,
-                strerror(errnum));
-    } else {
-        if !fmt.is_null() { putc('\n' as i32, stderr); }
-        fprintf(stderr,
-                b"%s: try `%s -h\' for help\n\x00" as *const u8 as
-                    *const libc::c_char, program_invocation_short_name,
-                program_invocation_short_name);
-    }
-    fflush(stderr);
-    exit(if errnum != 0 { 111 as libc::c_int } else { 2 as libc::c_int });
-}
+
 unsafe extern "C" fn allocbuf(mut len: libc::c_uint) {
     if blen < len {
         buf =
@@ -254,8 +217,7 @@ unsafe extern "C" fn allocbuf(mut len: libc::c_uint) {
             } else { malloc(len as libc::c_ulong) } as *mut libc::c_uchar;
         if buf.is_null() {
             error(12 as libc::c_int,
-                  b"unable to allocate %u bytes\x00" as *const u8 as
-                      *const libc::c_char, len);
+                  b"unable to allocate %u bytes\x00" as *const u8 as *mut libc::c_char, len);
         }
         blen = len
     };
@@ -288,7 +250,7 @@ unsafe extern "C" fn qmode(mut dbname: *mut libc::c_char,
     if r < 0 as libc::c_int || cdb_init(&mut c, r) != 0 as libc::c_int {
         error(*__errno_location(),
               b"unable to open database `%s\'\x00" as *const u8 as
-                  *const libc::c_char, dbname);
+                  *mut libc::c_char, dbname);
     }
     r =
         cdb_findinit(&mut cf, &mut c, key as *const libc::c_void,
@@ -298,7 +260,7 @@ unsafe extern "C" fn qmode(mut dbname: *mut libc::c_char,
     } else {
         if r < 0 as libc::c_int {
             error(*__errno_location(),
-                  b"%s\x00" as *const u8 as *const libc::c_char, key);
+                  b"%s\x00" as *const u8 as *mut libc::c_char, key);
         }
     }
     n = 0 as libc::c_int;
@@ -314,7 +276,7 @@ unsafe extern "C" fn qmode(mut dbname: *mut libc::c_char,
                != 0 as libc::c_int {
             error(*__errno_location(),
                   b"unable to read value\x00" as *const u8 as
-                      *const libc::c_char);
+                      *mut libc::c_char);
         }
         fwrite(buf as *const libc::c_void, 1 as libc::c_int as libc::c_ulong,
                c.cdb_vlen as libc::c_ulong, stdout);
@@ -322,7 +284,7 @@ unsafe extern "C" fn qmode(mut dbname: *mut libc::c_char,
         if num != 0 { break ; }
     }
     if r < 0 as libc::c_int {
-        error(0 as libc::c_int, b"%s\x00" as *const u8 as *const libc::c_char,
+        error(0 as libc::c_int, b"%s\x00" as *const u8 as *mut libc::c_char,
               key);
     }
     return if found != 0 { 0 as libc::c_int } else { 100 as libc::c_int };
@@ -333,13 +295,13 @@ unsafe extern "C" fn fget(mut f: *mut FILE, mut b: *mut libc::c_uchar,
     if !posp.is_null() && limit.wrapping_sub(*posp) < len {
         error(71 as libc::c_int,
               b"invalid database format\x00" as *const u8 as
-                  *const libc::c_char);
+                  *mut libc::c_char);
     }
     if fread(b as *mut libc::c_void, 1 as libc::c_int as libc::c_ulong,
              len as libc::c_ulong, f) != len as libc::c_ulong {
         if ferror(f) != 0 {
             error(*__errno_location(),
-                  b"unable to read\x00" as *const u8 as *const libc::c_char);
+                  b"unable to read\x00" as *const u8 as *mut libc::c_char);
         }
         fprintf(stderr,
                 b"%s: unable to read: short file\n\x00" as *const u8 as
@@ -387,7 +349,7 @@ unsafe extern "C" fn dmode(mut dbname: *mut libc::c_char,
         f = fopen(dbname, b"r\x00" as *const u8 as *const libc::c_char);
         if f.is_null() {
             error(*__errno_location(),
-                  b"open %s\x00" as *const u8 as *const libc::c_char, dbname);
+                  b"open %s\x00" as *const u8 as *mut libc::c_char, dbname);
         }
     }
     allocbuf(2048 as libc::c_int as libc::c_uint);
@@ -435,7 +397,7 @@ unsafe extern "C" fn dmode(mut dbname: *mut libc::c_char,
     if pos != eod {
         error(71 as libc::c_int,
               b"invalid cdb file format\x00" as *const u8 as
-                  *const libc::c_char);
+                  *mut libc::c_char);
     }
     if flags & 0x1000 as libc::c_int == 0 {
         if putc('\n' as i32, stdout) < 0 as libc::c_int {
@@ -469,7 +431,7 @@ unsafe extern "C" fn smode(mut dbname: *mut libc::c_char) -> libc::c_int {
         f = fopen(dbname, b"r\x00" as *const u8 as *const libc::c_char);
         if f.is_null() {
             error(*__errno_location(),
-                  b"open %s\x00" as *const u8 as *const libc::c_char, dbname);
+                  b"open %s\x00" as *const u8 as *mut libc::c_char, dbname);
         }
     }
     pos = 0 as libc::c_int as libc::c_uint;
@@ -499,7 +461,7 @@ unsafe extern "C" fn smode(mut dbname: *mut libc::c_char) -> libc::c_int {
     if pos != eod {
         error(71 as libc::c_int,
               b"invalid cdb file format\x00" as *const u8 as
-                  *const libc::c_char);
+                  *mut libc::c_char);
     }
     k = 0 as libc::c_int as libc::c_uint;
     while k < 11 as libc::c_int as libc::c_uint {
@@ -521,7 +483,7 @@ unsafe extern "C" fn smode(mut dbname: *mut libc::c_char) -> libc::c_int {
         if i != pos {
             error(71 as libc::c_int,
                   b"invalid cdb hash table\x00" as *const u8 as
-                      *const libc::c_char);
+                      *mut libc::c_char);
         }
         if !(hlen == 0) {
             i = 0 as libc::c_int as libc::c_uint;
@@ -643,7 +605,7 @@ unsafe extern "C" fn addrec(mut cdbmp: *mut cdb_make,
                      (flags & 0xf as libc::c_int) as cdb_put_mode);
     if r < 0 as libc::c_int {
         error(*__errno_location(),
-              b"cdb_make_put\x00" as *const u8 as *const libc::c_char);
+              b"cdb_make_put\x00" as *const u8 as *mut libc::c_char);
     } else {
         if r != 0 && flags & 0x100 as libc::c_int != 0 {
             fprintf(stderr,
@@ -746,7 +708,7 @@ unsafe extern "C" fn dofile(mut cdbmp: *mut cdb_make, mut f: *mut FILE,
     } else { dofile_cdb(cdbmp, f, fn_0, flags); }
     if ferror(f) != 0 {
         error(*__errno_location(),
-              b"read error\x00" as *const u8 as *const libc::c_char);
+              b"read error\x00" as *const u8 as *mut libc::c_char);
     };
 }
 unsafe extern "C" fn cmode(mut dbname: *mut libc::c_char,
@@ -771,7 +733,7 @@ unsafe extern "C" fn cmode(mut dbname: *mut libc::c_char,
         if tmpname.is_null() {
             error(12 as libc::c_int,
                   b"unable to allocate memory\x00" as *const u8 as
-                      *const libc::c_char);
+                      *mut libc::c_char);
         }
         /* OpenBSD compiler complains about strcat() and strcpy() usage,
      * and suggests to replace them with (non-standard) strlcat() and
@@ -798,7 +760,7 @@ unsafe extern "C" fn cmode(mut dbname: *mut libc::c_char,
              } else { 0o666 as libc::c_int });
     if fd < 0 as libc::c_int {
         error(*__errno_location(),
-              b"unable to create %s\x00" as *const u8 as *const libc::c_char,
+              b"unable to create %s\x00" as *const u8 as *mut libc::c_char,
               tmpname);
     }
     cdb_make_start(&mut cdb, fd);
@@ -819,7 +781,7 @@ unsafe extern "C" fn cmode(mut dbname: *mut libc::c_char,
                           b"r\x00" as *const u8 as *const libc::c_char);
                 if f.is_null() {
                     error(*__errno_location(),
-                          b"%s\x00" as *const u8 as *const libc::c_char,
+                          b"%s\x00" as *const u8 as *mut libc::c_char,
                           *argv.offset(i as isize));
                 }
                 dofile(&mut cdb, f, *argv.offset(i as isize), flags);
@@ -833,13 +795,13 @@ unsafe extern "C" fn cmode(mut dbname: *mut libc::c_char,
     }
     if cdb_make_finish(&mut cdb) != 0 as libc::c_int {
         error(*__errno_location(),
-              b"cdb_make_finish\x00" as *const u8 as *const libc::c_char);
+              b"cdb_make_finish\x00" as *const u8 as *mut libc::c_char);
     }
     close(fd);
     if tmpname != dbname {
         if rename(tmpname, dbname) != 0 as libc::c_int {
             error(*__errno_location(),
-                  b"rename %s->%s\x00" as *const u8 as *const libc::c_char,
+                  b"rename %s->%s\x00" as *const u8 as *mut libc::c_char,
                   tmpname, dbname);
         }
     }
@@ -866,7 +828,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
     *fresh1 = program_invocation_short_name;
     if argc <= 1 as libc::c_int {
         error(0 as libc::c_int,
-              b"no arguments given\x00" as *const u8 as *const libc::c_char);
+              b"no arguments given\x00" as *const u8 as *mut libc::c_char);
     }
     loop  {
         c =
@@ -879,7 +841,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
                 if mode as libc::c_int != 0 && mode as libc::c_int != c {
                     error(0 as libc::c_int,
                           b"different modes of operation requested\x00" as
-                              *const u8 as *const libc::c_char);
+                              *const u8 as *mut libc::c_char);
                 }
                 mode = c as libc::c_char
             }
@@ -910,7 +872,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
                        !ep.is_null() && *ep as libc::c_int != 0 {
                     error(0 as libc::c_int,
                           b"invalid permissions `%s\'\x00" as *const u8 as
-                              *const libc::c_char, optarg);
+                              *mut libc::c_char, optarg);
                 }
             }
             110 => {
@@ -922,7 +884,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
                        !ep_0.is_null() && *ep_0 as libc::c_int != 0 {
                     error(0 as libc::c_int,
                           b"invalid record number `%s\'\x00" as *const u8 as
-                              *const libc::c_char, optarg);
+                              *mut libc::c_char, optarg);
                 }
             }
             104 => {
@@ -937,7 +899,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
                        program_invocation_short_name);
                 return 0 as libc::c_int
             }
-            _ => { error(0 as libc::c_int, 0 as *const libc::c_char); }
+            _ => { error(0 as libc::c_int, 0 as *mut libc::c_char); }
         }
     }
     argv = argv.offset(optind as isize);
@@ -947,12 +909,12 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
             if argc < 2 as libc::c_int {
                 error(0 as libc::c_int,
                       b"no database or key to query specified\x00" as
-                          *const u8 as *const libc::c_char);
+                          *const u8 as *mut libc::c_char);
             }
             if argc > 2 as libc::c_int {
                 error(0 as libc::c_int,
                       b"extra arguments in command line\x00" as *const u8 as
-                          *const libc::c_char);
+                          *mut libc::c_char);
             }
             r =
                 qmode(*argv.offset(0 as libc::c_int as isize),
@@ -962,7 +924,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
             if argc == 0 {
                 error(0 as libc::c_int,
                       b"no database name specified\x00" as *const u8 as
-                          *const libc::c_char);
+                          *mut libc::c_char);
             }
             if flags & 0x100 as libc::c_int != 0 &&
                    flags & 0xf as libc::c_int == 0 {
@@ -977,7 +939,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
             if argc > 1 as libc::c_int {
                 error(0 as libc::c_int,
                       b"extra arguments for dump/list\x00" as *const u8 as
-                          *const libc::c_char);
+                          *mut libc::c_char);
             }
             r =
                 dmode(if argc != 0 {
@@ -990,7 +952,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
             if argc > 1 as libc::c_int {
                 error(0 as libc::c_int,
                       b"extra argument(s) for stats\x00" as *const u8 as
-                          *const libc::c_char);
+                          *mut libc::c_char);
             }
             r =
                 smode(if argc != 0 {
@@ -1002,12 +964,12 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
         _ => {
             error(0 as libc::c_int,
                   b"no -q, -c, -d, -l or -s option specified\x00" as *const u8
-                      as *const libc::c_char);
+                      as *mut libc::c_char);
         }
     }
     if r < 0 as libc::c_int || fflush(stdout) < 0 as libc::c_int {
         error(*__errno_location(),
-              b"unable to write: %d\x00" as *const u8 as *const libc::c_char,
+              b"unable to write: %d\x00" as *const u8 as *mut libc::c_char,
               c);
     }
     return r;

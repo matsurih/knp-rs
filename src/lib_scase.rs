@@ -1,46 +1,34 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-         non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
 
-use crate::{db, tools};
-use crate::case_ipal::make_pred_string;
-use crate::ctools::{assign_cfeature, check_dict_filename, check_feature, malloc_data, Outfp, stderr};
-use crate::db::{db_get, db_read_open};
-use crate::dic::DICT;
-use crate::read_rule::case2num;
+//! 表層格情報
+use libc;
+
+use crate::{_FEATURE, BNST_DATA, Class, FEATURE, fprintf, fputs, free, MRPH_DATA, sprintf, sscanf, strcat, strcmp, strcpy, strlen, strncmp, TAG_DATA, tnode_b};
+use crate::ctools::{assign_cfeature, case2num, check_dict_filename, check_feature, db_close, db_get, db_read_open, DICT, make_pred_string, malloc_data, Outfp, stderr};
+use crate::structs::CDB_FILE;
 use crate::tools::{hiragana2katakana, OptCaseFlag, OptDisplay};
+use crate::types::DBM_FILE;
 
-
-/*====================================================================
-
-			      表層格情報
-
-                                               S.Kurohashi 92.10.21
-                                               S.Kurohashi 93. 5.31
-
-    $Id$
-====================================================================*/
 #[no_mangle]
-pub static mut scase_db: tools::DBM_FILE = 0 as *const tools::CDB_FILE as *mut tools::CDB_FILE;
+pub static mut scase_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
 pub static mut ScaseDicExist: libc::c_int = 0;
 #[no_mangle]
 pub static mut OptUseScase: libc::c_int = 0;
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_scase() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_scase()
+/*==================================================================*/
+{
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     if OptUseScase == 0 as libc::c_int {
         ScaseDicExist = 0 as libc::c_int;
-        return
+        return;
     }
     if !(*DICT.as_mut_ptr().offset(5 as libc::c_int as isize)).is_null() {
         filename =
             check_dict_filename(*DICT.as_mut_ptr().offset(5 as libc::c_int as
-                                                              isize),
+                isize),
                                 0 as libc::c_int)
     } else {
         filename =
@@ -70,22 +58,22 @@ pub unsafe extern "C" fn init_scase()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn close_scase() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn close_scase()
+/*==================================================================*/
+{
     if ScaseDicExist == (0 as libc::c_int == 0) as libc::c_int {
-        db::db_close(scase_db);
+        db_close(scase_db);
     };
 }
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_scase(mut cp: *mut libc::c_char)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                   -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
-    if ScaseDicExist == 0 as libc::c_int { return 0 as *mut libc::c_char }
+    if ScaseDicExist == 0 as libc::c_int { return 0 as *mut libc::c_char; }
     value = db_get(scase_db, cp);
     return if !value.is_null() {
         i = 0 as libc::c_int;
@@ -99,10 +87,10 @@ pub unsafe extern "C" fn get_scase(mut cp: *mut libc::c_char)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn mrph2case(mut bp: *mut tools::BNST_DATA)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn mrph2case(mut bp: *mut BNST_DATA)
+                                   -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = (*bp).mrph_num - 1 as libc::c_int;
     while i >= 0 as libc::c_int {
@@ -111,37 +99,37 @@ pub unsafe extern "C" fn mrph2case(mut bp: *mut tools::BNST_DATA)
                               *const libc::c_char as
                               *mut libc::c_char).is_null() {
             if strcmp(Class[(*(*bp).mrph_ptr.offset(i as isize)).Hinshi as
-                                usize][0 as libc::c_int as usize].id as
+                usize][0 as libc::c_int as usize].id as
                           *const libc::c_char,
                       b"\xe5\x8a\xa9\xe8\xa9\x9e\x00" as *const u8 as
                           *const libc::c_char) == 0 &&
-                   strcmp(Class[(*(*bp).mrph_ptr.offset(i as isize)).Hinshi as
-                                    usize][(*(*bp).mrph_ptr.offset(i as
-                                                                       isize)).Bunrui
-                                               as usize].id as
-                              *const libc::c_char,
-                          b"\xe6\xa0\xbc\xe5\x8a\xa9\xe8\xa9\x9e\x00" as
-                              *const u8 as *const libc::c_char) == 0 {
-                return (*(*bp).mrph_ptr.offset(i as isize)).Goi.as_mut_ptr()
+                strcmp(Class[(*(*bp).mrph_ptr.offset(i as isize)).Hinshi as
+                    usize][(*(*bp).mrph_ptr.offset(i as
+                    isize)).Bunrui
+                    as usize].id as
+                           *const libc::c_char,
+                       b"\xe6\xa0\xbc\xe5\x8a\xa9\xe8\xa9\x9e\x00" as
+                           *const u8 as *const libc::c_char) == 0 {
+                return (*(*bp).mrph_ptr.offset(i as isize)).Goi.as_mut_ptr();
             }
-        } else { return 0 as *mut libc::c_char }
+        } else { return 0 as *mut libc::c_char; }
         i -= 1
     }
     return 0 as *mut libc::c_char;
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn make_pred_string_for_scase(mut bp: *mut tools::BNST_DATA)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn make_pred_string_for_scase(mut bp: *mut BNST_DATA)
+                                                    -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut buffer: *mut libc::c_char =
         0 as *mut libc::c_char; /* OptCaseFlag & OPT_CASE_USE_REP_CF */
     let mut pp: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut verb: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut cbp: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
+    let mut cbp: *mut BNST_DATA = 0 as *mut BNST_DATA;
     verb =
-        make_pred_string(bp as *mut tools::TAG_DATA, 0 as *mut tools::MRPH_DATA,
+        make_pred_string(bp as *mut TAG_DATA, 0 as *mut MRPH_DATA,
                          0 as *mut libc::c_char, 0 as libc::c_int,
                          0 as libc::c_int, 0 as libc::c_int);
     /* cbp = get_quasi_closest_case_component((TAG_DATA *)bp, 
@@ -174,9 +162,9 @@ pub unsafe extern "C" fn make_pred_string_for_scase(mut bp: *mut tools::BNST_DAT
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn or_scase_code(mut dst: *mut *mut libc::c_char,
-                                       mut src: *mut libc::c_char) 
- /*==================================================================*/
- {
+                                       mut src: *mut libc::c_char)
+/*==================================================================*/
+{
     if (*dst).is_null() {
         *dst = src
     } else if !src.is_null() {
@@ -186,7 +174,7 @@ pub unsafe extern "C" fn or_scase_code(mut dst: *mut *mut libc::c_char,
             let ref mut fresh1 = *(*dst).offset(i as isize);
             *fresh1 =
                 (*fresh1 as libc::c_int |
-                     *src.offset(i as isize) as libc::c_int) as libc::c_char;
+                    *src.offset(i as isize) as libc::c_int) as libc::c_char;
             i += 1
         }
         free(src as *mut libc::c_void);
@@ -195,9 +183,9 @@ pub unsafe extern "C" fn or_scase_code(mut dst: *mut *mut libc::c_char,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
- /*==================================================================*/
- {
+pub unsafe extern "C" fn get_scase_code(mut ptr: *mut BNST_DATA)
+/*==================================================================*/
+{
     let mut current_block: u64;
     let mut i: libc::c_int = 0;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -215,21 +203,21 @@ pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
         cp = cp.offset(1)
     }
     if ScaseDicExist == (0 as libc::c_int == 0) as libc::c_int &&
-           {
-               vtype =
-                   check_feature((*ptr).f,
-                                 b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8
-                                     as *const libc::c_char as
-                                     *mut libc::c_char);
-               !vtype.is_null()
-           } &&
-           strcmp(vtype,
-                  b"\xe7\x94\xa8\xe8\xa8\x80:\xe5\x88\xa4\x00" as *const u8 as
-                      *const libc::c_char) != 0 {
+        {
+            vtype =
+                check_feature((*ptr).f,
+                              b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8
+                                  as *const libc::c_char as
+                                  *mut libc::c_char);
+            !vtype.is_null()
+        } &&
+        strcmp(vtype,
+               b"\xe7\x94\xa8\xe8\xa8\x80:\xe5\x88\xa4\x00" as *const u8 as
+                   *const libc::c_char) != 0 {
         /* 判定詞ではない場合 */
         vtype =
             vtype.offset(strlen(b"\xe7\x94\xa8\xe8\xa8\x80:\x00" as *const u8
-                                    as *const libc::c_char) as isize);
+                as *const libc::c_char) as isize);
         voice[0 as libc::c_int as usize] = '\u{0}' as i32 as libc::c_char;
         if (*ptr).voice & 2 as libc::c_int != 0 {
             strcpy(voice.as_mut_ptr(),
@@ -255,7 +243,7 @@ pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
                 free(str_buffer as *mut libc::c_void);
             }
             str_buffer =
-                make_pred_string(ptr as *mut tools::TAG_DATA, 0 as *mut tools::MRPH_DATA,
+                make_pred_string(ptr as *mut TAG_DATA, 0 as *mut MRPH_DATA,
                                  0 as *mut libc::c_char,
                                  OptCaseFlag & 32 as libc::c_int,
                                  0 as libc::c_int, 0 as libc::c_int);
@@ -270,13 +258,13 @@ pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
                               b"\xe5\x8e\x9f\xe5\xbd\xa2\xe6\x9b\x96\xe6\x98\xa7\x00"
                                   as *const u8 as *const libc::c_char as
                                   *mut libc::c_char).is_null() {
-                let mut fp: *mut tools::FEATURE = 0 as *mut tools::FEATURE;
-                let mut m: tools::MRPH_DATA =
-                    tools::MRPH_DATA{
+                let mut fp: *mut FEATURE = 0 as *mut FEATURE;
+                let mut m: MRPH_DATA =
+                    MRPH_DATA {
                         type_0: 0,
                         num: 0,
-                        parent: 0 as *mut tools::tnode_b,
-                        child: [0 as *mut tools::tnode_b; 32],
+                        parent: 0 as *mut tnode_b,
+                        child: [0 as *mut tnode_b; 32],
                         length: 0,
                         space: 0,
                         dpnd_head: 0,
@@ -298,7 +286,7 @@ pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
                         Katuyou_Kata: 0,
                         Katuyou_Kei: 0,
                         Imi: [0; 1024],
-                        f: 0 as *mut tools::_FEATURE,
+                        f: 0 as *mut _FEATURE,
                         Num: 0,
                         SM: 0 as *mut libc::c_char,
                         Pos: [0; 4],
@@ -324,7 +312,7 @@ pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
                                m.Imi.as_mut_ptr());
                         free(str_buffer as *mut libc::c_void);
                         str_buffer =
-                            make_pred_string(ptr as *mut tools::TAG_DATA, &mut m,
+                            make_pred_string(ptr as *mut TAG_DATA, &mut m,
                                              0 as *mut libc::c_char,
                                              OptCaseFlag & 32 as libc::c_int,
                                              0 as libc::c_int,
@@ -350,9 +338,9 @@ pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
                     0 as *mut libc::c_char;
                 print_buffer =
                     malloc_data(strlen(str_buffer).wrapping_add(10 as
-                                                                    libc::c_int
-                                                                    as
-                                                                    libc::c_ulong),
+                        libc::c_int
+                        as
+                        libc::c_ulong),
                                 b"get_scase_code\x00" as *const u8 as
                                     *const libc::c_char as *mut libc::c_char)
                         as *mut libc::c_char;
@@ -397,23 +385,23 @@ pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
                                   *const u8 as *const libc::c_char as
                                   *mut libc::c_char).is_null() {
                 (*ptr).SCASE_code[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00" as
-                                               *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char) as usize] =
+                    *const u8 as
+                    *const libc::c_char as
+                    *mut libc::c_char) as usize] =
                     1 as libc::c_int as libc::c_char
             } else if !check_feature((*ptr).f,
                                      b"\xe7\x94\xa8\xe8\xa8\x80:\xe5\xbd\xa2\x00"
                                          as *const u8 as *const libc::c_char
                                          as *mut libc::c_char).is_null() {
                 (*ptr).SCASE_code[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00" as
-                                               *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char) as usize] =
+                    *const u8 as
+                    *const libc::c_char as
+                    *mut libc::c_char) as usize] =
                     1 as libc::c_int as libc::c_char;
                 (*ptr).SCASE_code[case2num(b"\xe3\x83\x8b\xe6\xa0\xbc\x00" as
-                                               *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char) as usize] =
+                    *const u8 as
+                    *const libc::c_char as
+                    *mut libc::c_char) as usize] =
                     1 as libc::c_int as libc::c_char
                 /* 形容詞の表層格の付与は副作用が多いので制限
 	ptr->SCASE_code[case2num("ヨリ格")] = 1;
@@ -424,59 +412,59 @@ pub unsafe extern "C" fn get_scase_code(mut ptr: *mut tools::BNST_DATA)
                                          as *const u8 as *const libc::c_char
                                          as *mut libc::c_char).is_null() {
                 (*ptr).SCASE_code[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00" as
-                                               *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char) as usize] =
+                    *const u8 as
+                    *const libc::c_char as
+                    *mut libc::c_char) as usize] =
                     1 as libc::c_int as libc::c_char;
                 (*ptr).SCASE_code[case2num(b"\xe3\x83\xb2\xe6\xa0\xbc\x00" as
-                                               *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char) as usize] =
+                    *const u8 as
+                    *const libc::c_char as
+                    *mut libc::c_char) as usize] =
                     1 as libc::c_int as libc::c_char;
                 (*ptr).SCASE_code[case2num(b"\xe3\x83\x8b\xe6\xa0\xbc\x00" as
-                                               *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char) as usize] =
+                    *const u8 as
+                    *const libc::c_char as
+                    *mut libc::c_char) as usize] =
                     1 as libc::c_int as libc::c_char;
                 (*ptr).SCASE_code[case2num(b"\xe3\x83\x98\xe6\xa0\xbc\x00" as
-                                               *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char) as usize] =
+                    *const u8 as
+                    *const libc::c_char as
+                    *mut libc::c_char) as usize] =
                     1 as libc::c_int as libc::c_char;
                 (*ptr).SCASE_code[case2num(b"\xe3\x83\x88\xe6\xa0\xbc\x00" as
-                                               *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char) as usize] =
+                    *const u8 as
+                    *const libc::c_char as
+                    *mut libc::c_char) as usize] =
                     1 as libc::c_int as libc::c_char
             }
         }
-        _ => { }
+        _ => {}
     }
     /* ヴォイスによる修正 */
     if (*ptr).voice & 1 as libc::c_int != 0 {
         (*ptr).SCASE_code[case2num(b"\xe3\x83\xb2\xe6\xa0\xbc\x00" as
-                                       *const u8 as *const libc::c_char as
-                                       *mut libc::c_char) as usize] =
+            *const u8 as *const libc::c_char as
+            *mut libc::c_char) as usize] =
             1 as libc::c_int as libc::c_char;
         (*ptr).SCASE_code[case2num(b"\xe3\x83\x8b\xe6\xa0\xbc\x00" as
-                                       *const u8 as *const libc::c_char as
-                                       *mut libc::c_char) as usize] =
+            *const u8 as *const libc::c_char as
+            *mut libc::c_char) as usize] =
             1 as libc::c_int as libc::c_char
     } else if (*ptr).voice & 2 as libc::c_int != 0 ||
-                  (*ptr).voice & 4 as libc::c_int != 0 {
+        (*ptr).voice & 4 as libc::c_int != 0 {
         (*ptr).SCASE_code[case2num(b"\xe3\x83\x8b\xe6\xa0\xbc\x00" as
-                                       *const u8 as *const libc::c_char as
-                                       *mut libc::c_char) as usize] =
+            *const u8 as *const libc::c_char as
+            *mut libc::c_char) as usize] =
             1 as libc::c_int as libc::c_char
     } else if (*ptr).voice & 8 as libc::c_int != 0 ||
-                  (*ptr).voice & 16 as libc::c_int != 0 {
+        (*ptr).voice & 16 as libc::c_int != 0 {
         (*ptr).SCASE_code[case2num(b"\xe3\x83\xb2\xe6\xa0\xbc\x00" as
-                                       *const u8 as *const libc::c_char as
-                                       *mut libc::c_char) as usize] =
+            *const u8 as *const libc::c_char as
+            *mut libc::c_char) as usize] =
             1 as libc::c_int as libc::c_char;
         (*ptr).SCASE_code[case2num(b"\xe3\x83\x8b\xe6\xa0\xbc\x00" as
-                                       *const u8 as *const libc::c_char as
-                                       *mut libc::c_char) as usize] =
+            *const u8 as *const libc::c_char as
+            *mut libc::c_char) as usize] =
             1 as libc::c_int as libc::c_char
     };
 }

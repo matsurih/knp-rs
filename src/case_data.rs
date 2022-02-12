@@ -1,10 +1,10 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, const_transmute, extern_types, register_tool)]
 
+
+use libc;
 use crate::{bnst_compare, BNST_DATA, dic, FEATURE, TAG_DATA, tnode_t, tools};
 use crate::case_analysis::{get_closest_case_component, MatchPP, pp_code_to_kstr, pp_hstr_to_code, pp_kstr_to_code};
-use crate::ctools::{check_feature, exit, get_mrph_rep_from_f, stderr};
+use crate::ctools::{check_feature, Class, exit, fprintf, free, get_mrph_rep_from_f, sprintf, stderr, strcat, strcmp, strcpy, strdup, strlen, strncmp, strtok};
 use crate::lib_bgh::bgh_match_check;
 use crate::lib_sm::sm2code;
 use crate::structs::CDB_FILE;

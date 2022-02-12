@@ -1,15 +1,17 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
-use crate::{dic, structs, tools, types};
-use crate::ctools::{exit, stderr};
+use libc;
+
+use crate::{BNST_DATA, fprintf, MRPH_DATA, strcmp, strcpy, strlen, strncmp};
+use crate::ctools::{car, cdr, cons, exit, Form, length, malloc, stderr};
 use crate::feature::{feature_pattern_match, list2feature_pattern};
-use crate::structs::{BnstRule, FEATURE_PATTERN, MrphRule, REGEXPBNST, REGEXPBNSTS, REGEXPMRPH, REGEXPMRPHS};
+use crate::juman::getid::{get_bunrui_id, get_hinsi_id, get_type_id};
+use crate::juman::lisp::error_in_lisp;
+use crate::structs::{BnstRule, CDB_FILE, FEATURE_PATTERN, MrphRule, REGEXPBNST, REGEXPBNSTS, REGEXPMRPH, REGEXPMRPHS};
 use crate::types::{CELL, DBM_FILE, FEATURE, TAG_DATA};
 
 #[no_mangle]
-pub static mut smp2smg_db: DBM_FILE = 0 as *const tools::CDB_FILE as *mut tools::CDB_FILE;
+pub static mut smp2smg_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
 pub static mut EtcRuleArray: *mut libc::c_void = 0 as *const libc::c_void as *mut libc::c_void;
 #[no_mangle]
@@ -220,17 +222,13 @@ unsafe extern "C" fn store_mrph_item(mut mp: *mut REGEXPMRPH,
     while !car(list_cell).is_null() {
         match type_0 {
             1 => {
-                (*mp).Hinshi[nth as usize] =
-                    get_hinsi_id((*car(list_cell)).value.atom)
+                (*mp).Hinshi[nth as usize] = get_hinsi_id((*car(list_cell)).value.atom)
             }
             2 => {
-                (*mp).Bunrui[nth as usize] =
-                    get_bunrui_id((*car(list_cell)).value.atom,
-                                  (*mp).Hinshi[0 as libc::c_int as usize])
+                (*mp).Bunrui[nth as usize] = get_bunrui_id((*car(list_cell)).value.atom, (*mp).Hinshi[0 as libc::c_int as usize])
             }
             3 => {
-                (*mp).Katuyou_Kata[nth as usize] =
-                    get_type_id((*car(list_cell)).value.atom)
+                (*mp).Katuyou_Kata[nth as usize] = get_type_id((*car(list_cell)).value.atom)
             }
             4 => {
                 tmp = (*car(list_cell)).value.atom as *mut libc::c_char;
@@ -268,58 +266,59 @@ pub unsafe extern "C" fn store_regexpmrph(mut mp: *mut REGEXPMRPH,
 {
     /* 形態素が特殊文字による指定の場合 */
     return if !mcell.is_null() && (*mcell).tag == 1 as libc::c_int {
-        if strcmp((*mcell).value.atom as *const libc::c_char,
-                  b"^\x00" as *const u8 as *const libc::c_char) == 0 {
+        if strcmp((*mcell).value.atom as *const libc::c_char, b"^\x00" as *const u8 as *const libc::c_char) == 0 {
             /* "^" */
             (*mp).type_flag = '^' as i32 as libc::c_char;
-            '^' as i32 as libc::c_char;
-        } else if strcmp((*mcell).value.atom as *const libc::c_char,
-                         b"?\x00" as *const u8 as *const libc::c_char) == 0 {
+            '^' as i32 as libc::c_char
+        } else if strcmp((*mcell).value.atom as *const libc::c_char, b"?\x00" as *const u8 as *const libc::c_char) == 0 {
             /* "?" */
             (*mp).type_flag = '?' as i32 as libc::c_char;
-            '?' as i32 as libc::c_char;
-        } else if strcmp((*mcell).value.atom as *const libc::c_char,
-                         b"*\x00" as *const u8 as *const libc::c_char) == 0 {
+            '?' as i32 as libc::c_char
+        } else if strcmp((*mcell).value.atom as *const libc::c_char, b"*\x00" as *const u8 as *const libc::c_char) == 0 {
             /* "*" */
-            (*mp.offset(-(1 as libc::c_int as isize))).ast_flag =
-                '*' as i32 as libc::c_char;
-            '*' as i32 as libc::c_char;
-        } else if strcmp((*mcell).value.atom as *const libc::c_char,
-                         b"?*\x00" as *const u8 as *const libc::c_char) == 0 {
+            (*mp.offset(-(1 as libc::c_int as isize))).ast_flag = '*' as i32 as libc::c_char;
+            '*' as i32 as libc::c_char
+        } else if strcmp((*mcell).value.atom as *const libc::c_char, b"?*\x00" as *const u8 as *const libc::c_char) == 0 {
             /* "?*" */
             (*mp).type_flag = '?' as i32 as libc::c_char;
             (*mp).ast_flag = '*' as i32 as libc::c_char;
-            '?' as i32 as libc::c_char;
+            '?' as i32 as libc::c_char
         } else {
-            fprintf(stderr,
-                    b"Invalid string for meta mrph (%s).\n\x00" as *const u8
-                        as *const libc::c_char, (*mcell).value.atom);
+            fprintf(stderr, b"Invalid string for meta mrph (%s).\n\x00" as *const u8 as *const libc::c_char, (*mcell).value.atom);
             error_in_lisp();
-            0 as *mut libc::c_void as libc::c_char;
+            0 as *mut libc::c_void as libc::c_char
         }
     } else {
         /* 形態素が通常の指定の場合 */
         (*mp).f_pattern.fp[0 as libc::c_int as usize] = 0 as *mut FEATURE;
         mcell = store_mrph_item(mp, mcell, 1 as libc::c_int);
-        if mcell.is_null() { return '\u{0}' as i32 as libc::c_char; }
+        if mcell.is_null() {
+            return '\u{0}' as i32 as libc::c_char;
+        }
         mcell = store_mrph_item(mp, mcell, 2 as libc::c_int);
-        if mcell.is_null() { return '\u{0}' as i32 as libc::c_char; }
+        if mcell.is_null() {
+            return '\u{0}' as i32 as libc::c_char;
+        }
         mcell = store_mrph_item(mp, mcell, 3 as libc::c_int);
-        if mcell.is_null() { return '\u{0}' as i32 as libc::c_char; }
+        if mcell.is_null() {
+            return '\u{0}' as i32 as libc::c_char;
+        }
         mcell = store_mrph_item(mp, mcell, 4 as libc::c_int);
-        if mcell.is_null() { return '\u{0}' as i32 as libc::c_char; }
+        if mcell.is_null() {
+            return '\u{0}' as i32 as libc::c_char;
+        }
         mcell = store_mrph_item(mp, mcell, 5 as libc::c_int);
-        if mcell.is_null() { return '\u{0}' as i32 as libc::c_char; }
+        if mcell.is_null() {
+            return '\u{0}' as i32 as libc::c_char;
+        }
         list2feature_pattern(&mut (*mp).f_pattern, car(mcell));
         if cdr(mcell).is_null() {
             '\u{0}' as i32 as libc::c_char
         } else {
-            fprintf(stderr,
-                    b"Invalid string for NOT_FLAG.\n\x00" as *const u8 as
-                        *const libc::c_char);
+            fprintf(stderr, b"Invalid string for NOT_FLAG.\n\x00" as *const u8 as *const libc::c_char);
             error_in_lisp();
             0 as *mut libc::c_void as libc::c_char
-        };
+        }
     };
 }
 /*==================================================================*/
@@ -331,7 +330,8 @@ pub unsafe extern "C" fn store_regexpmrphs(mut mspp: *mut *mut REGEXPMRPHS,
     let mut mrph_num: libc::c_int = 0 as libc::c_int;
     if cell.is_null() {
         *mspp = 0 as *mut REGEXPMRPHS;
-        return; }
+        return;
+    }
     *mspp = regexpmrphs_alloc();
     (**mspp).mrph = regexpmrph_alloc(length(cell));
     while !cell.is_null() {
@@ -353,34 +353,27 @@ pub unsafe extern "C" fn store_regexpbnst(mut bp: *mut REGEXPBNST,
 {
     /* 文節が特殊文字による指定の場合 */
     return if !cell.is_null() && (*cell).tag == 1 as libc::c_int {
-        if strcmp((*cell).value.atom as *const libc::c_char,
-                  b"^\x00" as *const u8 as *const libc::c_char) == 0 {
+        if strcmp((*cell).value.atom as *const libc::c_char, b"^\x00" as *const u8 as *const libc::c_char) == 0 {
             /* "^" */
             (*bp).type_flag = '^' as i32 as libc::c_char;
-            '^' as i32 as libc::c_char;
-        } else if strcmp((*cell).value.atom as *const libc::c_char,
-                         b"?\x00" as *const u8 as *const libc::c_char) == 0 {
+            '^' as i32 as libc::c_char
+        } else if strcmp((*cell).value.atom as *const libc::c_char, b"?\x00" as *const u8 as *const libc::c_char) == 0 {
             /* "?" */
             (*bp).type_flag = '?' as i32 as libc::c_char;
-            '?' as i32 as libc::c_char;
-        } else if strcmp((*cell).value.atom as *const libc::c_char,
-                         b"*\x00" as *const u8 as *const libc::c_char) == 0 {
+            '?' as i32 as libc::c_char
+        } else if strcmp((*cell).value.atom as *const libc::c_char, b"*\x00" as *const u8 as *const libc::c_char) == 0 {
             /* "*" */
-            (*bp.offset(-(1 as libc::c_int as isize))).ast_flag =
-                '*' as i32 as libc::c_char;
-            '*' as i32 as libc::c_char;
-        } else if strcmp((*cell).value.atom as *const libc::c_char,
-                         b"?*\x00" as *const u8 as *const libc::c_char) == 0 {
+            (*bp.offset(-(1 as libc::c_int as isize))).ast_flag = '*' as i32 as libc::c_char;
+            '*' as i32 as libc::c_char
+        } else if strcmp((*cell).value.atom as *const libc::c_char, b"?*\x00" as *const u8 as *const libc::c_char) == 0 {
             /* "?*" */
             (*bp).type_flag = '?' as i32 as libc::c_char;
             (*bp).ast_flag = '*' as i32 as libc::c_char;
-            '?' as i32 as libc::c_char;
+            '?' as i32 as libc::c_char
         } else {
-            fprintf(stderr,
-                    b"Invalid string for meta bnst (%s).\n\x00" as *const u8
-                        as *const libc::c_char, (*cell).value.atom);
+            fprintf(stderr, b"Invalid string for meta bnst (%s).\n\x00" as *const u8 as *const libc::c_char, (*cell).value.atom);
             error_in_lisp();
-            0 as *mut libc::c_void as libc::c_char;
+            0 as *mut libc::c_void as libc::c_char
         }
     } else {
         /* 文節が通常の指定の場合 */
@@ -390,7 +383,7 @@ pub unsafe extern "C" fn store_regexpbnst(mut bp: *mut REGEXPBNST,
         } else {
             (*bp).f_pattern.fp[0 as libc::c_int as usize] = 0 as *mut FEATURE
         }
-        '\u{0}' as i32 as libc::c_char;
+        '\u{0}' as i32 as libc::c_char
     };
 }
 /*==================================================================*/
@@ -402,7 +395,8 @@ pub unsafe extern "C" fn store_regexpbnsts(mut bspp: *mut *mut REGEXPBNSTS,
     let mut bnst_num: libc::c_int = 0 as libc::c_int;
     if cell.is_null() {
         *bspp = 0 as *mut REGEXPBNSTS;
-        return; }
+        return;
+    }
     *bspp = regexpbnsts_alloc();
     (**bspp).bnst = regexpbnst_alloc(length(cell));
     while !cell.is_null() {
@@ -530,7 +524,7 @@ pub unsafe extern "C" fn rule_Goi_cmp(mut flg: libc::c_char, mut r_string: *mut 
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn regexpmrph_match(mut ptr1: *mut REGEXPMRPH, mut ptr2: *mut structs::MRPH_DATA) -> libc::c_int {
+pub unsafe extern "C" fn regexpmrph_match(mut ptr1: *mut REGEXPMRPH, mut ptr2: *mut MRPH_DATA) -> libc::c_int {
     /* 形態素のマッチング */
     let mut ret_mrph: libc::c_int = 0;
     /* '?' */
@@ -564,7 +558,7 @@ pub unsafe extern "C" fn regexpmrph_match(mut ptr1: *mut REGEXPMRPH, mut ptr2: *
 #[no_mangle]
 pub unsafe extern "C" fn regexpmrphs_match(mut r_ptr: *mut REGEXPMRPH,
                                            mut r_num: libc::c_int,
-                                           mut d_ptr: *mut structs::MRPH_DATA,
+                                           mut d_ptr: *mut MRPH_DATA,
                                            mut d_num: libc::c_int,
                                            mut fw_or_bw: libc::c_int,
                                            mut all_or_part: libc::c_int,
@@ -648,7 +642,7 @@ pub unsafe extern "C" fn regexpmrphs_match(mut r_ptr: *mut REGEXPMRPH,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn regexpmrphrule_match(mut r_ptr: *mut MrphRule,
-                                              mut d_ptr: *mut structs::MRPH_DATA,
+                                              mut d_ptr: *mut MRPH_DATA,
                                               mut bw_length: libc::c_int,
                                               mut fw_length: libc::c_int)
                                               -> libc::c_int
@@ -722,7 +716,7 @@ pub unsafe extern "C" fn regexpmrphrule_match(mut r_ptr: *mut MrphRule,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn _regexpbnst_match(mut r_ptr: *mut REGEXPMRPHS,
-                                           mut b_ptr: *mut types::BNST_DATA)
+                                           mut b_ptr: *mut BNST_DATA)
                                            -> libc::c_int
 /*==================================================================*/
 {
@@ -735,7 +729,7 @@ pub unsafe extern "C" fn _regexpbnst_match(mut r_ptr: *mut REGEXPMRPHS,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn regexpbnst_match(mut ptr1: *mut REGEXPBNST,
-                                          mut ptr2: *mut types::BNST_DATA)
+                                          mut ptr2: *mut BNST_DATA)
                                           -> libc::c_int
 /*==================================================================*/
 {
@@ -766,7 +760,7 @@ pub unsafe extern "C" fn regexpbnst_match(mut ptr1: *mut REGEXPBNST,
 #[no_mangle]
 pub unsafe extern "C" fn regexpbnsts_match(mut r_ptr: *mut REGEXPBNST,
                                            mut r_num: libc::c_int,
-                                           mut d_ptr: *mut types::BNST_DATA,
+                                           mut d_ptr: *mut BNST_DATA,
                                            mut d_num: libc::c_int,
                                            mut fw_or_bw: libc::c_int,
                                            mut all_or_part: libc::c_int,
@@ -849,7 +843,7 @@ pub unsafe extern "C" fn regexpbnsts_match(mut r_ptr: *mut REGEXPBNST,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn regexpbnstrule_match(mut r_ptr: *mut BnstRule,
-                                              mut d_ptr: *mut types::BNST_DATA,
+                                              mut d_ptr: *mut BNST_DATA,
                                               mut bw_length: libc::c_int,
                                               mut fw_length: libc::c_int)
                                               -> libc::c_int
@@ -958,7 +952,7 @@ pub unsafe extern "C" fn regexptags_match(mut r_ptr: *mut REGEXPBNST,
             if return_num != -(1 as libc::c_int) {
                 return_num
             } else if d_num != 0 &&
-                regexpbnst_match(r_ptr, d_ptr as *mut types::BNST_DATA) !=
+                regexpbnst_match(r_ptr, d_ptr as *mut BNST_DATA) !=
                     0 &&
                 {
                     return_num =
@@ -973,7 +967,7 @@ pub unsafe extern "C" fn regexptags_match(mut r_ptr: *mut REGEXPBNST,
                 return_num
             } else { -(1 as libc::c_int) }
         } else if d_num != 0 &&
-            regexpbnst_match(r_ptr, d_ptr as *mut types::BNST_DATA) != 0 &&
+            regexpbnst_match(r_ptr, d_ptr as *mut BNST_DATA) != 0 &&
             {
                 return_num =
                     regexptags_match(r_ptr, r_num,
@@ -994,7 +988,7 @@ pub unsafe extern "C" fn regexptags_match(mut r_ptr: *mut REGEXPBNST,
             } else { -(1 as libc::c_int) }
         }
     } else if d_num != 0 &&
-        regexpbnst_match(r_ptr, d_ptr as *mut types::BNST_DATA) != 0 &&
+        regexpbnst_match(r_ptr, d_ptr as *mut BNST_DATA) != 0 &&
         {
             return_num =
                 regexptags_match(r_ptr.offset(step as isize),

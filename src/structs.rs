@@ -1,5 +1,8 @@
+use libc;
+use crate::consts::{DT_RULE_NUM_MAX, FEATURE_MAX, NE_MODEL_NUMBER};
+
 use crate::ctools::{_IO_codecvt, _IO_marker, _IO_wide_data, cdb_rl, internal_state};
-use crate::types::{__blkcnt_t, __blksize_t, __dev_t, __gid_t, __ino_t, __jmp_buf, __mode_t, __nlink_t, __off64_t, __off_t, __syscall_slong_t, __time_t, __uid_t, alloc_func, BIN, BNST_DATA, Bytef, CASE_COMPONENT, CASE_FRAME, CF_PRED_MGR, CF_ptr, CHECK_DATA, CKYptr, CPM_ptr, DBM_FILE, E_FEATURES, ELLIPSIS_CMM, ELLIPSIS_COMPONENT, ENTITY, FEATURE, FEATUREptr, free_func, in_addr_t, in_port_t, MENTION, MENTION_MGR, PARA_DATA, Para_M_ptr, PARA_MANAGER, sa_family_t, SENTENCE_DATA, size_t, TAG_DATA, Treeptr_B, uInt, uLong, voidpf};
+use crate::types::{__blkcnt_t, __blksize_t, __dev_t, __gid_t, __ino_t, __jmp_buf, __mode_t, __nlink_t, __off64_t, __off_t, __syscall_slong_t, __time_t, __uid_t, alloc_func, BIN, BNST_DATA, Bytef, CASE_COMPONENT, CASE_FRAME, CF_PRED_MGR, CF_ptr, CHECK_DATA, CKYptr, CPM_ptr, DBM_FILE, DTCOND, E_FEATURES, ELLIPSIS_CMM, ELLIPSIS_COMPONENT, ENTITY, FEATURE, FEATUREptr, free_func, in_addr_t, in_port_t, MENTION, MENTION_MGR, PARA_DATA, Para_M_ptr, PARA_MANAGER, sa_family_t, SENTENCE_DATA, size_t, TAG_DATA, Treeptr_B, uInt, uLong, voidpf};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -74,6 +77,15 @@ pub struct hostent {
     pub h_length: libc::c_int,
     pub h_addr_list: *mut *mut libc::c_char,
 }
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct ne_cache {
+    pub key: *mut libc::c_char,
+    pub ne_result: [libc::c_int; 33],
+    pub next: *mut ne_cache,
+}
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct passwd {
@@ -85,6 +97,7 @@ pub struct passwd {
     pub pw_dir: *mut libc::c_char,
     pub pw_shell: *mut libc::c_char,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct group {
@@ -93,6 +106,7 @@ pub struct group {
     pub gr_gid: __gid_t,
     pub gr_mem: *mut *mut libc::c_char,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _CLASS {
@@ -113,6 +127,7 @@ pub struct cdb {
     pub cdb_kpos: libc::c_uint,
     pub cdb_klen: libc::c_uint,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cdb_make {
@@ -136,6 +151,7 @@ pub struct _FEATURE {
     pub cp: *mut libc::c_char,
     pub next: FEATUREptr,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _FORM {
@@ -143,11 +159,13 @@ pub struct _FORM {
     pub gobi: *mut libc::c_uchar,
     pub gobi_yomi: *mut libc::c_uchar,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct FEATURE_PATTERN {
     pub fp: [*mut FEATURE; 16],
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct REGEXPMRPH {
@@ -165,12 +183,14 @@ pub struct REGEXPMRPH {
     pub Goi: [*mut libc::c_char; 64],
     pub f_pattern: FEATURE_PATTERN,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct REGEXPMRPHS {
     pub mrph: *mut REGEXPMRPH,
     pub mrphsize: libc::c_char,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct REGEXPBNST {
@@ -179,12 +199,14 @@ pub struct REGEXPBNST {
     pub mrphs: *mut REGEXPMRPHS,
     pub f_pattern: FEATURE_PATTERN,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct REGEXPBNSTS {
     pub bnst: *mut REGEXPBNST,
     pub bnstsize: libc::c_char,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MrphRule {
@@ -193,6 +215,7 @@ pub struct MrphRule {
     pub post_pattern: *mut REGEXPMRPHS,
     pub f: *mut FEATURE,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct DpndRule {
@@ -203,6 +226,7 @@ pub struct DpndRule {
     pub preference: libc::c_int,
     pub decide: libc::c_int,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _RuleVector {
@@ -233,6 +257,7 @@ pub struct CHI_DPND {
     pub right_pos_index: [libc::c_int; 10],
     pub count: libc::c_int,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CHI_POS {
@@ -242,6 +267,7 @@ pub struct CHI_POS {
     pub pos_index: [libc::c_int; 33],
     pub pos_max: libc::c_int,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CHI_ROOT {
@@ -277,6 +303,7 @@ pub struct QUOTE_DATA {
     pub in_num: [libc::c_int; 40],
     pub out_num: [libc::c_int; 40],
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct tnode_b {
@@ -317,6 +344,7 @@ pub struct tnode_b {
     pub tag_ptr: *mut tnode_t,
     pub tag_num: libc::c_int,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct tnode_t {
@@ -370,6 +398,7 @@ pub struct tnode_t {
     pub score_diff: libc::c_double,
     pub ga_score_diff: libc::c_double,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ctm_def {
@@ -440,12 +469,33 @@ pub struct cf_def {
     pub pred_b_ptr: *mut TAG_DATA,
     pub cf_similarity: libc::c_float,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CF_ALIGNMENT {
     pub cf_id: *mut libc::c_char,
     pub aligned_case: [[libc::c_int; 2]; 24],
 }
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct cf_frame_def {
+    pub address: libc::c_ulonglong,
+    pub cyomi: *mut libc::c_char,
+    pub hyoki: *mut libc::c_char,
+    pub feature: *mut libc::c_char,
+    pub pred_type: [libc::c_char; if cfg!(IO_ENCODING_EUC) || cfg!(IO_ENCODING_SJIS) { 3 } else { 4 }],
+    pub voice: libc::c_int,
+    pub etcflag: libc::c_int,
+    pub casenum: libc::c_int,
+    pub cs: [CF_CASE_SLOT; 20],
+    pub samecase: [[libc::c_int; 2]; 24],
+    pub cf_align: [CF_ALIGNMENT; 5],
+    pub DATA: *mut libc::c_uchar,
+    pub next: *mut cf_frame_def,
+}
+
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct tcf_def {
@@ -466,6 +516,17 @@ pub struct mention_manager {
     pub cf_id: [libc::c_char; 280],
     pub cf_ptr: CF_ptr,
     pub mention: [MENTION; 8],
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct CF_CASE_SLOT {
+    pub(crate) kaku_keishiki: *mut libc::c_char,
+    /* 格形式 */
+    pub(crate) meishiku: *mut libc::c_char,
+    /* 名詞句 */
+    pub(crate) imisosei: *mut libc::c_char,
+    /* 意味素性 */
 }
 
 #[derive(Copy, Clone)]
@@ -522,6 +583,7 @@ pub struct cpm_def {
     pub cmm: [CF_MATCH_MGR; 5],
     pub decided: libc::c_int,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CF_MATCH_MGR {
@@ -534,6 +596,7 @@ pub struct CF_MATCH_MGR {
     pub result_lists_d: [LIST; 10],
     pub cpm: *mut cpm_def,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct LIST {
@@ -541,6 +604,7 @@ pub struct LIST {
     pub score: [libc::c_double; 24],
     pub pos: [libc::c_int; 24],
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct sentence {
@@ -568,6 +632,7 @@ pub struct sentence {
     pub Comment: *mut libc::c_char,
     pub score: libc::c_double,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct TOTAL_MGR {
@@ -614,6 +679,7 @@ pub struct node_para_manager {
     pub bnst_ptr: *mut BNST_DATA,
     pub status: libc::c_char,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct BnstRule {
@@ -639,6 +705,7 @@ pub struct tnode_p {
     pub status: libc::c_char,
     pub manager_ptr: Para_M_ptr,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct MRPH_DATA {
@@ -814,10 +881,19 @@ pub struct _dtcond {
     pub value: libc::c_float,
     pub next: *mut _dtcond,
 }
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct DTRULE {
+    pub class: libc::c_int,
+    pub cf: libc::c_float,
+    pub cond: *mut DTCOND,
+}
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct DT {
-    pub ContextRules: [DTRULE; 1000],
+    pub ContextRules: [DTRULE; DT_RULE_NUM_MAX as usize],
     pub ContextRuleNum: libc::c_int,
 }
 
@@ -873,6 +949,7 @@ pub struct z_stream_s {
     pub adler: uLong,
     pub reserved: uLong,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct case_component {
@@ -1043,6 +1120,7 @@ pub struct PP_STR_TO_CODE {
     pub kstr: *mut libc::c_char,
     pub code: libc::c_int,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct cpm_cache {
@@ -1056,4 +1134,15 @@ pub struct cpm_cache {
 pub struct _sort_kv {
     pub key: libc::c_int,
     pub value: libc::c_int,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct NE_mgr {
+    pub feature: [libc::c_char; FEATURE_MAX as usize],          /* 素性 */
+    pub notHEAD: libc::c_int,                        /* head, singleにはならない場合1 */
+    pub NEresult: libc::c_int,                       /* NEの解析結果 */
+    pub prob: [libc::c_double; NE_MODEL_NUMBER as usize],       /* 各タグ・ポジションとなる確率 */
+    pub max: [libc::c_double; NE_MODEL_NUMBER as usize],        /* そこまでの最大スコア */
+    pub parent: [libc::c_int; NE_MODEL_NUMBER as usize]        /* 最大スコアの経路 */
 }

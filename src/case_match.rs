@@ -1,13 +1,13 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
+
+use libc;
 use crate::case_analysis::{CF_MatchPP, MatchPP, MatchPP2, pp_code_to_kstr, pp_kstr_to_code};
-use crate::ctools::{check_feature, get_mrph_rep_from_f, Outfp, stderr};
+use crate::ctools::{check_feature, get_mrph_rep_from_f, Outfp, sqrt, stderr, strtok};
 use crate::lib_bgh::bgh_match_check;
 use crate::lib_sm::{_smp2smg, sm2code, sm_match_check, smp2smg};
 use crate::structs::{CDB_FILE, CF_MATCH_MGR, LIST};
-use crate::{_FEATURE, FEATURE, MRPH_DATA, TAG_DATA, tnode_b};
+use crate::{_FEATURE, FEATURE, fprintf, free, MRPH_DATA, sscanf, strdup, strlen, strncmp, TAG_DATA, tnode_b};
 use crate::case_ipal::{check_examples, get_case_function_probability, get_case_function_probability_for_pred, get_case_num_probability, get_case_probability, get_case_probability_from_str, get_cf_probability, get_ex_probability_with_para, get_np_modifying_probability, get_topic_generating_probability};
 use crate::read_data::{get_bnst_head_canonical_rep, get_mrph_rep, get_mrph_rep_length, make_mrph_rn};
 use crate::thesaurus::{calc_similarity, calc_sm_words_similarity, code_depth};

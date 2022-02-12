@@ -1,22 +1,23 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
 //! 木構造処理
-use crate::{dic, Mask_matrix, tools};
+
+use libc;
+
+use crate::{atoi, BNST_DATA, Class, FEATUREptr, fprintf, Mask_matrix, MRPH_DATA, PARA_DATA, PARA_MANAGER, SENTENCE_DATA, strchr, strcmp, TAG_DATA, tnode_t};
 use crate::ctools::{check_feature, exit, Language, stderr};
-use crate::tools::OptExpandP;
+use crate::OptExpandP;
+use crate::types::Treeptr_B;
 
 #[no_mangle]
-pub unsafe extern "C" fn init_bnst_tree_property(mut sp: *mut tools::SENTENCE_DATA) {
+pub unsafe extern "C" fn init_bnst_tree_property(mut sp: *mut SENTENCE_DATA) {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 200 as libc::c_int {
         let ref mut fresh0 = (*(*sp).bnst_data.offset(i as isize)).parent;
-        *fresh0 = 0 as tools::Treeptr_B;
+        *fresh0 = 0 as Treeptr_B;
         let ref mut fresh1 =
             (*(*sp).bnst_data.offset(i as isize)).child[0 as libc::c_int as usize];
-        *fresh1 = 0 as tools::Treeptr_B;
+        *fresh1 = 0 as Treeptr_B;
         (*(*sp).bnst_data.offset(i as isize)).para_top_p =
             0 as libc::c_int as libc::c_char;
         (*(*sp).bnst_data.offset(i as isize)).para_type =
@@ -28,19 +29,19 @@ pub unsafe extern "C" fn init_bnst_tree_property(mut sp: *mut tools::SENTENCE_DA
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_tag_tree_property(mut sp: *mut tools::SENTENCE_DATA)
+pub unsafe extern "C" fn init_tag_tree_property(mut sp: *mut SENTENCE_DATA)
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 200 as libc::c_int {
         let ref mut fresh2 = (*(*sp).tag_data.offset(i as isize)).parent;
-        *fresh2 = 0 as *mut tools::tnode_t;
+        *fresh2 = 0 as *mut tnode_t;
         let ref mut fresh3 =
             (*(*sp).tag_data.offset(i as
                 isize)).child[0 as libc::c_int as
                 usize];
-        *fresh3 = 0 as *mut tools::tnode_t;
+        *fresh3 = 0 as *mut tnode_t;
         (*(*sp).tag_data.offset(i as isize)).para_top_p =
             0 as libc::c_int as libc::c_char;
         (*(*sp).tag_data.offset(i as isize)).para_type =
@@ -52,19 +53,19 @@ pub unsafe extern "C" fn init_tag_tree_property(mut sp: *mut tools::SENTENCE_DAT
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_mrph_tree_property(mut sp: *mut tools::SENTENCE_DATA)
+pub unsafe extern "C" fn init_mrph_tree_property(mut sp: *mut SENTENCE_DATA)
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 200 as libc::c_int {
         let ref mut fresh4 = (*(*sp).mrph_data.offset(i as isize)).parent;
-        *fresh4 = 0 as tools::Treeptr_B;
+        *fresh4 = 0 as Treeptr_B;
         let ref mut fresh5 =
             (*(*sp).mrph_data.offset(i as
                 isize)).child[0 as libc::c_int as
                 usize];
-        *fresh5 = 0 as tools::Treeptr_B;
+        *fresh5 = 0 as Treeptr_B;
         (*(*sp).mrph_data.offset(i as isize)).para_top_p =
             0 as libc::c_int as libc::c_char;
         (*(*sp).mrph_data.offset(i as isize)).para_type =
@@ -76,9 +77,9 @@ pub unsafe extern "C" fn init_mrph_tree_property(mut sp: *mut tools::SENTENCE_DA
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn t_add_node(mut parent: *mut tools::BNST_DATA,
-                                    mut child: *mut tools::BNST_DATA,
-                                    mut pos: libc::c_int) -> *mut tools::BNST_DATA
+pub unsafe extern "C" fn t_add_node(mut parent: *mut BNST_DATA,
+                                    mut child: *mut BNST_DATA,
+                                    mut pos: libc::c_int) -> *mut BNST_DATA
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
@@ -88,7 +89,7 @@ pub unsafe extern "C" fn t_add_node(mut parent: *mut tools::BNST_DATA,
     if pos == -(1 as libc::c_int) {
         (*parent).child[child_num as usize] = child;
         (*parent).child[(child_num + 1 as libc::c_int) as usize] =
-            0 as tools::Treeptr_B
+            0 as Treeptr_B
     } else {
         i = child_num;
         while i >= pos {
@@ -102,10 +103,10 @@ pub unsafe extern "C" fn t_add_node(mut parent: *mut tools::BNST_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn t_attach_node(mut parent: *mut tools::BNST_DATA,
-                                       mut child: *mut tools::BNST_DATA,
+pub unsafe extern "C" fn t_attach_node(mut parent: *mut BNST_DATA,
+                                       mut child: *mut BNST_DATA,
                                        mut pos: libc::c_int)
-                                       -> *mut tools::BNST_DATA
+                                       -> *mut BNST_DATA
 /*==================================================================*/
 {
     (*child).parent = parent;
@@ -113,9 +114,9 @@ pub unsafe extern "C" fn t_attach_node(mut parent: *mut tools::BNST_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn t_del_node(mut parent: *mut tools::BNST_DATA,
-                                    mut child: *mut tools::BNST_DATA)
-                                    -> *mut tools::BNST_DATA
+pub unsafe extern "C" fn t_del_node(mut parent: *mut BNST_DATA,
+                                    mut child: *mut BNST_DATA)
+                                    -> *mut BNST_DATA
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
@@ -132,12 +133,12 @@ pub unsafe extern "C" fn t_del_node(mut parent: *mut tools::BNST_DATA,
             break;
         } else { i += 1 }
     }
-    (*child).parent = 0 as tools::Treeptr_B;
+    (*child).parent = 0 as Treeptr_B;
     return child;
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn make_simple_tree(mut sp: *mut tools::SENTENCE_DATA)
+pub unsafe extern "C" fn make_simple_tree(mut sp: *mut SENTENCE_DATA)
                                           -> libc::c_int
 /*==================================================================*/
 {
@@ -147,7 +148,7 @@ pub unsafe extern "C" fn make_simple_tree(mut sp: *mut tools::SENTENCE_DATA)
     let mut child_num: libc::c_int = 0;
     let mut pre_node_child_num: libc::c_int = 0;
     let mut buffer: [libc::c_int; 200] = [0; 200];
-    let mut tmp_b_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
+    let mut tmp_b_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
     /* dpnd.head[i]をbuffer[i]にコピーし，3つ以上からなる並列構造では
        係先を隣のheadから末尾のheadに変更する．
        また部分並列の係り先を末尾のheadに変更する．*/
@@ -268,7 +269,7 @@ pub unsafe extern "C" fn make_simple_tree(mut sp: *mut tools::SENTENCE_DATA)
         }
         let ref mut fresh11 =
             (*(*sp).bnst_data.offset(j as isize)).child[child_num as usize];
-        *fresh11 = 0 as tools::Treeptr_B;
+        *fresh11 = 0 as Treeptr_B;
         j -= 1
     }
     /* 子供をsort */
@@ -324,10 +325,10 @@ pub unsafe extern "C" fn make_simple_tree(mut sp: *mut tools::SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn strong_corr_node(mut sp: *mut tools::SENTENCE_DATA,
-                                          mut p_ptr: *mut tools::PARA_DATA,
-                                          mut b_ptr: *mut tools::BNST_DATA)
-                                          -> *mut tools::BNST_DATA
+pub unsafe extern "C" fn strong_corr_node(mut sp: *mut SENTENCE_DATA,
+                                          mut p_ptr: *mut PARA_DATA,
+                                          mut b_ptr: *mut BNST_DATA)
+                                          -> *mut BNST_DATA
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
@@ -345,22 +346,22 @@ pub unsafe extern "C" fn strong_corr_node(mut sp: *mut tools::SENTENCE_DATA,
         }
         i -= 1
     }
-    return 0 as *mut tools::BNST_DATA;
+    return 0 as *mut BNST_DATA;
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn strong_para_expand(mut sp: *mut tools::SENTENCE_DATA,
-                                            mut m_ptr: *mut tools::PARA_MANAGER)
+pub unsafe extern "C" fn strong_para_expand(mut sp: *mut SENTENCE_DATA,
+                                            mut m_ptr: *mut PARA_MANAGER)
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
-    let mut p_ptr: *mut tools::PARA_DATA = 0 as *mut tools::PARA_DATA;
-    let mut pp_ptr: *mut tools::PARA_DATA = 0 as *mut tools::PARA_DATA;
-    let mut start_b_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
-    let mut b_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
-    let mut bb_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
+    let mut p_ptr: *mut PARA_DATA = 0 as *mut PARA_DATA;
+    let mut pp_ptr: *mut PARA_DATA = 0 as *mut PARA_DATA;
+    let mut start_b_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut b_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut bb_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
     /* 強並列内に係る文節を展開 : コピー無 */
     i = 0 as libc::c_int;
     while i < (*m_ptr).child_num {
@@ -406,7 +407,7 @@ pub unsafe extern "C" fn strong_para_expand(mut sp: *mut tools::SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_correct_postprocessed_bnst_num(mut sp:
-                                                            *mut tools::SENTENCE_DATA,
+                                                            *mut SENTENCE_DATA,
                                                             mut num:
                                                             libc::c_int)
                                                             -> libc::c_int
@@ -424,15 +425,15 @@ pub unsafe extern "C" fn get_correct_postprocessed_bnst_num(mut sp:
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn para_top_expand(mut sp: *mut tools::SENTENCE_DATA,
-                                         mut m_ptr: *mut tools::PARA_MANAGER)
+pub unsafe extern "C" fn para_top_expand(mut sp: *mut SENTENCE_DATA,
+                                         mut m_ptr: *mut PARA_MANAGER)
                                          -> libc::c_int
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
-    let mut new_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
-    let mut end_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
-    let mut pre_end_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
+    let mut new_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut end_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut pre_end_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
     /* 並列をまとめるノードの挿入
 
        B  B<P> B  B<P>(end_ptr) B  B ｜ .... B(new_ptr)
@@ -493,7 +494,7 @@ pub unsafe extern "C" fn para_top_expand(mut sp: *mut tools::SENTENCE_DATA,
       先頭で行うように修正した (98/02/07)
     */
     /* 子ノードの整理 */
-    (*new_ptr).child[0 as libc::c_int as usize] = 0 as tools::Treeptr_B;
+    (*new_ptr).child[0 as libc::c_int as usize] = 0 as Treeptr_B;
     t_attach_node(end_ptr, new_ptr, 0 as libc::c_int);
     while pre_end_ptr < (*end_ptr).child[1 as libc::c_int as usize] &&
         (*(*end_ptr).child[1 as libc::c_int as usize]).para_type as
@@ -522,7 +523,7 @@ pub unsafe extern "C" fn para_top_expand(mut sp: *mut tools::SENTENCE_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn para_modifier_expand(mut b_ptr: *mut tools::BNST_DATA)
+pub unsafe extern "C" fn para_modifier_expand(mut b_ptr: *mut BNST_DATA)
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
@@ -561,11 +562,11 @@ pub unsafe extern "C" fn para_modifier_expand(mut b_ptr: *mut tools::BNST_DATA)
                             1 as
                                 libc::c_int)
                             as usize] =
-                            0 as tools::Treeptr_B
+                            0 as Treeptr_B
                     }
                     j += 1
                 }
-                (*b_ptr).child[i as usize] = 0 as tools::Treeptr_B
+                (*b_ptr).child[i as usize] = 0 as Treeptr_B
             }
             i += 1
         }
@@ -578,8 +579,8 @@ pub unsafe extern "C" fn para_modifier_expand(mut b_ptr: *mut tools::BNST_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn incomplete_para_expand(mut sp: *mut tools::SENTENCE_DATA,
-                                                mut b_ptr: *mut tools::BNST_DATA)
+pub unsafe extern "C" fn incomplete_para_expand(mut sp: *mut SENTENCE_DATA,
+                                                mut b_ptr: *mut BNST_DATA)
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
@@ -587,10 +588,10 @@ pub unsafe extern "C" fn incomplete_para_expand(mut sp: *mut tools::SENTENCE_DAT
     let mut para_pos: libc::c_int = 0;
     let mut new_num: libc::c_int = 0;
     let mut child_num: libc::c_int = 0;
-    let mut para_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
-    let mut new_ptr: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
-    let mut pre_childs: [*mut tools::BNST_DATA; 10] = [0 as *mut tools::BNST_DATA; 10];
-    let mut pos_childs: [*mut tools::BNST_DATA; 10] = [0 as *mut tools::BNST_DATA; 10];
+    let mut para_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut new_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut pre_childs: [*mut BNST_DATA; 10] = [0 as *mut BNST_DATA; 10];
+    let mut pos_childs: [*mut BNST_DATA; 10] = [0 as *mut BNST_DATA; 10];
     /* 部分並列の展開 : コピー有(述語が新データ，もとの述語はPARAに) */
     para_pos = -(1 as libc::c_int);
     i = 0 as libc::c_int;
@@ -619,7 +620,7 @@ pub unsafe extern "C" fn incomplete_para_expand(mut sp: *mut tools::SENTENCE_DAT
             i += 1
         } /* 新ノードの親(自分自身) */
         pre_childs[i as usize] =
-            0 as *mut tools::BNST_DATA; /* 元ノードは PARA */
+            0 as *mut BNST_DATA; /* 元ノードは PARA */
         i = para_pos + 1 as libc::c_int;
         j = 0 as libc::c_int;
         while !(*b_ptr).child[i as usize].is_null() {
@@ -627,7 +628,7 @@ pub unsafe extern "C" fn incomplete_para_expand(mut sp: *mut tools::SENTENCE_DAT
             i += 1;
             j += 1
         }
-        pos_childs[j as usize] = 0 as *mut tools::BNST_DATA;
+        pos_childs[j as usize] = 0 as *mut BNST_DATA;
         para_ptr = (*b_ptr).child[para_pos as usize];
         new_num = 0 as libc::c_int;
         i = 0 as libc::c_int;
@@ -646,7 +647,7 @@ pub unsafe extern "C" fn incomplete_para_expand(mut sp: *mut tools::SENTENCE_DAT
                     exit(1 as libc::c_int);
                 }
                 *new_ptr = *b_ptr;
-                (*new_ptr).f = 0 as tools::FEATUREptr;
+                (*new_ptr).f = 0 as FEATUREptr;
                 (*new_ptr).parent = b_ptr;
                 (*b_ptr).child[new_num as usize] = new_ptr;
                 /* 新しいノードの子を設定
@@ -685,13 +686,13 @@ pub unsafe extern "C" fn incomplete_para_expand(mut sp: *mut tools::SENTENCE_DAT
                 }
                 let fresh18 = child_num;
                 child_num = child_num + 1;
-                (*new_ptr).child[fresh18 as usize] = 0 as tools::Treeptr_B;
+                (*new_ptr).child[fresh18 as usize] = 0 as Treeptr_B;
                 new_ptr = new_ptr.offset(1);
                 new_num += 1
             }
             i += 1
         }
-        (*b_ptr).child[new_num as usize] = 0 as tools::Treeptr_B;
+        (*b_ptr).child[new_num as usize] = 0 as Treeptr_B;
         (*b_ptr).para_top_p =
             (0 as libc::c_int == 0) as libc::c_int as libc::c_char
     }
@@ -703,7 +704,7 @@ pub unsafe extern "C" fn incomplete_para_expand(mut sp: *mut tools::SENTENCE_DAT
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn make_dpnd_tree(mut sp: *mut tools::SENTENCE_DATA)
+pub unsafe extern "C" fn make_dpnd_tree(mut sp: *mut SENTENCE_DATA)
                                         -> libc::c_int
 /*==================================================================*/
 {
@@ -750,8 +751,8 @@ pub unsafe extern "C" fn make_dpnd_tree(mut sp: *mut tools::SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn para_info_to_tag(mut bp: *mut tools::BNST_DATA,
-                                          mut tp: *mut tools::TAG_DATA)
+pub unsafe extern "C" fn para_info_to_tag(mut bp: *mut BNST_DATA,
+                                          mut tp: *mut TAG_DATA)
 /*==================================================================*/
 {
     (*tp).para_num = (*bp).para_num;
@@ -762,8 +763,8 @@ pub unsafe extern "C" fn para_info_to_tag(mut bp: *mut tools::BNST_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn para_info_to_mrph(mut bp: *mut tools::BNST_DATA,
-                                           mut mp: *mut tools::MRPH_DATA)
+pub unsafe extern "C" fn para_info_to_mrph(mut bp: *mut BNST_DATA,
+                                           mut mp: *mut MRPH_DATA)
 /*==================================================================*/
 {
     (*mp).para_num = (*bp).para_num;
@@ -774,7 +775,7 @@ pub unsafe extern "C" fn para_info_to_mrph(mut bp: *mut tools::BNST_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn find_head_tag_from_bnst(mut bp: *mut tools::BNST_DATA,
+pub unsafe extern "C" fn find_head_tag_from_bnst(mut bp: *mut BNST_DATA,
                                                  mut target_offset:
                                                  libc::c_int)
                                                  -> libc::c_int
@@ -800,7 +801,7 @@ pub unsafe extern "C" fn find_head_tag_from_bnst(mut bp: *mut tools::BNST_DATA,
         } {
         cp2 = strchr(cp, ':' as i32);
         if !cp2.is_null() {
-            offset = tools::atoi(cp2.offset(1 as libc::c_int as isize));
+            offset = atoi(cp2.offset(1 as libc::c_int as isize));
             if offset > 0 as libc::c_int ||
                 (*bp).tag_num <= -(1 as libc::c_int) * offset {
                 offset = 0 as libc::c_int
@@ -819,7 +820,7 @@ pub unsafe extern "C" fn find_head_tag_from_bnst(mut bp: *mut tools::BNST_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn find_head_tag_from_dpnd_bnst(mut bp: *mut tools::BNST_DATA)
+pub unsafe extern "C" fn find_head_tag_from_dpnd_bnst(mut bp: *mut BNST_DATA)
                                                       -> libc::c_int
 /*==================================================================*/
 {
@@ -851,7 +852,7 @@ pub unsafe extern "C" fn find_head_tag_from_dpnd_bnst(mut bp: *mut tools::BNST_D
         } {
         cp2 = strchr(cp, ':' as i32);
         if !cp2.is_null() {
-            offset = tools::atoi(cp2.offset(1 as libc::c_int as isize));
+            offset = atoi(cp2.offset(1 as libc::c_int as isize));
             if offset > 0 as libc::c_int ||
                 (*(*bp).parent).tag_num <= -(1 as libc::c_int) * offset {
                 offset = 0 as libc::c_int
@@ -871,13 +872,13 @@ pub unsafe extern "C" fn find_head_tag_from_dpnd_bnst(mut bp: *mut tools::BNST_D
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn find_head_mrph_from_dpnd_bnst(mut dep_ptr:
-                                                       *mut tools::BNST_DATA,
+                                                       *mut BNST_DATA,
                                                        mut gov_ptr:
-                                                       *mut tools::BNST_DATA)
-                                                       -> *mut tools::MRPH_DATA
+                                                       *mut BNST_DATA)
+                                                       -> *mut MRPH_DATA
 /*==================================================================*/
 {
-    // let mut bp: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
+    // let mut bp: *mut BNST_DATA = 0 as *mut BNST_DATA;
     /* 係り先に判定詞があり、係り元が連用なら、係り先形態素を主辞名詞ではなく判定詞にする */
     return if !dep_ptr.is_null() &&
         (*gov_ptr).head_ptr.offset(1 as libc::c_int as isize) <=
@@ -948,7 +949,7 @@ pub unsafe extern "C" fn find_head_mrph_from_dpnd_bnst(mut dep_ptr:
      「１〜３個」など */
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
+pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut SENTENCE_DATA)
                                           -> libc::c_int
 /*==================================================================*/
 {
@@ -961,8 +962,8 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
     let mut gov_head: libc::c_int = 0;
     let mut pre_bp_num: libc::c_int = 0;
     // let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut bp: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
-    let mut tp: *mut tools::TAG_DATA = 0 as *mut tools::TAG_DATA;
+    let mut bp: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut tp: *mut TAG_DATA = 0 as *mut TAG_DATA;
     /* 文節の木構造からタグ単位の木構造へ変換 */
     init_tag_tree_property(sp);
     (*sp).New_Tag_num = 0 as libc::c_int;
@@ -991,7 +992,7 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
                 as
                 isize));
         para_info_to_tag(bp, tp);
-        (*tp).child[0 as libc::c_int as usize] = 0 as *mut tools::tnode_t;
+        (*tp).child[0 as libc::c_int as usize] = 0 as *mut tnode_t;
         /* <PARA>のときはheadのみ */
         if (*bp).para_top_p as libc::c_int == 0 as libc::c_int {
             /* 文節内の主辞基本句より前側 */
@@ -1006,9 +1007,9 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
                     (*(*bp).tag_ptr.offset(pre_bp_num as
                         isize)).parent; /* 主辞のひとつ前 -> 主辞 */
                 *fresh19 = tp;
-                t_add_node(tp as *mut tools::BNST_DATA,
+                t_add_node(tp as *mut BNST_DATA,
                            (*bp).tag_ptr.offset(pre_bp_num as isize) as
-                               *mut tools::BNST_DATA, -(1 as libc::c_int));
+                               *mut BNST_DATA, -(1 as libc::c_int));
                 /* 主辞基本句は bp->tag_ptr からはたどれない (Newの方) */
                 j = 0 as libc::c_int;
                 while j < pre_bp_num {
@@ -1027,9 +1028,9 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
                             (*(*bp).tag_ptr.offset(j as isize)).parent;
                         *fresh20 = (*bp).tag_ptr.offset(gov as isize);
                         t_add_node((*bp).tag_ptr.offset(gov as isize) as
-                                       *mut tools::BNST_DATA,
+                                       *mut BNST_DATA,
                                    (*bp).tag_ptr.offset(j as isize) as
-                                       *mut tools::BNST_DATA, -(1 as libc::c_int));
+                                       *mut BNST_DATA, -(1 as libc::c_int));
                     }
                     /* 文節内 */
                     /* 後処理でマージされた基本句 */
@@ -1043,7 +1044,7 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
         (*tp).parent =
             (*(*bp).parent).tag_ptr.offset(gov_head as isize); /* PARAへ */
         t_add_node((*(*bp).parent).tag_ptr.offset(gov_head as isize) as
-                       *mut tools::BNST_DATA, tp as *mut tools::BNST_DATA,
+                       *mut BNST_DATA, tp as *mut BNST_DATA,
                    -(1 as libc::c_int));
         /* 文節内の主辞基本句より後 (PARAから残りの基本句へ) */
         if (*bp).parent < (*sp).bnst_data.offset((*sp).Bnst_num as isize) {
@@ -1055,13 +1056,13 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
                     -(1 as libc::c_int)) {
                     (*tp).parent = (*bp).tag_ptr.offset(j as isize);
                     t_add_node((*bp).tag_ptr.offset(j as isize) as
-                                   *mut tools::BNST_DATA, tp as *mut tools::BNST_DATA,
+                                   *mut BNST_DATA, tp as *mut BNST_DATA,
                                -(1 as libc::c_int));
                     tp = (*bp).tag_ptr.offset(j as isize)
                 }
                 j += 1
             }
-            (*tp).parent = 0 as *mut tools::tnode_t
+            (*tp).parent = 0 as *mut tnode_t
             /* 係り先未定のマーク */
         }
         /* PARAまたは基本句1つのときは、tag_ptrをNew側にしておく */
@@ -1112,9 +1113,9 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
                             (*(*bp).tag_ptr.offset(j as isize)).parent;
                         *fresh21 = (*bp).tag_ptr.offset(gov as isize);
                         t_add_node((*bp).tag_ptr.offset(gov as isize) as
-                                       *mut tools::BNST_DATA,
+                                       *mut BNST_DATA,
                                    (*bp).tag_ptr.offset(j as isize) as
-                                       *mut tools::BNST_DATA, -(1 as libc::c_int));
+                                       *mut BNST_DATA, -(1 as libc::c_int));
                     }
                     /* 後処理でマージされた基本句 */
                     j += 1
@@ -1144,7 +1145,7 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
                 (*tp).parent =
                     (*(*bp).parent).tag_ptr.offset(offset as isize);
                 t_add_node((*(*bp).parent).tag_ptr.offset(offset as isize) as
-                               *mut tools::BNST_DATA, tp as *mut tools::BNST_DATA,
+                               *mut BNST_DATA, tp as *mut BNST_DATA,
                            -(1 as libc::c_int));
             } else if Language != 2 as libc::c_int {
                 fprintf(stderr, b";; %s(%d)\'s parent doesn\'t exist!\n\x00" as *const u8 as *const libc::c_char, (*bp).Jiritu_Go.as_mut_ptr(), i);
@@ -1157,7 +1158,7 @@ pub unsafe extern "C" fn bnst_to_tag_tree(mut sp: *mut tools::SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) -> libc::c_int
+pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut SENTENCE_DATA) -> libc::c_int
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
@@ -1169,10 +1170,10 @@ pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) ->
     // let mut gov_head: libc::c_int = 0;
     // let mut pre_bp_num: libc::c_int = 0;
     // let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut bp: *mut tools::BNST_DATA = 0 as *mut tools::BNST_DATA;
-    let mut mp: *mut tools::MRPH_DATA = 0 as *mut tools::MRPH_DATA;
-    let mut tmp_mp: *mut tools::MRPH_DATA = 0 as *mut tools::MRPH_DATA;
-    let mut head_ptr: *mut tools::MRPH_DATA = 0 as *mut tools::MRPH_DATA;
+    let mut bp: *mut BNST_DATA = 0 as *mut BNST_DATA;
+    let mut mp: *mut MRPH_DATA = 0 as *mut MRPH_DATA;
+    let mut tmp_mp: *mut MRPH_DATA = 0 as *mut MRPH_DATA;
+    let mut head_ptr: *mut MRPH_DATA = 0 as *mut MRPH_DATA;
     /* 文節の木構造から形態素の木構造へ変換 */
     init_mrph_tree_property(sp);
     (*sp).New_Mrph_num = 0 as libc::c_int;
@@ -1185,7 +1186,7 @@ pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) ->
                 isize).offset(i as isize);
         // head_ptr = bp->mrph_ptr + bp->mrph_num - 1; // bp->head_ptr; /* ★主辞形態素★ */
         head_ptr =
-            find_head_mrph_from_dpnd_bnst(0 as *mut tools::BNST_DATA,
+            find_head_mrph_from_dpnd_bnst(0 as *mut BNST_DATA,
                                           bp); /* 主辞形態素 */
         /* new領域にcopy */
         *(*sp).mrph_data.offset((*sp).Mrph_num as
@@ -1196,7 +1197,7 @@ pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) ->
         mp =
             (*sp).mrph_data.offset((*sp).Mrph_num as isize).offset((*sp).New_Mrph_num as isize).offset(-(1 as libc::c_int as isize));
         para_info_to_mrph(bp, mp);
-        (*mp).child[0 as libc::c_int as usize] = 0 as tools::Treeptr_B;
+        (*mp).child[0 as libc::c_int as usize] = 0 as Treeptr_B;
         /* <PARA>のときはheadのみ */
         if (*bp).para_top_p as libc::c_int == 0 as libc::c_int {
             /* 文節内の主辞形態素より前側 */
@@ -1205,18 +1206,18 @@ pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) ->
                 let ref mut fresh22 =
                     (*head_ptr.offset(-(1 as libc::c_int as
                         isize))).parent; /* 主辞のひとつ前 -> 主辞 */
-                *fresh22 = mp as *mut tools::BNST_DATA;
-                t_add_node(mp as *mut tools::BNST_DATA,
+                *fresh22 = mp as *mut BNST_DATA;
+                t_add_node(mp as *mut BNST_DATA,
                            head_ptr.offset(-(1 as libc::c_int as isize)) as
-                               *mut tools::BNST_DATA, -(1 as libc::c_int));
+                               *mut BNST_DATA, -(1 as libc::c_int));
                 /* 文節内 */
                 tmp_mp = head_ptr.offset(-(2 as libc::c_int as isize));
                 while tmp_mp >= (*bp).mrph_ptr {
                     (*tmp_mp).parent =
                         tmp_mp.offset(1 as libc::c_int as isize) as
-                            *mut tools::BNST_DATA;
+                            *mut BNST_DATA;
                     t_add_node(tmp_mp.offset(1 as libc::c_int as isize) as
-                                   *mut tools::BNST_DATA, tmp_mp as *mut tools::BNST_DATA,
+                                   *mut BNST_DATA, tmp_mp as *mut BNST_DATA,
                                -(1 as libc::c_int));
                     tmp_mp = tmp_mp.offset(-1)
                 }
@@ -1225,22 +1226,22 @@ pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) ->
         /* 親と子のリンクつけ (new) */
         (*mp).parent =
             find_head_mrph_from_dpnd_bnst(bp, (*bp).parent) as
-                *mut tools::BNST_DATA; /* 係り先の主辞形態素 (PARAへ) */
-        t_add_node((*mp).parent as *mut tools::BNST_DATA, mp as *mut tools::BNST_DATA,
+                *mut BNST_DATA; /* 係り先の主辞形態素 (PARAへ) */
+        t_add_node((*mp).parent as *mut BNST_DATA, mp as *mut BNST_DATA,
                    -(1 as libc::c_int));
         /* 文節内の主辞形態素より後 (PARAから残りの基本句へ) */
         if (*bp).parent < (*sp).bnst_data.offset((*sp).Bnst_num as isize) {
             /* 親がNewのときはすでに設定している */
-            mp = (*mp).parent as *mut tools::MRPH_DATA;
+            mp = (*mp).parent as *mut MRPH_DATA;
             tmp_mp = head_ptr.offset(1 as libc::c_int as isize);
             while tmp_mp < (*bp).mrph_ptr.offset((*bp).mrph_num as isize) {
-                (*mp).parent = tmp_mp as *mut tools::BNST_DATA; /* PARA */
-                t_add_node(tmp_mp as *mut tools::BNST_DATA, mp as *mut tools::BNST_DATA,
+                (*mp).parent = tmp_mp as *mut BNST_DATA; /* PARA */
+                t_add_node(tmp_mp as *mut BNST_DATA, mp as *mut BNST_DATA,
                            -(1 as libc::c_int));
                 mp = tmp_mp;
                 tmp_mp = tmp_mp.offset(1)
             }
-            (*mp).parent = 0 as tools::Treeptr_B
+            (*mp).parent = 0 as Treeptr_B
             /* 係り先未定のマーク */
         }
         /* mrph_ptrをNew側にしておく */
@@ -1267,7 +1268,7 @@ pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) ->
                         as isize))
             } else {
                 head_ptr =
-                    find_head_mrph_from_dpnd_bnst(0 as *mut tools::BNST_DATA, bp)
+                    find_head_mrph_from_dpnd_bnst(0 as *mut BNST_DATA, bp)
                 /* 主辞形態素 */
             }
             para_info_to_mrph(bp, head_ptr);
@@ -1282,9 +1283,9 @@ pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) ->
                     /* 最終形態素の1つ前以前 */
                     (*tmp_mp).parent =
                         tmp_mp.offset(1 as libc::c_int as isize) as
-                            *mut tools::BNST_DATA;
+                            *mut BNST_DATA;
                     t_add_node(tmp_mp.offset(1 as libc::c_int as isize) as
-                                   *mut tools::BNST_DATA, tmp_mp as *mut tools::BNST_DATA,
+                                   *mut BNST_DATA, tmp_mp as *mut BNST_DATA,
                                -(1 as libc::c_int));
                     tmp_mp = tmp_mp.offset(-1)
                 }
@@ -1303,14 +1304,14 @@ pub unsafe extern "C" fn bnst_to_mrph_tree(mut sp: *mut tools::SENTENCE_DATA) ->
                     (0 as libc::c_int == 0) as libc::c_int {
                     /* PARAの場合はnewの方で少し処理している場合がある */
                     while !(*mp).parent.is_null() {
-                        mp = (*mp).parent as *mut tools::MRPH_DATA
+                        mp = (*mp).parent as *mut MRPH_DATA
                     }
                 } /* タグ単位内の係り先をルールから得る */
                 (*mp).parent =
                     find_head_mrph_from_dpnd_bnst(bp, (*bp).parent) as
-                        *mut tools::BNST_DATA;
-                t_add_node((*mp).parent as *mut tools::BNST_DATA,
-                           mp as *mut tools::BNST_DATA, -(1 as libc::c_int));
+                        *mut BNST_DATA;
+                t_add_node((*mp).parent as *mut BNST_DATA,
+                           mp as *mut BNST_DATA, -(1 as libc::c_int));
             } else if Language != 2 as libc::c_int {
                 fprintf(stderr,
                         b";; %s(%d)\'s parent doesn\'t exist!\n\x00" as

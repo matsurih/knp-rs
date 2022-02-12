@@ -1,15 +1,14 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-         non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
 
-use crate::db::{db_close, db_get};
-use crate::{case_analysis, Chi_dpnd_matrix, Chi_pa_matrix, Chi_pos_matrix, ctools, Dpnd_matrix, Mask_matrix, Quote_matrix, tools, tree_conv};
-use crate::case_analysis::{assign_nil_assigned_components, call_case_analysis, ClearCPMcache, InitCPMcache, noun_lexical_disambiguation_by_case_analysis, verb_lexical_disambiguation_by_case_analysis};
+use libc;
+
+use crate::{atof, atoi, Chi_dpnd_matrix, Chi_pa_matrix, Chi_pos_matrix, Class, Dpnd_matrix, fprintf, free, Mask_matrix, memset, Quote_matrix, sprintf, sscanf, strcat, strcmp, strcpy, strlen};
+use crate::case_analysis::{append_cf_feature, assign_nil_assigned_components, call_case_analysis, ClearCPMcache, InitCPMcache, noun_lexical_disambiguation_by_case_analysis, verb_lexical_disambiguation_by_case_analysis};
 use crate::case_ipal::{check_examples, get_chi_pa, malloc_db_buf};
 use crate::configfile::open_dict;
 use crate::context::OptUseSmfix;
-use crate::ctools::{assign_cfeature, check_feature, Language, OptAnalysis, OptChiPos, Outfp, stderr};
+use crate::ctools::{abs, assign_cfeature, check_feature, fputc, Language, log, malloc, OptAnalysis, OptChiPos, Outfp, stderr, strtod, strtok, strtol};
+use crate::db::{db_close, db_get};
 use crate::feature::{feature_pattern_match, print_feature};
 use crate::lib_print::{print_kakari, print_result};
 use crate::lib_sm::{assign_ga_subject, fix_sm_place, specify_sm_from_cf};
@@ -20,11 +19,6 @@ use crate::tools::{Chi_root_prob_matrix, Chi_word_pos, Chi_word_type, left_arg, 
 use crate::tree_conv::{bnst_to_tag_tree, find_head_mrph_from_dpnd_bnst, make_dpnd_tree};
 use crate::types::{BNST_DATA, CF_PRED_MGR, CHECK_DATA, DBM_FILE, FEATURE, SENTENCE_DATA, TAG_DATA};
 
-
-#[inline]
-unsafe extern "C" fn atof(mut __nptr: *const libc::c_char) -> libc::c_double { return strtod(__nptr, 0 as *mut libc::c_void as *mut *mut libc::c_char); }
-#[inline]
-unsafe extern "C" fn atoi(mut __nptr: *const libc::c_char) -> libc::c_int { return strtol(__nptr, 0 as *mut libc::c_void as *mut *mut libc::c_char, 10 as libc::c_int) as libc::c_int; }
 #[no_mangle]
 pub static mut sm_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
@@ -84,9 +78,9 @@ pub static mut fprob_LtoR: libc::c_double = 0.;
 pub static mut fprob_RtoL: libc::c_double = 0.;
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn assign_dpnd_rule(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn assign_dpnd_rule(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut b_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
@@ -100,10 +94,13 @@ pub unsafe extern "C" fn assign_dpnd_rule(mut sp: *mut SENTENCE_DATA)
             if feature_pattern_match(&mut (*r_ptr).dependant, (*b_ptr).f,
                                      0 as *mut libc::c_void,
                                      b_ptr as *mut libc::c_void) ==
-                   (0 as libc::c_int == 0) as libc::c_int {
+                (0 as libc::c_int == 0) as libc::c_int {
                 (*b_ptr).dpnd_rule = r_ptr;
-                break ;
-            } else { j += 1; r_ptr = r_ptr.offset(1) }
+                break;
+            } else {
+                j += 1;
+                r_ptr = r_ptr.offset(1)
+            }
         }
         if (*b_ptr).dpnd_rule.is_null() {
             fprintf(stderr,
@@ -120,9 +117,9 @@ pub unsafe extern "C" fn assign_dpnd_rule(mut sp: *mut SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn close_chi_dpnd_db() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn close_chi_dpnd_db()
+/*==================================================================*/
+{
     if OptChiGenerative == 0 {
         db_close(chi_dpnd_db);
     } else {
@@ -134,9 +131,9 @@ pub unsafe extern "C" fn close_chi_dpnd_db()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_chi_dpnd_db() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_chi_dpnd_db()
+/*==================================================================*/
+{
     if OptChiGenerative == 0 {
         chi_dpnd_db =
             open_dict(25 as libc::c_int,
@@ -168,15 +165,15 @@ pub unsafe extern "C" fn init_chi_dpnd_db()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn free_chi_type() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn free_chi_type()
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 33 as libc::c_int {
         if !(*Chi_word_type.as_mut_ptr().offset(i as isize)).is_null() {
             free(*Chi_word_type.as_mut_ptr().offset(i as isize) as
-                     *mut libc::c_void);
+                *mut libc::c_void);
             let ref mut fresh0 =
                 *Chi_word_type.as_mut_ptr().offset(i as isize);
             *fresh0 = 0 as *mut libc::c_char
@@ -186,18 +183,18 @@ pub unsafe extern "C" fn free_chi_type()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_chi_type() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_chi_type()
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 33 as libc::c_int {
         let ref mut fresh1 = *Chi_word_type.as_mut_ptr().offset(i as isize);
         *fresh1 =
             malloc((::std::mem::size_of::<libc::c_char>() as
-                        libc::c_ulong).wrapping_mul((8 as libc::c_int +
-                                                         1 as libc::c_int) as
-                                                        libc::c_ulong)) as
+                libc::c_ulong).wrapping_mul((8 as libc::c_int +
+                1 as libc::c_int) as
+                libc::c_ulong)) as
                 *mut libc::c_char;
         i += 1
     }
@@ -270,15 +267,15 @@ pub unsafe extern "C" fn init_chi_type()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn free_chi_pos() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn free_chi_pos()
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 33 as libc::c_int {
         if !(*Chi_word_pos.as_mut_ptr().offset(i as isize)).is_null() {
             free(*Chi_word_pos.as_mut_ptr().offset(i as isize) as
-                     *mut libc::c_void);
+                *mut libc::c_void);
             let ref mut fresh2 =
                 *Chi_word_pos.as_mut_ptr().offset(i as isize);
             *fresh2 = 0 as *mut libc::c_char
@@ -288,18 +285,18 @@ pub unsafe extern "C" fn free_chi_pos()
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_chi_pos() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_chi_pos()
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 33 as libc::c_int {
         let ref mut fresh3 = *Chi_word_pos.as_mut_ptr().offset(i as isize);
         *fresh3 =
             malloc((::std::mem::size_of::<libc::c_char>() as
-                        libc::c_ulong).wrapping_mul((3 as libc::c_int +
-                                                         1 as libc::c_int) as
-                                                        libc::c_ulong)) as
+                libc::c_ulong).wrapping_mul((3 as libc::c_int +
+                1 as libc::c_int) as
+                libc::c_ulong)) as
                 *mut libc::c_char;
         i += 1
     }
@@ -379,46 +376,46 @@ pub unsafe extern "C" fn get_chi_dpnd_rule(mut word1: *mut libc::c_char,
                                            mut pos2: *mut libc::c_char,
                                            mut distance: libc::c_int,
                                            mut comma: libc::c_int)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                           -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     if OptChiGenerative == 0 && CHIDpndExist == 0 as libc::c_int ||
-           OptChiGenerative != 0 && CHIDpndProbExist == 0 as libc::c_int {
-        return 0 as *mut libc::c_char
+        OptChiGenerative != 0 && CHIDpndProbExist == 0 as libc::c_int {
+        return 0 as *mut libc::c_char;
     }
     if OptChiGenerative != 0 {
         if strcmp(word2, b"ROOT\x00" as *const u8 as *const libc::c_char) == 0
-               && OptChiGenerative != 0 {
+            && OptChiGenerative != 0 {
             key =
                 malloc_db_buf(strlen(word1).wrapping_add(strlen(pos1)).wrapping_add(7
-                                                                                        as
-                                                                                        libc::c_int
-                                                                                        as
-                                                                                        libc::c_ulong)
-                                  as libc::c_int);
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)
+                    as libc::c_int);
             sprintf(key,
                     b"%s_%s_ROOT\x00" as *const u8 as *const libc::c_char,
                     pos1, word1);
         } else if distance == 0 as libc::c_int {
             key =
                 malloc_db_buf(strlen(word1).wrapping_add(strlen(word2)).wrapping_add(strlen(pos1)).wrapping_add(strlen(pos2)).wrapping_add(4
-                                                                                                                                               as
-                                                                                                                                               libc::c_int
-                                                                                                                                               as
-                                                                                                                                               libc::c_ulong)
-                                  as libc::c_int);
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)
+                    as libc::c_int);
             sprintf(key,
                     b"%s_%s_%s_%s\x00" as *const u8 as *const libc::c_char,
                     pos1, word1, pos2, word2);
         } else {
             key =
                 malloc_db_buf(strlen(word1).wrapping_add(strlen(word2)).wrapping_add(strlen(pos1)).wrapping_add(strlen(pos2)).wrapping_add(8
-                                                                                                                                               as
-                                                                                                                                               libc::c_int
-                                                                                                                                               as
-                                                                                                                                               libc::c_ulong)
-                                  as libc::c_int);
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)
+                    as libc::c_int);
             sprintf(key,
                     b"%s_%s_%s_%s_%d_%d\x00" as *const u8 as
                         *const libc::c_char, pos1, word1, pos2, word2,
@@ -427,11 +424,11 @@ pub unsafe extern "C" fn get_chi_dpnd_rule(mut word1: *mut libc::c_char,
     } else {
         key =
             malloc_db_buf(strlen(word1).wrapping_add(strlen(word2)).wrapping_add(strlen(pos1)).wrapping_add(strlen(pos2)).wrapping_add(6
-                                                                                                                                           as
-                                                                                                                                           libc::c_int
-                                                                                                                                           as
-                                                                                                                                           libc::c_ulong)
-                              as libc::c_int);
+                as
+                libc::c_int
+                as
+                libc::c_ulong)
+                as libc::c_int);
         sprintf(key,
                 b"%s_%s_%s_%s_%d\x00" as *const u8 as *const libc::c_char,
                 pos1, word1, pos2, word2, distance);
@@ -447,9 +444,9 @@ pub unsafe extern "C" fn get_chi_dpnd_rule(mut word1: *mut libc::c_char,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0; /* store different directions for each type */
     let mut j: libc::c_int = 0; /* store different directions for each type */
     let mut k: libc::c_int = 0; /* store different directions for each type */
@@ -574,28 +571,28 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
             (*Dpnd_matrix.as_mut_ptr().offset(i as isize))[j as usize] =
                 0 as libc::c_int;
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[j as
-                                                                  usize].count
+                isize))[j as
+                usize].count
                 = 0 as libc::c_int;
             if Language != 2 as libc::c_int {
                 k = 0 as libc::c_int;
                 while (*(*k_ptr).dpnd_rule).dpnd_type[k as usize] != 0 {
                     value =
                         feature_pattern_match(&mut *(*(*k_ptr).dpnd_rule).governor.as_mut_ptr().offset(k
-                                                                                                           as
-                                                                                                           isize),
+                            as
+                            isize),
                                               (*u_ptr).f,
                                               k_ptr as *mut libc::c_void,
                                               u_ptr as *mut libc::c_void);
                     if value == (0 as libc::c_int == 0) as libc::c_int {
                         (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             =
                             (*(*k_ptr).dpnd_rule).dpnd_type[k as usize] as
                                 libc::c_int;
                         first_uke_flag = 0 as libc::c_int;
-                        break ;
+                        break;
                     } else { k += 1 }
                 }
             } else {
@@ -644,8 +641,8 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                     while !rule.is_null() {
                         curRule[count as usize] =
                             malloc(strlen(rule).wrapping_add(1 as libc::c_int
-                                                                 as
-                                                                 libc::c_ulong))
+                                as
+                                libc::c_ulong))
                                 as *mut libc::c_char;
                         strcpy(curRule[count as usize], rule);
                         count += 1;
@@ -718,8 +715,8 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                     while !rule.is_null() {
                         curRule[count as usize] =
                             malloc(strlen(rule).wrapping_add(1 as libc::c_int
-                                                                 as
-                                                                 libc::c_ulong))
+                                as
+                                libc::c_ulong))
                                 as *mut libc::c_char;
                         strcpy(curRule[count as usize], rule);
                         count += 1;
@@ -792,8 +789,8 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                     while !rule.is_null() {
                         curRule[count as usize] =
                             malloc(strlen(rule).wrapping_add(1 as libc::c_int
-                                                                 as
-                                                                 libc::c_ulong))
+                                as
+                                libc::c_ulong))
                                 as *mut libc::c_char;
                         strcpy(curRule[count as usize], rule);
                         count += 1;
@@ -866,8 +863,8 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                     while !rule.is_null() {
                         curRule[count as usize] =
                             malloc(strlen(rule).wrapping_add(1 as libc::c_int
-                                                                 as
-                                                                 libc::c_ulong))
+                                as
+                                libc::c_ulong))
                                 as *mut libc::c_char;
                         strcpy(curRule[count as usize], rule);
                         count += 1;
@@ -932,73 +929,73 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                     }
                 }
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].prob_pos_LtoR
+                    isize))[j as
+                    usize].prob_pos_LtoR
                     = 0 as libc::c_int as libc::c_double;
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].prob_pos_RtoL
+                    isize))[j as
+                    usize].prob_pos_RtoL
                     = 0 as libc::c_int as libc::c_double;
                 /* calculate pos probability */
                 if !pos_rule.is_null() {
                     k = 0 as libc::c_int;
                     while k < count_4 {
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_pos_LtoR
+                            isize))[j as
+                            usize].prob_pos_LtoR
                             += prob_LtoR_4[k as usize];
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_pos_RtoL
+                            isize))[j as
+                            usize].prob_pos_RtoL
                             += prob_RtoL_4[k as usize];
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].occur_pos
+                            isize))[j as
+                            usize].occur_pos
                             += occur_4[k as usize];
                         k += 1
                     }
                 }
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].prob_pos_LtoR
+                    isize))[j as
+                    usize].prob_pos_LtoR
                     =
                     1.0f64 *
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_pos_LtoR
+                            isize))[j as
+                            usize].prob_pos_LtoR
                         /
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].occur_pos;
+                            isize))[j as
+                            usize].occur_pos;
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].prob_pos_RtoL
+                    isize))[j as
+                    usize].prob_pos_RtoL
                     =
                     1.0f64 *
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_pos_RtoL
+                            isize))[j as
+                            usize].prob_pos_RtoL
                         /
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].occur_pos;
+                            isize))[j as
+                            usize].occur_pos;
                 /* calculate probability */
                 if !lex_rule.is_null() {
                     (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize].count
+                        isize))[j as
+                        usize].count
                         = count_1;
                     k = 0 as libc::c_int;
                     while k <
-                              (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                        isize))[j
-                                                                                    as
-                                                                                    usize].count
-                          {
+                        (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                            isize))[j
+                            as
+                            usize].count
+                    {
                         lamda1[k as usize] =
                             1.0f64 * occur_1[k as usize] /
                                 (occur_1[k as usize] +
-                                     1 as libc::c_int as libc::c_double);
+                                    1 as libc::c_int as libc::c_double);
                         appear_LtoR_2 = 0 as libc::c_int;
                         appear_RtoL_2 = 0 as libc::c_int;
                         appear_LtoR_3 = 0 as libc::c_int;
@@ -1014,7 +1011,7 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                                 appear_RtoL_2 =
                                     prob_RtoL_2[l as usize] as libc::c_int;
                                 total_2 = occur_2[l as usize] as libc::c_int;
-                                break ;
+                                break;
                             } else { l += 1 }
                         }
                         l = 0 as libc::c_int;
@@ -1026,97 +1023,97 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                                 appear_RtoL_3 =
                                     prob_RtoL_3[l as usize] as libc::c_int;
                                 total_3 = occur_3[l as usize] as libc::c_int;
-                                break ;
+                                break;
                             } else { l += 1 }
                         }
                         if total_2 != 0 as libc::c_int ||
-                               total_3 != 0 as libc::c_int {
+                            total_3 != 0 as libc::c_int {
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_LtoR[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_LtoR[k
+                                as
+                                usize]
                                 =
                                 1.0f64 * lamda1[k as usize] *
                                     (1.0f64 * prob_LtoR_1[k as usize] /
-                                         occur_1[k as usize]) +
+                                        occur_1[k as usize]) +
                                     1.0f64 *
                                         (1 as libc::c_int as libc::c_double -
-                                             lamda1[k as usize]) *
+                                            lamda1[k as usize]) *
                                         (1.0f64 *
-                                             (appear_LtoR_2 + appear_LtoR_3)
-                                                 as libc::c_double /
-                                             (total_2 + total_3) as
-                                                 libc::c_double);
+                                            (appear_LtoR_2 + appear_LtoR_3)
+                                                as libc::c_double /
+                                            (total_2 + total_3) as
+                                                libc::c_double);
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_RtoL[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_RtoL[k
+                                as
+                                usize]
                                 =
                                 1.0f64 * lamda1[k as usize] *
                                     (1.0f64 * prob_RtoL_1[k as usize] /
-                                         occur_1[k as usize]) +
+                                        occur_1[k as usize]) +
                                     1.0f64 *
                                         (1 as libc::c_int as libc::c_double -
-                                             lamda1[k as usize]) *
+                                            lamda1[k as usize]) *
                                         (1.0f64 *
-                                             (appear_RtoL_2 + appear_RtoL_3)
-                                                 as libc::c_double /
-                                             (total_2 + total_3) as
-                                                 libc::c_double)
+                                            (appear_RtoL_2 + appear_RtoL_3)
+                                                as libc::c_double /
+                                            (total_2 + total_3) as
+                                                libc::c_double)
                         } else {
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_LtoR[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_LtoR[k
+                                as
+                                usize]
                                 =
                                 1.0f64 * lamda1[k as usize] *
                                     (1.0f64 * prob_LtoR_1[k as usize] /
-                                         occur_1[k as usize]);
+                                        occur_1[k as usize]);
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_RtoL[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_RtoL[k
+                                as
+                                usize]
                                 =
                                 1.0f64 * lamda1[k as usize] *
                                     (1.0f64 * prob_RtoL_1[k as usize] /
-                                         occur_1[k as usize])
+                                        occur_1[k as usize])
                         }
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].direction[k
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j as
+                            usize].direction[k
+                            as
+                            usize]
                             = direction_1[k as usize];
                         strcpy((*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                         isize))[j
-                                                                                     as
-                                                                                     usize].type_0[k
-                                                                                                       as
-                                                                                                       usize].as_mut_ptr(),
+                            isize))[j
+                            as
+                            usize].type_0[k
+                            as
+                            usize].as_mut_ptr(),
                                type_1[k as usize].as_mut_ptr());
                         k += 1
                     }
                 } else if !pos_rule_1.is_null() || !pos_rule_2.is_null() {
                     if !pos_rule_1.is_null() {
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].count
+                            isize))[j as
+                            usize].count
                             = count_2;
                         k = 0 as libc::c_int;
                         while k <
-                                  (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                            isize))[j
-                                                                                        as
-                                                                                        usize].count
-                              {
+                            (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                                isize))[j
+                                as
+                                usize].count
+                        {
                             appear_LtoR_2 =
                                 prob_LtoR_2[k as usize] as libc::c_int;
                             appear_RtoL_2 =
@@ -1129,7 +1126,7 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                             while l < count_3 {
                                 if strcmp(type_2[k as usize].as_mut_ptr(),
                                           type_3[l as usize].as_mut_ptr()) ==
-                                       0 {
+                                    0 {
                                     appear_LtoR_3 =
                                         prob_LtoR_3[l as usize] as
                                             libc::c_int;
@@ -1138,7 +1135,7 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                                             libc::c_int;
                                     total_3 =
                                         occur_3[l as usize] as libc::c_int;
-                                    break ;
+                                    break;
                                 } else { l += 1 }
                             }
                             lamda2[k as usize] =
@@ -1147,254 +1144,254 @@ pub unsafe extern "C" fn calc_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
                                     (total_2 + total_3 + 1 as libc::c_int) as
                                         libc::c_double;
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_LtoR[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_LtoR[k
+                                as
+                                usize]
                                 =
                                 1.0f64 * lamda2[k as usize] *
                                     (1.0f64 *
-                                         (appear_LtoR_2 + appear_LtoR_3) as
-                                             libc::c_double /
-                                         (total_2 + total_3) as
-                                             libc::c_double);
+                                        (appear_LtoR_2 + appear_LtoR_3) as
+                                            libc::c_double /
+                                        (total_2 + total_3) as
+                                            libc::c_double);
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_RtoL[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_RtoL[k
+                                as
+                                usize]
                                 =
                                 1.0f64 * lamda2[k as usize] *
                                     (1.0f64 *
-                                         (appear_RtoL_2 + appear_RtoL_3) as
-                                             libc::c_double /
-                                         (total_2 + total_3) as
-                                             libc::c_double);
+                                        (appear_RtoL_2 + appear_RtoL_3) as
+                                            libc::c_double /
+                                        (total_2 + total_3) as
+                                            libc::c_double);
                             strcpy((*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                             isize))[j
-                                                                                         as
-                                                                                         usize].type_0[k
-                                                                                                           as
-                                                                                                           usize].as_mut_ptr(),
+                                isize))[j
+                                as
+                                usize].type_0[k
+                                as
+                                usize].as_mut_ptr(),
                                    type_2[k as usize].as_mut_ptr());
                             l = 0 as libc::c_int;
                             while l < count_4 {
                                 if strcmp(type_2[k as usize].as_mut_ptr(),
                                           type_4[l as usize].as_mut_ptr()) ==
-                                       0 {
+                                    0 {
                                     (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                              isize))[j
-                                                                                          as
-                                                                                          usize].prob_LtoR[k
-                                                                                                               as
-                                                                                                               usize]
+                                        isize))[j
+                                        as
+                                        usize].prob_LtoR[k
+                                        as
+                                        usize]
                                         +=
                                         (1 as libc::c_int as libc::c_double -
-                                             lamda2[k as usize]) *
+                                            lamda2[k as usize]) *
                                             (1.0f64 * prob_LtoR_4[l as usize]
-                                                 / occur_4[l as usize]);
+                                                / occur_4[l as usize]);
                                     (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                              isize))[j
-                                                                                          as
-                                                                                          usize].prob_RtoL[k
-                                                                                                               as
-                                                                                                               usize]
+                                        isize))[j
+                                        as
+                                        usize].prob_RtoL[k
+                                        as
+                                        usize]
                                         +=
                                         (1 as libc::c_int as libc::c_double -
-                                             lamda2[k as usize]) *
+                                            lamda2[k as usize]) *
                                             (1.0f64 * prob_RtoL_4[l as usize]
-                                                 / occur_4[l as usize]);
-                                    break ;
+                                                / occur_4[l as usize]);
+                                    break;
                                 } else { l += 1 }
                             }
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].direction[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].direction[k
+                                as
+                                usize]
                                 = direction_2[k as usize];
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_LtoR[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_LtoR[k
+                                as
+                                usize]
                                 *= prob_bk_weight_1;
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_RtoL[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_RtoL[k
+                                as
+                                usize]
                                 *= prob_bk_weight_1;
                             k += 1
                         }
                     } else if !pos_rule_2.is_null() {
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].count
+                            isize))[j as
+                            usize].count
                             = count_3;
                         k = 0 as libc::c_int;
                         while k <
-                                  (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                            isize))[j
-                                                                                        as
-                                                                                        usize].count
-                              {
+                            (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                                isize))[j
+                                as
+                                usize].count
+                        {
                             lamda2[k as usize] =
                                 1.0f64 * occur_3[k as usize] /
                                     (occur_3[k as usize] +
-                                         1 as libc::c_int as libc::c_double);
+                                        1 as libc::c_int as libc::c_double);
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_LtoR[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_LtoR[k
+                                as
+                                usize]
                                 =
                                 1.0f64 * lamda2[k as usize] *
                                     (1.0f64 * prob_LtoR_3[k as usize] /
-                                         occur_3[k as usize]);
+                                        occur_3[k as usize]);
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_RtoL[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_RtoL[k
+                                as
+                                usize]
                                 =
                                 1.0f64 * lamda2[k as usize] *
                                     (1.0f64 * prob_RtoL_3[k as usize] /
-                                         occur_3[k as usize]);
+                                        occur_3[k as usize]);
                             strcpy((*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                             isize))[j
-                                                                                         as
-                                                                                         usize].type_0[k
-                                                                                                           as
-                                                                                                           usize].as_mut_ptr(),
+                                isize))[j
+                                as
+                                usize].type_0[k
+                                as
+                                usize].as_mut_ptr(),
                                    type_3[k as usize].as_mut_ptr());
                             l = 0 as libc::c_int;
                             while l < count_4 {
                                 if strcmp(type_3[k as usize].as_mut_ptr(),
                                           type_4[l as usize].as_mut_ptr()) ==
-                                       0 {
+                                    0 {
                                     (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                              isize))[j
-                                                                                          as
-                                                                                          usize].prob_LtoR[k
-                                                                                                               as
-                                                                                                               usize]
+                                        isize))[j
+                                        as
+                                        usize].prob_LtoR[k
+                                        as
+                                        usize]
                                         +=
                                         (1 as libc::c_int as libc::c_double -
-                                             lamda2[k as usize]) *
+                                            lamda2[k as usize]) *
                                             (1.0f64 * prob_LtoR_4[l as usize]
-                                                 / occur_4[k as usize]);
+                                                / occur_4[k as usize]);
                                     (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                              isize))[j
-                                                                                          as
-                                                                                          usize].prob_RtoL[k
-                                                                                                               as
-                                                                                                               usize]
+                                        isize))[j
+                                        as
+                                        usize].prob_RtoL[k
+                                        as
+                                        usize]
                                         +=
                                         (1 as libc::c_int as libc::c_double -
-                                             lamda2[k as usize]) *
+                                            lamda2[k as usize]) *
                                             (1.0f64 * prob_RtoL_4[l as usize]
-                                                 / occur_4[k as usize]);
-                                    break ;
+                                                / occur_4[k as usize]);
+                                    break;
                                 } else { l += 1 }
                             }
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].direction[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].direction[k
+                                as
+                                usize]
                                 = direction_3[k as usize];
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_LtoR[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_LtoR[k
+                                as
+                                usize]
                                 *= prob_bk_weight_1;
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_RtoL[k
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_RtoL[k
+                                as
+                                usize]
                                 *= prob_bk_weight_1;
                             k += 1
                         }
                     }
                 } else {
                     (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize].count
+                        isize))[j as
+                        usize].count
                         = count_4;
                     k = 0 as libc::c_int;
                     while k <
-                              (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                        isize))[j
-                                                                                    as
-                                                                                    usize].count
-                          {
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_LtoR[k
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j
+                            as
+                            usize].count
+                    {
+                        (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                            isize))[j as
+                            usize].prob_LtoR[k
+                            as
+                            usize]
                             =
                             1.0f64 * prob_LtoR_4[k as usize] /
                                 occur_4[k as usize];
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_RtoL[k
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j as
+                            usize].prob_RtoL[k
+                            as
+                            usize]
                             =
                             1.0f64 * prob_RtoL_4[k as usize] /
                                 occur_4[k as usize];
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].direction[k
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j as
+                            usize].direction[k
+                            as
+                            usize]
                             = direction_4[k as usize];
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_LtoR[k
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j as
+                            usize].prob_LtoR[k
+                            as
+                            usize]
                             *= prob_bk_weight_2;
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_RtoL[k
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j as
+                            usize].prob_RtoL[k
+                            as
+                            usize]
                             *= prob_bk_weight_2;
                         strcpy((*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                         isize))[j
-                                                                                     as
-                                                                                     usize].type_0[k
-                                                                                                       as
-                                                                                                       usize].as_mut_ptr(),
+                            isize))[j
+                            as
+                            usize].type_0[k
+                            as
+                            usize].as_mut_ptr(),
                                type_4[k as usize].as_mut_ptr());
                         k += 1
                     }
                 }
                 if !lex_rule.is_null() || !pos_rule_1.is_null() ||
-                       !pos_rule_2.is_null() || !pos_rule.is_null() {
+                    !pos_rule_2.is_null() || !pos_rule.is_null() {
                     first_uke_flag = 0 as libc::c_int;
                     if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                 isize))[j as
-                                                                             usize].count
-                           > 0 as libc::c_int {
+                        isize))[j as
+                        usize].count
+                        > 0 as libc::c_int {
                         (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             = 'O' as i32
                     }
                 }
@@ -1434,9 +1431,9 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
                                   mut left: libc::c_int,
                                   mut right: libc::c_int,
                                   mut distance: libc::c_int,
-                                  mut comma: libc::c_int) 
- /*==================================================================*/
- {
+                                  mut comma: libc::c_int)
+/*==================================================================*/
+{
     // let mut i: libc::c_int = 0; /* parameter of each dpnd type */
     // let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -1548,7 +1545,7 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
     fprob_LtoR = 0.0f64;
     fprob_RtoL = 0.0f64;
     /* read rule from DB for Chinese */
-  /* for each pair, [0] store TRAIN, [1] store GIGA */
+    /* for each pair, [0] store TRAIN, [1] store GIGA */
     lex_rule =
         get_chi_dpnd_rule((*(*k_ptr).head_ptr).Goi.as_mut_ptr(),
                           (*(*k_ptr).head_ptr).Pos.as_mut_ptr(),
@@ -1584,7 +1581,7 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -1620,14 +1617,14 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 occur_LtoR_1[0 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL_1[0 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR_1[0 as libc::c_int as usize] = atof(probLtoR);
                 prob_RtoL_1[0 as libc::c_int as usize] = atof(probRtoL)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 occur_LtoR_1[1 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL_1[1 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR_1[1 as libc::c_int as usize] = atof(probLtoR);
@@ -1648,7 +1645,7 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -1684,14 +1681,14 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 occur_LtoR_2[0 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL_2[0 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR_2[0 as libc::c_int as usize] = atof(probLtoR);
                 prob_RtoL_2[0 as libc::c_int as usize] = atof(probRtoL)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 occur_LtoR_2[1 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL_2[1 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR_2[1 as libc::c_int as usize] = atof(probLtoR);
@@ -1712,7 +1709,7 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -1748,14 +1745,14 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 occur_LtoR_3[0 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL_3[0 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR_3[0 as libc::c_int as usize] = atof(probLtoR);
                 prob_RtoL_3[0 as libc::c_int as usize] = atof(probRtoL)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 occur_LtoR_3[1 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL_3[1 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR_3[1 as libc::c_int as usize] = atof(probLtoR);
@@ -1775,7 +1772,7 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -1811,14 +1808,14 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 occur_LtoR_4[0 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL_4[0 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR_4[0 as libc::c_int as usize] = atof(probLtoR);
                 prob_RtoL_4[0 as libc::c_int as usize] = atof(probRtoL)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 occur_LtoR_4[1 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL_4[1 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR_4[1 as libc::c_int as usize] = atof(probLtoR);
@@ -1840,46 +1837,46 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
             lamda =
                 prob_LtoR_1[k as usize] /
                     (prob_LtoR_1[k as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             if prob_LtoR_2[k as usize] > 0.0000000000000001f64 ||
-                   prob_LtoR_3[k as usize] > 0.0000000000000001f64 {
+                prob_LtoR_3[k as usize] > 0.0000000000000001f64 {
                 prob[k as usize] =
                     lamda * prob_LtoR_1[k as usize] / occur_LtoR_1[k as usize]
                         +
                         (1 as libc::c_int as libc::c_double - lamda) *
                             (prob_LtoR_2[k as usize] +
-                                 prob_LtoR_3[k as usize]) /
+                                prob_LtoR_3[k as usize]) /
                             (occur_LtoR_2[k as usize] +
-                                 occur_LtoR_3[k as usize])
+                                occur_LtoR_3[k as usize])
             } else {
                 prob[k as usize] =
                     lamda * prob_LtoR_1[k as usize] / occur_LtoR_1[k as usize]
             }
         } else if prob_LtoR_2[k as usize] > 0.0000000000000001f64 ||
-                      prob_LtoR_3[k as usize] > 0.0000000000000001f64 {
+            prob_LtoR_3[k as usize] > 0.0000000000000001f64 {
             lamda =
                 (prob_LtoR_2[k as usize] + prob_LtoR_3[k as usize]) /
                     (prob_LtoR_2[k as usize] + prob_LtoR_3[k as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             if prob_LtoR_4[k as usize] > 0.0000000000000001f64 {
                 prob[k as usize] =
                     prob_bk_weight_1 *
                         (lamda *
-                             (prob_LtoR_2[k as usize] +
-                                  prob_LtoR_3[k as usize]) /
-                             (occur_LtoR_2[k as usize] +
-                                  occur_LtoR_3[k as usize]) +
-                             (1 as libc::c_int as libc::c_double - lamda) *
-                                 (prob_LtoR_4[k as usize] /
-                                      occur_LtoR_4[k as usize]))
+                            (prob_LtoR_2[k as usize] +
+                                prob_LtoR_3[k as usize]) /
+                            (occur_LtoR_2[k as usize] +
+                                occur_LtoR_3[k as usize]) +
+                            (1 as libc::c_int as libc::c_double - lamda) *
+                                (prob_LtoR_4[k as usize] /
+                                    occur_LtoR_4[k as usize]))
             } else {
                 prob[k as usize] =
                     prob_bk_weight_1 *
                         (lamda *
-                             (prob_LtoR_2[k as usize] +
-                                  prob_LtoR_3[k as usize]) /
-                             (occur_LtoR_2[k as usize] +
-                                  occur_LtoR_3[k as usize]))
+                            (prob_LtoR_2[k as usize] +
+                                prob_LtoR_3[k as usize]) /
+                            (occur_LtoR_2[k as usize] +
+                                occur_LtoR_3[k as usize]))
             }
         } else if prob_LtoR_4[k as usize] > 0.0000000000000001f64 {
             prob[k as usize] =
@@ -1903,46 +1900,46 @@ pub unsafe extern "C" fn get_prob(mut sp: *mut SENTENCE_DATA,
             lamda =
                 prob_RtoL_1[k as usize] /
                     (prob_RtoL_1[k as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             if prob_RtoL_2[k as usize] > 0.0000000000000001f64 ||
-                   prob_RtoL_3[k as usize] > 0.0000000000000001f64 {
+                prob_RtoL_3[k as usize] > 0.0000000000000001f64 {
                 prob[k as usize] =
                     lamda * prob_RtoL_1[k as usize] / occur_RtoL_1[k as usize]
                         +
                         (1 as libc::c_int as libc::c_double - lamda) *
                             (prob_RtoL_2[k as usize] +
-                                 prob_RtoL_3[k as usize]) /
+                                prob_RtoL_3[k as usize]) /
                             (occur_RtoL_2[k as usize] +
-                                 occur_RtoL_3[k as usize])
+                                occur_RtoL_3[k as usize])
             } else {
                 prob[k as usize] =
                     lamda * prob_RtoL_1[k as usize] / occur_RtoL_1[k as usize]
             }
         } else if prob_RtoL_2[k as usize] > 0.0000000000000001f64 ||
-                      prob_RtoL_3[k as usize] > 0.0000000000000001f64 {
+            prob_RtoL_3[k as usize] > 0.0000000000000001f64 {
             lamda =
                 (prob_RtoL_2[k as usize] + prob_RtoL_3[k as usize]) /
                     (prob_RtoL_2[k as usize] + prob_RtoL_3[k as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             if prob_RtoL_4[k as usize] > 0.0000000000000001f64 {
                 prob[k as usize] =
                     prob_bk_weight_1 *
                         (lamda *
-                             (prob_RtoL_2[k as usize] +
-                                  prob_RtoL_3[k as usize]) /
-                             (occur_RtoL_2[k as usize] +
-                                  occur_RtoL_3[k as usize]) +
-                             (1 as libc::c_int as libc::c_double - lamda) *
-                                 (prob_RtoL_4[k as usize] /
-                                      occur_RtoL_4[k as usize]))
+                            (prob_RtoL_2[k as usize] +
+                                prob_RtoL_3[k as usize]) /
+                            (occur_RtoL_2[k as usize] +
+                                occur_RtoL_3[k as usize]) +
+                            (1 as libc::c_int as libc::c_double - lamda) *
+                                (prob_RtoL_4[k as usize] /
+                                    occur_RtoL_4[k as usize]))
             } else {
                 prob[k as usize] =
                     prob_bk_weight_1 *
                         (lamda *
-                             (prob_RtoL_2[k as usize] +
-                                  prob_RtoL_3[k as usize]) /
-                             (occur_RtoL_2[k as usize] +
-                                  occur_RtoL_3[k as usize]))
+                            (prob_RtoL_2[k as usize] +
+                                prob_RtoL_3[k as usize]) /
+                            (occur_RtoL_2[k as usize] +
+                                occur_RtoL_3[k as usize]))
             }
         } else if prob_RtoL_4[k as usize] > 0.0000000000000001f64 {
             prob[k as usize] =
@@ -1984,9 +1981,9 @@ pub unsafe extern "C" fn get_prob_wpos(mut sp: *mut SENTENCE_DATA,
                                        mut distance: libc::c_int,
                                        mut comma: libc::c_int,
                                        mut pos_left: *mut libc::c_char,
-                                       mut pos_right: *mut libc::c_char) 
- /*==================================================================*/
- {
+                                       mut pos_right: *mut libc::c_char)
+/*==================================================================*/
+{
     // let mut i: libc::c_int = 0; /* parameter of each dpnd type */
     // let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -2028,7 +2025,7 @@ pub unsafe extern "C" fn get_prob_wpos(mut sp: *mut SENTENCE_DATA,
     fprob_LtoR = 0.0f64;
     fprob_RtoL = 0.0f64;
     /* read rule from DB for Chinese */
-  /* for each pair, [0] store TRAIN, [1] store GIGA */
+    /* for each pair, [0] store TRAIN, [1] store GIGA */
     pos_rule =
         get_chi_dpnd_rule(b"XX\x00" as *const u8 as *const libc::c_char as
                               *mut libc::c_char, pos_left,
@@ -2041,7 +2038,7 @@ pub unsafe extern "C" fn get_prob_wpos(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -2077,14 +2074,14 @@ pub unsafe extern "C" fn get_prob_wpos(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 occur_LtoR[0 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL[0 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR[0 as libc::c_int as usize] = atof(probLtoR);
                 prob_RtoL[0 as libc::c_int as usize] = atof(probRtoL)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 occur_LtoR[1 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL[1 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR[1 as libc::c_int as usize] = atof(probLtoR);
@@ -2148,9 +2145,9 @@ pub unsafe extern "C" fn get_lex_prob_wpos(mut sp: *mut SENTENCE_DATA,
                                            mut distance: libc::c_int,
                                            mut comma: libc::c_int,
                                            mut pos_left: *mut libc::c_char,
-                                           mut pos_right: *mut libc::c_char) 
- /*==================================================================*/
- {
+                                           mut pos_right: *mut libc::c_char)
+/*==================================================================*/
+{
     // let mut i: libc::c_int = 0; /* parameter of each dpnd type */
     // let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -2192,7 +2189,7 @@ pub unsafe extern "C" fn get_lex_prob_wpos(mut sp: *mut SENTENCE_DATA,
     fprob_LtoR = 0.0f64;
     fprob_RtoL = 0.0f64;
     /* read rule from DB for Chinese */
-  /* for each pair, [0] store TRAIN, [1] store GIGA */
+    /* for each pair, [0] store TRAIN, [1] store GIGA */
     lex_rule =
         get_chi_dpnd_rule((*(*k_ptr).head_ptr).Goi.as_mut_ptr(), pos_left,
                           (*(*k_ptr).head_ptr).Goi.as_mut_ptr(), pos_right,
@@ -2204,7 +2201,7 @@ pub unsafe extern "C" fn get_lex_prob_wpos(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -2240,14 +2237,14 @@ pub unsafe extern "C" fn get_lex_prob_wpos(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 occur_LtoR[0 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL[0 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR[0 as libc::c_int as usize] = atof(probLtoR);
                 prob_RtoL[0 as libc::c_int as usize] = atof(probRtoL)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 occur_LtoR[1 as libc::c_int as usize] = atof(occurLtoR);
                 occur_RtoL[1 as libc::c_int as usize] = atof(occurRtoL);
                 prob_LtoR[1 as libc::c_int as usize] = atof(probLtoR);
@@ -2307,9 +2304,9 @@ pub unsafe extern "C" fn get_lex_prob_wpos(mut sp: *mut SENTENCE_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn get_root_prob(mut sp: *mut SENTENCE_DATA,
                                        mut root: libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                       -> libc::c_double
+/*==================================================================*/
+{
     // let mut i: libc::c_int = 0;
     // let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -2333,7 +2330,7 @@ pub unsafe extern "C" fn get_root_prob(mut sp: *mut SENTENCE_DATA,
     let mut lamda_root: libc::c_double = 0.;
     let mut k_ptr: *mut BNST_DATA = (*sp).bnst_data.offset(root as isize);
     /* get rule for root */
-  /* initialization */
+    /* initialization */
     lex_rule = 0 as *mut libc::c_char;
     pos_rule = 0 as *mut libc::c_char;
     lex_root_prob[0 as libc::c_int as usize] =
@@ -2379,7 +2376,7 @@ pub unsafe extern "C" fn get_root_prob(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -2403,12 +2400,12 @@ pub unsafe extern "C" fn get_root_prob(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 lex_root_prob[0 as libc::c_int as usize] = atof(probLtoR);
                 lex_root_occur[0 as libc::c_int as usize] = atof(occurLtoR)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 lex_root_prob[1 as libc::c_int as usize] = atof(probLtoR);
                 lex_root_occur[1 as libc::c_int as usize] = atof(occurLtoR)
             }
@@ -2426,7 +2423,7 @@ pub unsafe extern "C" fn get_root_prob(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -2450,12 +2447,12 @@ pub unsafe extern "C" fn get_root_prob(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 pos_root_prob[0 as libc::c_int as usize] = atof(probLtoR);
                 pos_root_occur[0 as libc::c_int as usize] = atof(occurLtoR)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 pos_root_prob[1 as libc::c_int as usize] = atof(probLtoR);
                 pos_root_occur[1 as libc::c_int as usize] = atof(occurLtoR)
             }
@@ -2471,13 +2468,13 @@ pub unsafe extern "C" fn get_root_prob(mut sp: *mut SENTENCE_DATA,
     k = 0 as libc::c_int;
     while k < 1 as libc::c_int {
         if lex_root_prob[k as usize] > 0.0000000000000001f64 &&
-               pos_root_prob[k as usize] > 0.0000000000000001f64 {
+            pos_root_prob[k as usize] > 0.0000000000000001f64 {
             prob[k as usize] =
                 lamda_root * lex_root_prob[k as usize] /
                     lex_root_occur[k as usize] +
                     (1 as libc::c_int as libc::c_double - lamda_root) *
                         (pos_root_prob[k as usize] /
-                             pos_root_occur[k as usize])
+                            pos_root_occur[k as usize])
         } else if pos_root_prob[k as usize] > 0.0000000000000001f64 {
             prob[k as usize] =
                 (1 as libc::c_int as libc::c_double - lamda_root) *
@@ -2503,9 +2500,9 @@ pub unsafe extern "C" fn get_root_prob(mut sp: *mut SENTENCE_DATA,
 pub unsafe extern "C" fn get_root_prob_wpos(mut sp: *mut SENTENCE_DATA,
                                             mut root: libc::c_int,
                                             mut root_pos: *mut libc::c_char)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                            -> libc::c_double
+/*==================================================================*/
+{
     // let mut i: libc::c_int = 0;
     // let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -2524,7 +2521,7 @@ pub unsafe extern "C" fn get_root_prob_wpos(mut sp: *mut SENTENCE_DATA,
     let mut pos_root_prob: [libc::c_double; 2] = [0.; 2];
     let mut pos_root_occur: [libc::c_double; 2] = [0.; 2];
     /* get rule for root */
-  /* initialization */
+    /* initialization */
     pos_rule = 0 as *mut libc::c_char;
     pos_root_prob[0 as libc::c_int as usize] =
         0 as libc::c_int as libc::c_double;
@@ -2552,7 +2549,7 @@ pub unsafe extern "C" fn get_root_prob_wpos(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                     libc::c_ulong)) as
+                    libc::c_ulong)) as
                     *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -2576,12 +2573,12 @@ pub unsafe extern "C" fn get_root_prob_wpos(mut sp: *mut SENTENCE_DATA,
                 strtok(0 as *mut libc::c_char,
                        b"_\x00" as *const u8 as *const libc::c_char);
             if strcmp(dpnd, b"TRAIN\x00" as *const u8 as *const libc::c_char)
-                   == 0 {
+                == 0 {
                 pos_root_prob[0 as libc::c_int as usize] = atof(probLtoR);
                 pos_root_occur[0 as libc::c_int as usize] = atof(occurLtoR)
             } else if strcmp(dpnd,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 pos_root_prob[1 as libc::c_int as usize] = atof(probLtoR);
                 pos_root_occur[1 as libc::c_int as usize] = atof(occurLtoR)
             }
@@ -2613,9 +2610,9 @@ pub unsafe extern "C" fn get_root_prob_wpos(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
-                                                               *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+                                                           *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -2628,10 +2625,10 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
     while i < (*sp).Bnst_num {
         /* get root prob */
         (*Chi_root_prob_matrix.as_mut_ptr().offset(i as
-                                                       isize)).prob[0 as
-                                                                        libc::c_int
-                                                                        as
-                                                                        usize]
+            isize)).prob[0 as
+            libc::c_int
+            as
+            usize]
             = get_root_prob(sp, i);
         /* get dpnd rule for word pair */
         j = i + 1 as libc::c_int;
@@ -2644,28 +2641,28 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
                                   b"PU\x00" as *const u8 as
                                       *const libc::c_char as
                                       *mut libc::c_char).is_null() &&
-                       (strcmp((*(*(*sp).bnst_data.offset(k as
-                                                              isize)).head_ptr).Goi.as_mut_ptr(),
-                               b",\x00" as *const u8 as *const libc::c_char)
-                            == 0 ||
-                            strcmp((*(*(*sp).bnst_data.offset(k as
-                                                                  isize)).head_ptr).Goi.as_mut_ptr(),
-                                   b"\xef\xbc\x9a\x00" as *const u8 as
-                                       *const libc::c_char) == 0 ||
-                            strcmp((*(*(*sp).bnst_data.offset(k as
-                                                                  isize)).head_ptr).Goi.as_mut_ptr(),
-                                   b":\x00" as *const u8 as
-                                       *const libc::c_char) == 0 ||
-                            strcmp((*(*(*sp).bnst_data.offset(k as
-                                                                  isize)).head_ptr).Goi.as_mut_ptr(),
-                                   b"\xef\xbc\x9b\x00" as *const u8 as
-                                       *const libc::c_char) == 0 ||
-                            strcmp((*(*(*sp).bnst_data.offset(k as
-                                                                  isize)).head_ptr).Goi.as_mut_ptr(),
-                                   b"\xef\xbc\x8c\x00" as *const u8 as
-                                       *const libc::c_char) == 0) {
+                    (strcmp((*(*(*sp).bnst_data.offset(k as
+                        isize)).head_ptr).Goi.as_mut_ptr(),
+                            b",\x00" as *const u8 as *const libc::c_char)
+                        == 0 ||
+                        strcmp((*(*(*sp).bnst_data.offset(k as
+                            isize)).head_ptr).Goi.as_mut_ptr(),
+                               b"\xef\xbc\x9a\x00" as *const u8 as
+                                   *const libc::c_char) == 0 ||
+                        strcmp((*(*(*sp).bnst_data.offset(k as
+                            isize)).head_ptr).Goi.as_mut_ptr(),
+                               b":\x00" as *const u8 as
+                                   *const libc::c_char) == 0 ||
+                        strcmp((*(*(*sp).bnst_data.offset(k as
+                            isize)).head_ptr).Goi.as_mut_ptr(),
+                               b"\xef\xbc\x9b\x00" as *const u8 as
+                                   *const libc::c_char) == 0 ||
+                        strcmp((*(*(*sp).bnst_data.offset(k as
+                            isize)).head_ptr).Goi.as_mut_ptr(),
+                               b"\xef\xbc\x8c\x00" as *const u8 as
+                                   *const libc::c_char) == 0) {
                     comma = 1 as libc::c_int;
-                    break ;
+                    break;
                 } else { k += 1 }
             }
             if j == i + 1 as libc::c_int {
@@ -2676,20 +2673,20 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
             fprob_RtoL = 0.0f64;
             get_prob(sp, i, j, distance, comma);
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[j as
-                                                                  usize].prob_dis_comma_LtoR[0
-                                                                                                 as
-                                                                                                 libc::c_int
-                                                                                                 as
-                                                                                                 usize]
+                isize))[j as
+                usize].prob_dis_comma_LtoR[0
+                as
+                libc::c_int
+                as
+                usize]
                 = fprob_LtoR;
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[j as
-                                                                  usize].prob_dis_comma_RtoL[0
-                                                                                                 as
-                                                                                                 libc::c_int
-                                                                                                 as
-                                                                                                 usize]
+                isize))[j as
+                usize].prob_dis_comma_RtoL[0
+                as
+                libc::c_int
+                as
+                usize]
                 = fprob_RtoL;
             total_LtoR = 0.0f64;
             total_RtoL = 0.0f64;
@@ -2698,141 +2695,141 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
             fprob_RtoL = 0.0f64;
             get_prob(sp, i, j, 0 as libc::c_int, 0 as libc::c_int);
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[j as
-                                                                  usize].prob_LtoR[0
-                                                                                       as
-                                                                                       libc::c_int
-                                                                                       as
-                                                                                       usize]
+                isize))[j as
+                usize].prob_LtoR[0
+                as
+                libc::c_int
+                as
+                usize]
                 = fprob_LtoR;
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[j as
-                                                                  usize].prob_RtoL[0
-                                                                                       as
-                                                                                       libc::c_int
-                                                                                       as
-                                                                                       usize]
+                isize))[j as
+                usize].prob_RtoL[0
+                as
+                libc::c_int
+                as
+                usize]
                 = fprob_RtoL;
             /* direction */
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[j as
-                                                                  usize].direction[0
-                                                                                       as
-                                                                                       libc::c_int
-                                                                                       as
-                                                                                       usize]
+                isize))[j as
+                usize].direction[0
+                as
+                libc::c_int
+                as
+                usize]
                 = 0 as libc::c_int as libc::c_char;
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[j as
-                                                                  usize].count
+                isize))[j as
+                usize].count
                 = 0 as libc::c_int;
             if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                         isize))[j as
-                                                                     usize].prob_LtoR[0
-                                                                                          as
-                                                                                          libc::c_int
-                                                                                          as
-                                                                                          usize]
-                   > 0.0000000000000001f64 &&
-                   (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                             isize))[j as
-                                                                         usize].prob_RtoL[0
-                                                                                              as
-                                                                                              libc::c_int
-                                                                                              as
-                                                                                              usize]
-                       > 0.0000000000000001f64 &&
-                   (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                             isize))[j as
-                                                                         usize].prob_dis_comma_LtoR[0
-                                                                                                        as
-                                                                                                        libc::c_int
-                                                                                                        as
-                                                                                                        usize]
-                       > 0.0000000000000001f64 &&
-                   (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                             isize))[j as
-                                                                         usize].prob_dis_comma_RtoL[0
-                                                                                                        as
-                                                                                                        libc::c_int
-                                                                                                        as
-                                                                                                        usize]
-                       > 0.0000000000000001f64 {
+                isize))[j as
+                usize].prob_LtoR[0
+                as
+                libc::c_int
+                as
+                usize]
+                > 0.0000000000000001f64 &&
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].direction[0
-                                                                                           as
-                                                                                           libc::c_int
-                                                                                           as
-                                                                                           usize]
+                    isize))[j as
+                    usize].prob_RtoL[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    > 0.0000000000000001f64 &&
+                (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                    isize))[j as
+                    usize].prob_dis_comma_LtoR[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    > 0.0000000000000001f64 &&
+                (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                    isize))[j as
+                    usize].prob_dis_comma_RtoL[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    > 0.0000000000000001f64 {
+                (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                    isize))[j as
+                    usize].direction[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
                     = 'B' as i32 as libc::c_char;
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].count
+                    isize))[j as
+                    usize].count
                     = 1 as libc::c_int
             } else if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                isize))[j as
-                                                                            usize].prob_LtoR[0
-                                                                                                 as
-                                                                                                 libc::c_int
-                                                                                                 as
-                                                                                                 usize]
-                          > 0.0000000000000001f64 &&
-                          (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                    isize))[j
-                                                                                as
-                                                                                usize].prob_dis_comma_LtoR[0
-                                                                                                               as
-                                                                                                               libc::c_int
-                                                                                                               as
-                                                                                                               usize]
-                              > 0.0000000000000001f64 {
+                isize))[j as
+                usize].prob_LtoR[0
+                as
+                libc::c_int
+                as
+                usize]
+                > 0.0000000000000001f64 &&
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].direction[0
-                                                                                           as
-                                                                                           libc::c_int
-                                                                                           as
-                                                                                           usize]
+                    isize))[j
+                    as
+                    usize].prob_dis_comma_LtoR[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    > 0.0000000000000001f64 {
+                (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                    isize))[j as
+                    usize].direction[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
                     = 'R' as i32 as libc::c_char;
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].count
+                    isize))[j as
+                    usize].count
                     = 1 as libc::c_int
             } else if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                isize))[j as
-                                                                            usize].prob_RtoL[0
-                                                                                                 as
-                                                                                                 libc::c_int
-                                                                                                 as
-                                                                                                 usize]
-                          > 0.0000000000000001f64 &&
-                          (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                    isize))[j
-                                                                                as
-                                                                                usize].prob_dis_comma_RtoL[0
-                                                                                                               as
-                                                                                                               libc::c_int
-                                                                                                               as
-                                                                                                               usize]
-                              > 0.0000000000000001f64 {
+                isize))[j as
+                usize].prob_RtoL[0
+                as
+                libc::c_int
+                as
+                usize]
+                > 0.0000000000000001f64 &&
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].direction[0
-                                                                                           as
-                                                                                           libc::c_int
-                                                                                           as
-                                                                                           usize]
+                    isize))[j
+                    as
+                    usize].prob_dis_comma_RtoL[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    > 0.0000000000000001f64 {
+                (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                    isize))[j as
+                    usize].direction[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
                     = 'L' as i32 as libc::c_char;
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[j as
-                                                                      usize].count
+                    isize))[j as
+                    usize].count
                     = 1 as libc::c_int
             }
             if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                         isize))[j as
-                                                                     usize].count
-                   > 0 as libc::c_int {
+                isize))[j as
+                usize].count
+                > 0 as libc::c_int {
                 (*Dpnd_matrix.as_mut_ptr().offset(i as isize))[j as usize] =
                     'O' as i32
             }
@@ -2841,7 +2838,7 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
         i += 1
     }
     /* normalize prob_dpnd */
-  /* p(wi|wr) = F(wi|wr)/(+F(wj|wr)) */
+    /* p(wi|wr) = F(wi|wr)/(+F(wj|wr)) */
     i = 0 as libc::c_int;
     while i < (*sp).Bnst_num {
         total_word_prob = 0.0f64;
@@ -2850,41 +2847,41 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
             if !(j == i) {
                 if j < i {
                     if (*Chi_dpnd_matrix.as_mut_ptr().offset(j as
-                                                                 isize))[i as
-                                                                             usize].prob_LtoR[0
-                                                                                                  as
-                                                                                                  libc::c_int
-                                                                                                  as
-                                                                                                  usize]
-                           > 0.0000000000000001f64 {
+                        isize))[i as
+                        usize].prob_LtoR[0
+                        as
+                        libc::c_int
+                        as
+                        usize]
+                        > 0.0000000000000001f64 {
                         total_word_prob +=
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(j as
-                                                                      isize))[i
-                                                                                  as
-                                                                                  usize].prob_LtoR[0
-                                                                                                       as
-                                                                                                       libc::c_int
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[i
+                                as
+                                usize].prob_LtoR[0
+                                as
+                                libc::c_int
+                                as
+                                usize]
                     }
                 } else if j > i {
                     if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                 isize))[j as
-                                                                             usize].prob_RtoL[0
-                                                                                                  as
-                                                                                                  libc::c_int
-                                                                                                  as
-                                                                                                  usize]
-                           > 0.0000000000000001f64 {
+                        isize))[j as
+                        usize].prob_RtoL[0
+                        as
+                        libc::c_int
+                        as
+                        usize]
+                        > 0.0000000000000001f64 {
                         total_word_prob +=
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].prob_RtoL[0
-                                                                                                       as
-                                                                                                       libc::c_int
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_RtoL[0
+                                as
+                                libc::c_int
+                                as
+                                usize]
                     }
                 }
             }
@@ -2896,21 +2893,21 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
                 if !(j == i) {
                     if j < i {
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(j as
-                                                                  isize))[i as
-                                                                              usize].prob_LtoR[0
-                                                                                                   as
-                                                                                                   libc::c_int
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[i as
+                            usize].prob_LtoR[0
+                            as
+                            libc::c_int
+                            as
+                            usize]
                             /= total_word_prob
                     } else if j > i {
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_RtoL[0
-                                                                                                   as
-                                                                                                   libc::c_int
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j as
+                            usize].prob_RtoL[0
+                            as
+                            libc::c_int
+                            as
+                            usize]
                             /= total_word_prob
                     }
                 }
@@ -2924,9 +2921,9 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_forProbModel(mut sp:
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn calc_chi_dpnd_matrix_wpos(mut sp:
-                                                       *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+                                                   *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -2943,42 +2940,42 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_wpos(mut sp:
             0 as libc::c_int;
         m = 0 as libc::c_int;
         while m < 2 as libc::c_int &&
-                  m <
-                      (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                               isize)).pos_max
-              {
+            m <
+                (*Chi_pos_matrix.as_mut_ptr().offset(i as
+                    isize)).pos_max
+        {
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[i as
-                                                                  usize].left_pos_index[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                  as
-                                                                                                                                  isize))[i
-                                                                                                                                              as
-                                                                                                                                              usize].count
-                                                                                            as
-                                                                                            usize]
+                isize))[i as
+                usize].left_pos_index[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                as
+                isize))[i
+                as
+                usize].count
+                as
+                usize]
                 =
                 (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                         isize)).pos_index[m
-                                                                               as
-                                                                               usize];
+                    isize)).pos_index[m
+                    as
+                    usize];
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[i as
-                                                                  usize].right_pos_index[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                   as
-                                                                                                                                   isize))[i
-                                                                                                                                               as
-                                                                                                                                               usize].count
-                                                                                             as
-                                                                                             usize]
+                isize))[i as
+                usize].right_pos_index[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                as
+                isize))[i
+                as
+                usize].count
+                as
+                usize]
                 =
                 (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                         isize)).pos_index[m
-                                                                               as
-                                                                               usize];
+                    isize)).pos_index[m
+                    as
+                    usize];
             let ref mut fresh4 =
                 (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                          isize))[i as
-                                                                      usize].count;
+                    isize))[i as
+                    usize].count;
             *fresh4 += 1;
             m += 1
         }
@@ -2986,35 +2983,35 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_wpos(mut sp:
         j = i + 1 as libc::c_int;
         while j < (*sp).Bnst_num {
             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[j as
-                                                                  usize].count
+                isize))[j as
+                usize].count
                 = 0 as libc::c_int;
             /* get comma and distance */
             comma = 0 as libc::c_int;
             k = i + 1 as libc::c_int;
             while k < j {
                 if strcmp((*(*(*sp).bnst_data.offset(k as
-                                                         isize)).head_ptr).Goi.as_mut_ptr(),
+                    isize)).head_ptr).Goi.as_mut_ptr(),
                           b",\x00" as *const u8 as *const libc::c_char) == 0
-                       ||
-                       strcmp((*(*(*sp).bnst_data.offset(k as
-                                                             isize)).head_ptr).Goi.as_mut_ptr(),
-                              b"\xef\xbc\x9a\x00" as *const u8 as
-                                  *const libc::c_char) == 0 ||
-                       strcmp((*(*(*sp).bnst_data.offset(k as
-                                                             isize)).head_ptr).Goi.as_mut_ptr(),
-                              b":\x00" as *const u8 as *const libc::c_char) ==
-                           0 ||
-                       strcmp((*(*(*sp).bnst_data.offset(k as
-                                                             isize)).head_ptr).Goi.as_mut_ptr(),
-                              b"\xef\xbc\x9b\x00" as *const u8 as
-                                  *const libc::c_char) == 0 ||
-                       strcmp((*(*(*sp).bnst_data.offset(k as
-                                                             isize)).head_ptr).Goi.as_mut_ptr(),
-                              b"\xef\xbc\x8c\x00" as *const u8 as
-                                  *const libc::c_char) == 0 {
+                    ||
+                    strcmp((*(*(*sp).bnst_data.offset(k as
+                        isize)).head_ptr).Goi.as_mut_ptr(),
+                           b"\xef\xbc\x9a\x00" as *const u8 as
+                               *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(k as
+                        isize)).head_ptr).Goi.as_mut_ptr(),
+                           b":\x00" as *const u8 as *const libc::c_char) ==
+                        0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(k as
+                        isize)).head_ptr).Goi.as_mut_ptr(),
+                           b"\xef\xbc\x9b\x00" as *const u8 as
+                               *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(k as
+                        isize)).head_ptr).Goi.as_mut_ptr(),
+                           b"\xef\xbc\x8c\x00" as *const u8 as
+                               *const libc::c_char) == 0 {
                     comma = 1 as libc::c_int;
-                    break ;
+                    break;
                 } else { k += 1 }
             }
             if j == i + 1 as libc::c_int {
@@ -3022,68 +3019,68 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_wpos(mut sp:
             } else { distance = 2 as libc::c_int }
             m = 0 as libc::c_int;
             while m < 2 as libc::c_int &&
-                      m <
-                          (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                   isize)).pos_max
-                  {
+                m <
+                    (*Chi_pos_matrix.as_mut_ptr().offset(i as
+                        isize)).pos_max
+            {
                 /* get root prob */
                 (*Chi_root_prob_matrix.as_mut_ptr().offset(i as
-                                                               isize)).prob[m
-                                                                                as
-                                                                                usize]
+                    isize)).prob[m
+                    as
+                    usize]
                     =
                     get_root_prob_wpos(sp, i,
                                        (*Chi_pos_matrix.as_mut_ptr().offset(i
-                                                                                as
-                                                                                isize)).pos[m
-                                                                                                as
-                                                                                                usize]);
+                                           as
+                                           isize)).pos[m
+                                           as
+                                           usize]);
                 (*Chi_root_prob_matrix.as_mut_ptr().offset(i as
-                                                               isize)).pos_index[m
-                                                                                     as
-                                                                                     usize]
+                    isize)).pos_index[m
+                    as
+                    usize]
                     = m;
                 n = 0 as libc::c_int;
                 while n < 2 as libc::c_int &&
-                          n <
-                              (*Chi_pos_matrix.as_mut_ptr().offset(j as
-                                                                       isize)).pos_max
-                      {
+                    n <
+                        (*Chi_pos_matrix.as_mut_ptr().offset(j as
+                            isize)).pos_max
+                {
                     /* get dpnd prob */
                     fprob_LtoR = 0.0f64;
                     fprob_RtoL = 0.0f64;
                     get_prob_wpos(sp, i, j, 0 as libc::c_int,
                                   0 as libc::c_int,
                                   (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                           isize)).pos[m
-                                                                                           as
-                                                                                           usize],
+                                      isize)).pos[m
+                                      as
+                                      usize],
                                   (*Chi_pos_matrix.as_mut_ptr().offset(j as
-                                                                           isize)).pos[n
-                                                                                           as
-                                                                                           usize]);
+                                      isize)).pos[n
+                                      as
+                                      usize]);
                     //	  get_lex_prob_wpos(sp, i, j, distance, comma, Chi_pos_matrix[i].pos[m], Chi_pos_matrix[j].pos[n]);
                     if fprob_LtoR > 0.0000000000000001f64 ||
-                           fprob_RtoL > 0.0000000000000001f64 {
+                        fprob_RtoL > 0.0000000000000001f64 {
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                         as
-                                                                                                                                         isize))[j
-                                                                                                                                                     as
-                                                                                                                                                     usize].count
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j as
+                            usize].prob_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
                             = fprob_LtoR;
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                         as
-                                                                                                                                         isize))[j
-                                                                                                                                                     as
-                                                                                                                                                     usize].count
-                                                                                                   as
-                                                                                                   usize]
+                            isize))[j as
+                            usize].prob_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
                             = fprob_RtoL;
                         total_LtoR = 0.0f64;
                         total_RtoL = 0.0f64;
@@ -3092,219 +3089,219 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_wpos(mut sp:
                         fprob_RtoL = 0.0f64;
                         get_prob_wpos(sp, i, j, distance, comma,
                                       (*Chi_pos_matrix.as_mut_ptr().offset(i
-                                                                               as
-                                                                               isize)).pos[m
-                                                                                               as
-                                                                                               usize],
+                                          as
+                                          isize)).pos[m
+                                          as
+                                          usize],
                                       (*Chi_pos_matrix.as_mut_ptr().offset(j
-                                                                               as
-                                                                               isize)).pos[n
-                                                                                               as
-                                                                                               usize]);
+                                          as
+                                          isize)).pos[n
+                                          as
+                                          usize]);
                         //	    get_lex_prob_wpos(sp, i, j, 0, 0, Chi_pos_matrix[i].pos[m], Chi_pos_matrix[j].pos[n]);
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_dis_comma_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                   as
-                                                                                                                                                   isize))[j
-                                                                                                                                                               as
-                                                                                                                                                               usize].count
-                                                                                                             as
-                                                                                                             usize]
+                            isize))[j as
+                            usize].prob_dis_comma_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
                             = fprob_LtoR;
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].prob_dis_comma_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                   as
-                                                                                                                                                   isize))[j
-                                                                                                                                                               as
-                                                                                                                                                               usize].count
-                                                                                                             as
-                                                                                                             usize]
+                            isize))[j as
+                            usize].prob_dis_comma_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
                             = fprob_RtoL;
                         total_LtoR = 0.0f64;
                         total_RtoL = 0.0f64;
                         /* 	    /\* get lex_dis_comma prob *\/ */
-/* 	    fprob_LtoR = 0.0; */
-/* 	    fprob_RtoL = 0.0; */
-/* 	    get_lex_prob_wpos(sp, i, j, distance, comma, Chi_pos_matrix[i].pos[m], Chi_pos_matrix[j].pos[n]); */
-/* 	    Chi_dpnd_matrix[i][j].lex_prob_dis_comma_LtoR[Chi_dpnd_matrix[i][j].count] = fprob_LtoR; */
-/* 	    Chi_dpnd_matrix[i][j].lex_prob_dis_comma_RtoL[Chi_dpnd_matrix[i][j].count] = fprob_RtoL; */
+                        /* 	    fprob_LtoR = 0.0; */
+                        /* 	    fprob_RtoL = 0.0; */
+                        /* 	    get_lex_prob_wpos(sp, i, j, distance, comma, Chi_pos_matrix[i].pos[m], Chi_pos_matrix[j].pos[n]); */
+                        /* 	    Chi_dpnd_matrix[i][j].lex_prob_dis_comma_LtoR[Chi_dpnd_matrix[i][j].count] = fprob_LtoR; */
+                        /* 	    Chi_dpnd_matrix[i][j].lex_prob_dis_comma_RtoL[Chi_dpnd_matrix[i][j].count] = fprob_RtoL; */
                         /* 	    total_LtoR = 0.0; */
-/* 	    total_RtoL = 0.0; */
+                        /* 	    total_RtoL = 0.0; */
                         /* 	    /\* get dpnd prob *\/ */
-/* 	    fprob_LtoR = 0.0; */
-/* 	    fprob_RtoL = 0.0; */
-/* 	    get_lex_prob_wpos(sp, i, j, 0, 0, Chi_pos_matrix[i].pos[m], Chi_pos_matrix[j].pos[n]); */
-/* 	    Chi_dpnd_matrix[i][j].lex_prob_LtoR[Chi_dpnd_matrix[i][j].count] = fprob_LtoR; */
-/* 	    Chi_dpnd_matrix[i][j].lex_prob_RtoL[Chi_dpnd_matrix[i][j].count] = fprob_RtoL; */
+                        /* 	    fprob_LtoR = 0.0; */
+                        /* 	    fprob_RtoL = 0.0; */
+                        /* 	    get_lex_prob_wpos(sp, i, j, 0, 0, Chi_pos_matrix[i].pos[m], Chi_pos_matrix[j].pos[n]); */
+                        /* 	    Chi_dpnd_matrix[i][j].lex_prob_LtoR[Chi_dpnd_matrix[i][j].count] = fprob_LtoR; */
+                        /* 	    Chi_dpnd_matrix[i][j].lex_prob_RtoL[Chi_dpnd_matrix[i][j].count] = fprob_RtoL; */
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].left_pos_index[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                              as
-                                                                                                                                              isize))[j
-                                                                                                                                                          as
-                                                                                                                                                          usize].count
-                                                                                                        as
-                                                                                                        usize]
+                            isize))[j as
+                            usize].left_pos_index[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
                             =
                             (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                     isize)).pos_index[m
-                                                                                           as
-                                                                                           usize];
+                                isize)).pos_index[m
+                                as
+                                usize];
                         (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize].right_pos_index[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                               as
-                                                                                                                                               isize))[j
-                                                                                                                                                           as
-                                                                                                                                                           usize].count
-                                                                                                         as
-                                                                                                         usize]
+                            isize))[j as
+                            usize].right_pos_index[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
                             =
                             (*Chi_pos_matrix.as_mut_ptr().offset(j as
-                                                                     isize)).pos_index[n
-                                                                                           as
-                                                                                           usize];
+                                isize)).pos_index[n
+                                as
+                                usize];
                         /* direction */
                         if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                     isize))[j
-                                                                                 as
-                                                                                 usize].prob_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                            as
-                                                                                                                                            isize))[j
-                                                                                                                                                        as
-                                                                                                                                                        usize].count
-                                                                                                      as
-                                                                                                      usize]
-                               > 0.0000000000000001f64 &&
-                               (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                         isize))[j
-                                                                                     as
-                                                                                     usize].prob_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                as
-                                                                                                                                                isize))[j
-                                                                                                                                                            as
-                                                                                                                                                            usize].count
-                                                                                                          as
-                                                                                                          usize]
-                                   > 0.0000000000000001f64 &&
-                               (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                         isize))[j
-                                                                                     as
-                                                                                     usize].prob_dis_comma_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                          as
-                                                                                                                                                          isize))[j
-                                                                                                                                                                      as
-                                                                                                                                                                      usize].count
-                                                                                                                    as
-                                                                                                                    usize]
-                                   > 0.0000000000000001f64 &&
-                               (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                         isize))[j
-                                                                                     as
-                                                                                     usize].prob_dis_comma_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                          as
-                                                                                                                                                          isize))[j
-                                                                                                                                                                      as
-                                                                                                                                                                      usize].count
-                                                                                                                    as
-                                                                                                                    usize]
-                                   > 0.0000000000000001f64 {
+                            isize))[j
+                            as
+                            usize].prob_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
+                            > 0.0000000000000001f64 &&
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].direction[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                             as
-                                                                                                                                             isize))[j
-                                                                                                                                                         as
-                                                                                                                                                         usize].count
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].prob_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].count
+                                as
+                                usize]
+                                > 0.0000000000000001f64 &&
+                            (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                                isize))[j
+                                as
+                                usize].prob_dis_comma_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].count
+                                as
+                                usize]
+                                > 0.0000000000000001f64 &&
+                            (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                                isize))[j
+                                as
+                                usize].prob_dis_comma_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].count
+                                as
+                                usize]
+                                > 0.0000000000000001f64 {
+                            (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
+                                isize))[j
+                                as
+                                usize].direction[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].count
+                                as
+                                usize]
                                 = 'B' as i32 as libc::c_char
                         } else if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                            isize))[j
-                                                                                        as
-                                                                                        usize].prob_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                   as
-                                                                                                                                                   isize))[j
-                                                                                                                                                               as
-                                                                                                                                                               usize].count
-                                                                                                             as
-                                                                                                             usize]
-                                      > 0.0000000000000001f64 &&
-                                      (*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                as
-                                                                                isize))[j
-                                                                                            as
-                                                                                            usize].prob_dis_comma_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                                 as
-                                                                                                                                                                 isize))[j
-                                                                                                                                                                             as
-                                                                                                                                                                             usize].count
-                                                                                                                           as
-                                                                                                                           usize]
-                                          > 0.0000000000000001f64 {
+                            isize))[j
+                            as
+                            usize].prob_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
+                            > 0.0000000000000001f64 &&
+                            (*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].prob_dis_comma_LtoR[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].count
+                                as
+                                usize]
+                                > 0.0000000000000001f64 {
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].direction[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                             as
-                                                                                                                                             isize))[j
-                                                                                                                                                         as
-                                                                                                                                                         usize].count
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].direction[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].count
+                                as
+                                usize]
                                 = 'R' as i32 as libc::c_char
                         } else if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                            isize))[j
-                                                                                        as
-                                                                                        usize].prob_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                   as
-                                                                                                                                                   isize))[j
-                                                                                                                                                               as
-                                                                                                                                                               usize].count
-                                                                                                             as
-                                                                                                             usize]
-                                      > 0.0000000000000001f64 &&
-                                      (*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                as
-                                                                                isize))[j
-                                                                                            as
-                                                                                            usize].prob_dis_comma_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                                                 as
-                                                                                                                                                                 isize))[j
-                                                                                                                                                                             as
-                                                                                                                                                                             usize].count
-                                                                                                                           as
-                                                                                                                           usize]
-                                          > 0.0000000000000001f64 {
+                            isize))[j
+                            as
+                            usize].prob_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                            as
+                            isize))[j
+                            as
+                            usize].count
+                            as
+                            usize]
+                            > 0.0000000000000001f64 &&
+                            (*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].prob_dis_comma_RtoL[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].count
+                                as
+                                usize]
+                                > 0.0000000000000001f64 {
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].direction[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
-                                                                                                                                             as
-                                                                                                                                             isize))[j
-                                                                                                                                                         as
-                                                                                                                                                         usize].count
-                                                                                                       as
-                                                                                                       usize]
+                                isize))[j
+                                as
+                                usize].direction[(*Chi_dpnd_matrix.as_mut_ptr().offset(i
+                                as
+                                isize))[j
+                                as
+                                usize].count
+                                as
+                                usize]
                                 = 'L' as i32 as libc::c_char
                         }
                         let ref mut fresh5 =
                             (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize].count;
+                                isize))[j
+                                as
+                                usize].count;
                         *fresh5 += 1;
                         if (*Chi_dpnd_matrix.as_mut_ptr().offset(i as
-                                                                     isize))[j
-                                                                                 as
-                                                                                 usize].count
-                               > 0 as libc::c_int {
+                            isize))[j
+                            as
+                            usize].count
+                            > 0 as libc::c_int {
                             (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize]
+                                isize))[j as
+                                usize]
                                 = 'O' as i32
                         }
                     }
@@ -3322,28 +3319,28 @@ pub unsafe extern "C" fn calc_chi_dpnd_matrix_wpos(mut sp:
 #[no_mangle]
 pub unsafe extern "C" fn get_chi_pos_rule(mut word: *mut libc::c_char,
                                           mut pos: *mut libc::c_char)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                          -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     if OptChiPos != 0 && CHIPosExist == 0 as libc::c_int {
-        return 0 as *mut libc::c_char
+        return 0 as *mut libc::c_char;
     }
     key =
         malloc_db_buf(strlen(word).wrapping_add(strlen(pos)).wrapping_add(2 as
-                                                                              libc::c_int
-                                                                              as
-                                                                              libc::c_ulong)
-                          as libc::c_int);
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     sprintf(key, b"%s_%s\x00" as *const u8 as *const libc::c_char, pos, word);
     return db_get(chi_pos_db, key);
 }
 /* calculate pos probability for Chinese probabilistic model */
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn calc_chi_pos_matrix(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn calc_chi_pos_matrix(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -3367,23 +3364,23 @@ pub unsafe extern "C" fn calc_chi_pos_matrix(mut sp: *mut SENTENCE_DATA)
             (*Chi_pos_matrix.as_mut_ptr().offset(i as isize)).prob[j as usize]
                 = 0.0f64;
             (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                     isize)).prob_pos_index[j
-                                                                                as
-                                                                                usize]
+                isize)).prob_pos_index[j
+                as
+                usize]
                 = 0.0f64;
             (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                     isize)).pos_index[j as
-                                                                           usize]
+                isize)).pos_index[j as
+                usize]
                 = -(1 as libc::c_int);
             let ref mut fresh6 =
                 (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                         isize)).pos[j as
-                                                                         usize];
+                    isize)).pos[j as
+                    usize];
             *fresh6 =
                 malloc((::std::mem::size_of::<libc::c_char>() as
-                            libc::c_ulong).wrapping_mul((3 as libc::c_int +
-                                                             1 as libc::c_int)
-                                                            as libc::c_ulong))
+                    libc::c_ulong).wrapping_mul((3 as libc::c_int +
+                    1 as libc::c_int)
+                    as libc::c_ulong))
                     as *mut libc::c_char;
             j += 1
         }
@@ -3402,12 +3399,12 @@ pub unsafe extern "C" fn calc_chi_pos_matrix(mut sp: *mut SENTENCE_DATA)
             tmp_occur[1 as libc::c_int as usize] =
                 0 as libc::c_int as libc::c_double;
             /* read rule from DB for Chinese */
-      /* for each pair, [0] store TRAIN, [1] store GIGA */
+            /* for each pair, [0] store TRAIN, [1] store GIGA */
             pos_rule =
                 get_chi_pos_rule((*(*(*sp).bnst_data.offset(i as
-                                                                isize)).head_ptr).Goi.as_mut_ptr(),
+                    isize)).head_ptr).Goi.as_mut_ptr(),
                                  *Chi_word_pos.as_mut_ptr().offset(j as
-                                                                       isize));
+                                     isize));
             if !pos_rule.is_null() {
                 count = 0 as libc::c_int;
                 rule = 0 as *mut libc::c_char;
@@ -3417,7 +3414,7 @@ pub unsafe extern "C" fn calc_chi_pos_matrix(mut sp: *mut SENTENCE_DATA)
                 while !rule.is_null() {
                     curRule[count as usize] =
                         malloc(strlen(rule).wrapping_add(1 as libc::c_int as
-                                                             libc::c_ulong))
+                            libc::c_ulong))
                             as *mut libc::c_char;
                     strcpy(curRule[count as usize], rule);
                     count += 1;
@@ -3467,123 +3464,123 @@ pub unsafe extern "C" fn calc_chi_pos_matrix(mut sp: *mut SENTENCE_DATA)
                     k += 1
                 }
                 if pos_prob[0 as libc::c_int as usize] > 0.0000000000000001f64
-                   {
+                {
                     fprob =
                         pos_prob[0 as libc::c_int as usize] * giga_weight +
                             pos_prob[1 as libc::c_int as usize] *
                                 (1 as libc::c_int as libc::c_double -
-                                     giga_weight)
+                                    giga_weight)
                 } else { fprob = pos_prob[1 as libc::c_int as usize] }
                 (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                         isize)).prob_pos_index[j
-                                                                                    as
-                                                                                    usize]
+                    isize)).prob_pos_index[j
+                    as
+                    usize]
                     = fprob;
                 if (*Chi_pos_matrix.as_mut_ptr().offset(i as isize)).pos_max
-                       == 0 as libc::c_int {
+                    == 0 as libc::c_int {
                     (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                             isize)).prob[0 as
-                                                                              libc::c_int
-                                                                              as
-                                                                              usize]
+                        isize)).prob[0 as
+                        libc::c_int
+                        as
+                        usize]
                         = fprob;
                     (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                             isize)).pos_index[0
-                                                                                   as
-                                                                                   libc::c_int
-                                                                                   as
-                                                                                   usize]
+                        isize)).pos_index[0
+                        as
+                        libc::c_int
+                        as
+                        usize]
                         = j;
                     strcpy((*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                    isize)).pos[0
-                                                                                    as
-                                                                                    libc::c_int
-                                                                                    as
-                                                                                    usize],
+                        isize)).pos[0
+                        as
+                        libc::c_int
+                        as
+                        usize],
                            *Chi_word_pos.as_mut_ptr().offset(j as isize));
                     let ref mut fresh7 =
                         (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                 isize)).pos_max;
+                            isize)).pos_max;
                     *fresh7 += 1
                 } else {
                     k = 0 as libc::c_int;
                     while k <
-                              (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                       isize)).pos_max
-                          {
+                        (*Chi_pos_matrix.as_mut_ptr().offset(i as
+                            isize)).pos_max
+                    {
                         if fprob >
-                               (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                        isize)).prob[k
-                                                                                         as
-                                                                                         usize]
-                           {
+                            (*Chi_pos_matrix.as_mut_ptr().offset(i as
+                                isize)).prob[k
+                                as
+                                usize]
+                        {
                             l =
                                 (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                         isize)).pos_max;
+                                    isize)).pos_max;
                             while l > k {
                                 (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                         isize)).prob[l
-                                                                                          as
-                                                                                          usize]
+                                    isize)).prob[l
+                                    as
+                                    usize]
                                     =
                                     (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                             isize)).prob[(l
-                                                                                               -
-                                                                                               1
-                                                                                                   as
-                                                                                                   libc::c_int)
-                                                                                              as
-                                                                                              usize];
+                                        isize)).prob[(l
+                                        -
+                                        1
+                                            as
+                                            libc::c_int)
+                                        as
+                                        usize];
                                 (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                         isize)).pos_index[l
-                                                                                               as
-                                                                                               usize]
+                                    isize)).pos_index[l
+                                    as
+                                    usize]
                                     =
                                     (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                             isize)).pos_index[(l
-                                                                                                    -
-                                                                                                    1
-                                                                                                        as
-                                                                                                        libc::c_int)
-                                                                                                   as
-                                                                                                   usize];
+                                        isize)).pos_index[(l
+                                        -
+                                        1
+                                            as
+                                            libc::c_int)
+                                        as
+                                        usize];
                                 strcpy((*Chi_pos_matrix.as_mut_ptr().offset(i
-                                                                                as
-                                                                                isize)).pos[l
-                                                                                                as
-                                                                                                usize],
+                                    as
+                                    isize)).pos[l
+                                    as
+                                    usize],
                                        (*Chi_pos_matrix.as_mut_ptr().offset(i
-                                                                                as
-                                                                                isize)).pos[(l
-                                                                                                 -
-                                                                                                 1
-                                                                                                     as
-                                                                                                     libc::c_int)
-                                                                                                as
-                                                                                                usize]);
+                                           as
+                                           isize)).pos[(l
+                                           -
+                                           1
+                                               as
+                                               libc::c_int)
+                                           as
+                                           usize]);
                                 l -= 1
                             }
                             (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                     isize)).prob[k
-                                                                                      as
-                                                                                      usize]
+                                isize)).prob[k
+                                as
+                                usize]
                                 = fprob;
                             (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                     isize)).pos_index[k
-                                                                                           as
-                                                                                           usize]
+                                isize)).pos_index[k
+                                as
+                                usize]
                                 = j;
                             strcpy((*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                            isize)).pos[k
-                                                                                            as
-                                                                                            usize],
+                                isize)).pos[k
+                                as
+                                usize],
                                    *Chi_word_pos.as_mut_ptr().offset(j as
-                                                                         isize));
+                                       isize));
                             let ref mut fresh8 =
                                 (*Chi_pos_matrix.as_mut_ptr().offset(i as
-                                                                         isize)).pos_max;
+                                    isize)).pos_max;
                             *fresh8 += 1;
-                            break ;
+                            break;
                         } else { k += 1 }
                     }
                 }
@@ -3601,9 +3598,9 @@ pub unsafe extern "C" fn calc_chi_pos_matrix(mut sp: *mut SENTENCE_DATA)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn relax_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                           -> libc::c_int
+/*==================================================================*/
+{
     /* 係り先がない場合の緩和
 
   括弧によるマスクは優先し，その制限内で末尾に係れるように変更
@@ -3627,42 +3624,42 @@ pub unsafe extern "C" fn relax_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
         j = i + 1 as libc::c_int;
         while j < (*sp).Bnst_num {
             if (*Quote_matrix.as_mut_ptr().offset(i as isize))[j as usize] !=
-                   0 {
+                0 {
                 if (*Dpnd_matrix.as_mut_ptr().offset(i as isize))[j as usize]
-                       > 0 as libc::c_int {
+                    > 0 as libc::c_int {
                     ok_flag = (0 as libc::c_int == 0) as libc::c_int;
-                    break ;
+                    break;
                 } else if !check_feature((*(*sp).bnst_data.offset(j as
-                                                                      isize)).f,
+                    isize)).f,
                                          b"\xe4\xbf\x82:\xe6\x96\x87\xe6\x9c\xab\x00"
                                              as *const u8 as
                                              *const libc::c_char as
                                              *mut libc::c_char).is_null() {
                     last_possibility = j;
-                    break ;
+                    break;
                 } else { last_possibility = j }
             }
             j += 1
         }
         if ok_flag == 0 as libc::c_int {
             if !check_feature((*(*sp).bnst_data.offset(last_possibility as
-                                                           isize)).f,
+                isize)).f,
                               b"\xe6\x96\x87\xe6\x9c\xab\x00" as *const u8 as
                                   *const libc::c_char as
                                   *mut libc::c_char).is_null() ||
-                   !check_feature((*(*sp).bnst_data.offset(last_possibility as
-                                                               isize)).f,
-                                  b"\xe4\xbf\x82:\xe6\x96\x87\xe6\x9c\xab\x00"
-                                      as *const u8 as *const libc::c_char as
-                                      *mut libc::c_char).is_null() ||
-                   !check_feature((*(*sp).bnst_data.offset(last_possibility as
-                                                               isize)).f,
-                                  b"\xe6\x8b\xac\xe5\xbc\xa7\xe7\xb5\x82\x00"
-                                      as *const u8 as *const libc::c_char as
-                                      *mut libc::c_char).is_null() {
+                !check_feature((*(*sp).bnst_data.offset(last_possibility as
+                    isize)).f,
+                               b"\xe4\xbf\x82:\xe6\x96\x87\xe6\x9c\xab\x00"
+                                   as *const u8 as *const libc::c_char as
+                                   *mut libc::c_char).is_null() ||
+                !check_feature((*(*sp).bnst_data.offset(last_possibility as
+                    isize)).f,
+                               b"\xe6\x8b\xac\xe5\xbc\xa7\xe7\xb5\x82\x00"
+                                   as *const u8 as *const libc::c_char as
+                                   *mut libc::c_char).is_null() {
                 (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                      isize))[last_possibility
-                                                                  as usize] =
+                    isize))[last_possibility
+                    as usize] =
                     'R' as i32;
                 relax_flag = (0 as libc::c_int == 0) as libc::c_int
             }
@@ -3674,12 +3671,12 @@ pub unsafe extern "C" fn relax_dpnd_matrix(mut sp: *mut SENTENCE_DATA)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn check_uncertain_d_condition(mut sp:
-                                                         *mut SENTENCE_DATA,
+                                                     *mut SENTENCE_DATA,
                                                      mut dp: *mut DPND,
                                                      mut gvnr: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                                     -> libc::c_int
+/*==================================================================*/
+{
     /* 後方チ(ェック)の d の係り受けを許す条件
 
   ・ 次の可能な係り先(D)が３つ以上後ろ ( d - - D など )
@@ -3698,15 +3695,15 @@ pub unsafe extern "C" fn check_uncertain_d_condition(mut sp:
     i = gvnr + 1 as libc::c_int;
     while i < (*sp).Bnst_num {
         if (*Mask_matrix.as_mut_ptr().offset((*dp).pos as isize))[i as usize]
-               != 0 &&
-               (*Quote_matrix.as_mut_ptr().offset((*dp).pos as
-                                                      isize))[i as usize] != 0
-               && (*dp).mask[i as usize] != 0 &&
-               (*Dpnd_matrix.as_mut_ptr().offset((*dp).pos as
-                                                     isize))[i as usize] ==
-                   'D' as i32 {
+            != 0 &&
+            (*Quote_matrix.as_mut_ptr().offset((*dp).pos as
+                isize))[i as usize] != 0
+            && (*dp).mask[i as usize] != 0 &&
+            (*Dpnd_matrix.as_mut_ptr().offset((*dp).pos as
+                isize))[i as usize] ==
+                'D' as i32 {
             next_D = i;
-            break ;
+            break;
         } else { i += 1 }
     }
     dpnd_cp =
@@ -3720,7 +3717,7 @@ pub unsafe extern "C" fn check_uncertain_d_condition(mut sp:
     if gvnr < (*sp).Bnst_num - 1 as libc::c_int {
         next_cp =
             check_feature((*(*sp).bnst_data.offset((gvnr + 1 as libc::c_int)
-                                                       as isize)).f,
+                as isize)).f,
                           b"\xe4\xbf\x82\x00" as *const u8 as
                               *const libc::c_char as *mut libc::c_char)
     } else { next_cp = 0 as *mut libc::c_char }
@@ -3746,18 +3743,18 @@ pub unsafe extern "C" fn check_uncertain_d_condition(mut sp:
 pub unsafe extern "C" fn compare_dpnd(mut sp: *mut SENTENCE_DATA,
                                       mut new_mgr: *mut TOTAL_MGR,
                                       mut best_mgr: *mut TOTAL_MGR)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                      -> libc::c_int
+/*==================================================================*/
+{
     // let mut i: libc::c_int = 0;
     return 0 as libc::c_int;
 }
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn dpnd_info_to_bnst(mut sp: *mut SENTENCE_DATA,
-                                           mut dp: *mut DPND) 
- /*==================================================================*/
- {
+                                           mut dp: *mut DPND)
+/*==================================================================*/
+{
     /* 係り受けに関する種々の情報を DPND から BNST_DATA にコピー */
     let mut i: libc::c_int = 0;
     let mut b_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
@@ -3765,8 +3762,8 @@ pub unsafe extern "C" fn dpnd_info_to_bnst(mut sp: *mut SENTENCE_DATA,
     b_ptr = (*sp).bnst_data;
     while i < (*sp).Bnst_num {
         if Language != 2 as libc::c_int &&
-               ((*dp).type_0[i as usize] as libc::c_int == 'd' as i32 ||
-                    (*dp).type_0[i as usize] as libc::c_int == 'R' as i32) {
+            ((*dp).type_0[i as usize] as libc::c_int == 'd' as i32 ||
+                (*dp).type_0[i as usize] as libc::c_int == 'R' as i32) {
             (*b_ptr).dpnd_head = (*dp).head[i as usize];
             (*b_ptr).dpnd_type = 'D' as i32 as libc::c_char
             /* relaxした場合もDに */
@@ -3782,9 +3779,9 @@ pub unsafe extern "C" fn dpnd_info_to_bnst(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
-                                              mut dp: *mut DPND) 
- /*==================================================================*/
- {
+                                              mut dp: *mut DPND)
+/*==================================================================*/
+{
     /* 係り受けに関する種々の情報を DPND から TAG_DATA にコピー */
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
@@ -3816,27 +3813,27 @@ pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
                              b"\xe3\x82\xbf\xe3\x82\xb0\xe5\x8d\x98\xe4\xbd\x8d\xe5\x8f\x97\xe7\x84\xa1\xe8\xa6\x96\x00"
                                  as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-                   {
-                       cp =
-                           check_feature((*(*sp).bnst_data.offset((*dp).head[last_b
-                                                                                 as
-                                                                                 usize]
-                                                                      as
-                                                                      isize)).f,
-                                         b"\xe3\x82\xbf\xe3\x82\xb0\xe5\x8d\x98\xe4\xbd\x8d\xe5\x8f\x97\x00"
-                                             as *const u8 as
-                                             *const libc::c_char as
-                                             *mut libc::c_char);
-                       !cp.is_null()
-                   } {
+                {
+                    cp =
+                        check_feature((*(*sp).bnst_data.offset((*dp).head[last_b
+                            as
+                            usize]
+                            as
+                            isize)).f,
+                                      b"\xe3\x82\xbf\xe3\x82\xb0\xe5\x8d\x98\xe4\xbd\x8d\xe5\x8f\x97\x00"
+                                          as *const u8 as
+                                          *const libc::c_char as
+                                          *mut libc::c_char);
+                    !cp.is_null()
+                } {
                 offset =
                     atoi(cp.offset(strlen(b"\xe3\x82\xbf\xe3\x82\xb0\xe5\x8d\x98\xe4\xbd\x8d\xe5\x8f\x97:\x00"
-                                              as *const u8 as
-                                              *const libc::c_char) as isize));
+                        as *const u8 as
+                        *const libc::c_char) as isize));
                 if offset > 0 as libc::c_int ||
-                       (*(*sp).bnst_data.offset((*dp).head[last_b as usize] as
-                                                    isize)).tag_num <=
-                           -(1 as libc::c_int) * offset {
+                    (*(*sp).bnst_data.offset((*dp).head[last_b as usize] as
+                        isize)).tag_num <=
+                        -(1 as libc::c_int) * offset {
                     offset = 0 as libc::c_int
                 }
             } else { offset = 0 as libc::c_int }
@@ -3846,11 +3843,11 @@ pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
                              b"\xe3\x82\xbf\xe3\x82\xb0\xe5\x8d\x98\xe4\xbd\x8d\xe5\x8f\x97\xe7\x84\xa1\xe8\xa6\x96\x00"
                                  as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-                   !check_feature((*t_ptr).f,
-                                  b"\xe4\xbf\x82:\xe3\x83\x8e\xe6\xa0\xbc\x00"
-                                      as *const u8 as *const libc::c_char as
-                                      *mut libc::c_char).is_null() &&
-                   (*dp).head[last_b as usize] - last_b == 1 as libc::c_int {
+                !check_feature((*t_ptr).f,
+                               b"\xe4\xbf\x82:\xe3\x83\x8e\xe6\xa0\xbc\x00"
+                                   as *const u8 as *const libc::c_char as
+                                   *mut libc::c_char).is_null() &&
+                (*dp).head[last_b as usize] - last_b == 1 as libc::c_int {
                 if OptCaseFlag & 32 as libc::c_int != 0 {
                     strp = get_mrph_rep((*t_ptr).head_ptr);
                     rep_length = get_mrph_rep_length(strp)
@@ -3861,30 +3858,30 @@ pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
                 /* 「ＡのＣ」をチェック */
                 ht_ptr =
                     (*(*sp).bnst_data.offset((*dp).head[last_b as usize] as
-                                                 isize)).tag_ptr.offset((*(*sp).bnst_data.offset((*dp).head[last_b
-                                                                                                                as
-                                                                                                                usize]
-                                                                                                     as
-                                                                                                     isize)).tag_num
-                                                                            as
-                                                                            isize).offset(-(1
-                                                                                                as
-                                                                                                libc::c_int
-                                                                                                as
-                                                                                                isize)).offset(offset
-                                                                                                                   as
-                                                                                                                   isize);
+                        isize)).tag_ptr.offset((*(*sp).bnst_data.offset((*dp).head[last_b
+                        as
+                        usize]
+                        as
+                        isize)).tag_num
+                        as
+                        isize).offset(-(1
+                        as
+                        libc::c_int
+                        as
+                        isize)).offset(offset
+                        as
+                        isize);
                 if !(*ht_ptr).cf_ptr.is_null() {
                     check_ac =
                         check_examples(strp, rep_length,
                                        (*(*ht_ptr).cf_ptr).ex_list[0 as
-                                                                       libc::c_int
-                                                                       as
-                                                                       usize],
+                                           libc::c_int
+                                           as
+                                           usize],
                                        (*(*ht_ptr).cf_ptr).ex_num[0 as
-                                                                      libc::c_int
-                                                                      as
-                                                                      usize])
+                                           libc::c_int
+                                           as
+                                           usize])
                 } else { check_ac = -(1 as libc::c_int) }
                 if OptDisplay == 3 as libc::c_int {
                     fprintf(Outfp,
@@ -3898,11 +3895,11 @@ pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
                 j = 0 as libc::c_int;
                 ht_ptr =
                     (*(*sp).bnst_data.offset((*dp).head[last_b as usize] as
-                                                 isize)).tag_ptr;
+                        isize)).tag_ptr;
                 while j <
-                          (*(*sp).bnst_data.offset((*dp).head[last_b as usize]
-                                                       as isize)).tag_num -
-                              1 as libc::c_int + offset {
+                    (*(*sp).bnst_data.offset((*dp).head[last_b as usize]
+                        as isize)).tag_num -
+                        1 as libc::c_int + offset {
                     if OptCaseFlag & 32 as libc::c_int != 0 {
                         strp = get_mrph_rep((*t_ptr).head_ptr);
                         rep_length = get_mrph_rep_length(strp)
@@ -3912,7 +3909,7 @@ pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
                     }
                     /* 「ＡのＢ」をチェック */
                     if OptDisplay == 3 as libc::c_int &&
-                           !(*ht_ptr).cf_ptr.is_null() {
+                        !(*ht_ptr).cf_ptr.is_null() {
                         fprintf(Outfp,
                                 b"\xe2\x98\x86\xe7\x9b\xb4\xe5\x89\x8d\xe3\x82\xbf\xe3\x82\xb0\xe5\x8f\x97\xe5\x88\xa4\xe5\xae\x9aAB: %6s \xe3\x81\xae %6s: %d\n\x00"
                                     as *const u8 as *const libc::c_char,
@@ -3920,48 +3917,51 @@ pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
                                 (*(*ht_ptr).head_ptr).Goi2.as_mut_ptr(),
                                 check_examples(strp, rep_length,
                                                (*(*ht_ptr).cf_ptr).ex_list[0
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               usize],
+                                                   as
+                                                   libc::c_int
+                                                   as
+                                                   usize],
                                                (*(*ht_ptr).cf_ptr).ex_num[0 as
-                                                                              libc::c_int
-                                                                              as
-                                                                              usize]));
+                                                   libc::c_int
+                                                   as
+                                                   usize]));
                     }
                     if check_ac == -(1 as libc::c_int) &&
-                           !(*ht_ptr).cf_ptr.is_null() &&
-                           check_examples(strp, rep_length,
-                                          (*(*ht_ptr).cf_ptr).ex_list[0 as
-                                                                          libc::c_int
-                                                                          as
-                                                                          usize],
-                                          (*(*ht_ptr).cf_ptr).ex_num[0 as
-                                                                         libc::c_int
-                                                                         as
-                                                                         usize])
-                               != -(1 as libc::c_int) {
+                        !(*ht_ptr).cf_ptr.is_null() &&
+                        check_examples(strp, rep_length,
+                                       (*(*ht_ptr).cf_ptr).ex_list[0 as
+                                           libc::c_int
+                                           as
+                                           usize],
+                                       (*(*ht_ptr).cf_ptr).ex_num[0 as
+                                           libc::c_int
+                                           as
+                                           usize])
+                            != -(1 as libc::c_int) {
                         offset =
                             j -
                                 ((*(*sp).bnst_data.offset((*dp).head[last_b as
-                                                                         usize]
-                                                              as
-                                                              isize)).tag_num
-                                     - 1 as libc::c_int);
+                                    usize]
+                                    as
+                                    isize)).tag_num
+                                    - 1 as libc::c_int);
                         sprintf(buf.as_mut_ptr(),
                                 b"\xe7\x9b\xb4\xe5\x89\x8d\xe3\x82\xbf\xe3\x82\xb0\xe5\x8f\x97:%d\x00"
                                     as *const u8 as *const libc::c_char,
                                 offset);
                         assign_cfeature(&mut (*(*sp).bnst_data.offset(*(*dp).head.as_mut_ptr().offset(last_b
-                                                                                                          as
-                                                                                                          isize)
-                                                                          as
-                                                                          isize)).f,
+                            as
+                            isize)
+                            as
+                            isize)).f,
                                         buf.as_mut_ptr(), 0 as libc::c_int);
                         assign_cfeature(&mut (*ht_ptr).f, buf.as_mut_ptr(),
                                         0 as libc::c_int);
-                        break ;
-                    } else { j += 1; ht_ptr = ht_ptr.offset(1) }
+                        break;
+                    } else {
+                        j += 1;
+                        ht_ptr = ht_ptr.offset(1)
+                    }
                 }
             }
             if (*dp).head[last_b as usize] == -(1 as libc::c_int) {
@@ -3969,25 +3969,25 @@ pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
             } else {
                 (*t_ptr).dpnd_head =
                     (*(*(*sp).bnst_data.offset((*dp).head[last_b as usize] as
-                                                   isize)).tag_ptr.offset((*(*sp).bnst_data.offset((*dp).head[last_b
-                                                                                                                  as
-                                                                                                                  usize]
-                                                                                                       as
-                                                                                                       isize)).tag_num
-                                                                              as
-                                                                              isize).offset(-(1
-                                                                                                  as
-                                                                                                  libc::c_int
-                                                                                                  as
-                                                                                                  isize)).offset(offset
-                                                                                                                     as
-                                                                                                                     isize)).num
+                        isize)).tag_ptr.offset((*(*sp).bnst_data.offset((*dp).head[last_b
+                        as
+                        usize]
+                        as
+                        isize)).tag_num
+                        as
+                        isize).offset(-(1
+                        as
+                        libc::c_int
+                        as
+                        isize)).offset(offset
+                        as
+                        isize)).num
             }
             if Language != 2 as libc::c_int &&
-                   ((*dp).type_0[last_b as usize] as libc::c_int == 'd' as i32
-                        ||
-                        (*dp).type_0[last_b as usize] as libc::c_int ==
-                            'R' as i32) {
+                ((*dp).type_0[last_b as usize] as libc::c_int == 'd' as i32
+                    ||
+                    (*dp).type_0[last_b as usize] as libc::c_int ==
+                        'R' as i32) {
                 (*t_ptr).dpnd_type = 'D' as i32 as libc::c_char
             } else { (*t_ptr).dpnd_type = (*dp).type_0[last_b as usize] }
         }
@@ -3998,11 +3998,11 @@ pub unsafe extern "C" fn dpnd_info_to_tag_raw(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn dpnd_info_to_tag(mut sp: *mut SENTENCE_DATA,
-                                          mut dp: *mut DPND) 
- /*==================================================================*/
- {
+                                          mut dp: *mut DPND)
+/*==================================================================*/
+{
     if OptInput == 0 as libc::c_int || OptInput & 2 as libc::c_int != 0 ||
-           OptInput & 4 as libc::c_int != 0 {
+        OptInput & 4 as libc::c_int != 0 {
         dpnd_info_to_tag_raw(sp, dp);
     } else {
         /* 解析済み (OPT_INPUT_PARSED) */
@@ -4013,9 +4013,9 @@ pub unsafe extern "C" fn dpnd_info_to_tag(mut sp: *mut SENTENCE_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn check_semantic_head(mut m_ptr: *mut MRPH_DATA,
                                              mut t_ptr: *mut TAG_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                             -> libc::c_int
+/*==================================================================*/
+{
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     cp =
         check_feature((*t_ptr).f,
@@ -4026,21 +4026,21 @@ pub unsafe extern "C" fn check_semantic_head(mut m_ptr: *mut MRPH_DATA,
         if strcmp(cp,
                   b"\xe7\x94\xa8\xe8\xa8\x80:\xe5\x88\xa4\x00" as *const u8 as
                       *const libc::c_char) == 0 &&
-               !check_feature((*t_ptr).f,
-                              b"\xe5\x88\xa4\xe5\xae\x9a\xe8\xa9\x9e\x00" as
-                                  *const u8 as *const libc::c_char as
-                                  *mut libc::c_char).is_null() {
+            !check_feature((*t_ptr).f,
+                           b"\xe5\x88\xa4\xe5\xae\x9a\xe8\xa9\x9e\x00" as
+                               *const u8 as *const libc::c_char as
+                               *mut libc::c_char).is_null() {
             /* 判定詞がある場合はその判定詞 */
             if (*m_ptr).num > (*(*t_ptr).head_ptr).num &&
-                   strcmp(Class[(*m_ptr).Hinshi as
-                                    usize][0 as libc::c_int as usize].id as
-                              *const libc::c_char,
-                          b"\xe5\x88\xa4\xe5\xae\x9a\xe8\xa9\x9e\x00" as
-                              *const u8 as *const libc::c_char) == 0 {
-                return (0 as libc::c_int == 0) as libc::c_int
+                strcmp(Class[(*m_ptr).Hinshi as
+                    usize][0 as libc::c_int as usize].id as
+                           *const libc::c_char,
+                       b"\xe5\x88\xa4\xe5\xae\x9a\xe8\xa9\x9e\x00" as
+                           *const u8 as *const libc::c_char) == 0 {
+                return (0 as libc::c_int == 0) as libc::c_int;
             }
         } else if (*m_ptr).num == (*(*t_ptr).head_ptr).num {
-            return (0 as libc::c_int == 0) as libc::c_int
+            return (0 as libc::c_int == 0) as libc::c_int;
         }
     }
     return if (*m_ptr).inum == 0 as libc::c_int {
@@ -4052,9 +4052,9 @@ pub unsafe extern "C" fn check_semantic_head(mut m_ptr: *mut MRPH_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn check_syntactic_head(mut m_ptr: *mut MRPH_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                              -> libc::c_int
+/*==================================================================*/
+{
     /* 基本句末尾の形態素が句読点の場合は一つ前、それ以外は基本句末尾の形態素 */
     return if (*m_ptr).inum == 1 as libc::c_int &&
         strcmp(Class[(*m_ptr.offset(1 as libc::c_int as isize)).Hinshi as
@@ -4082,9 +4082,9 @@ pub unsafe extern "C" fn check_syntactic_head(mut m_ptr: *mut MRPH_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0; /* root形態素 */
     let mut j: libc::c_int = 0;
     let mut last_t: libc::c_int = 0;
@@ -4104,8 +4104,8 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
     /* initialize proj_table */
     memset(proj_table.as_mut_ptr() as *mut libc::c_void, 0 as libc::c_int,
            (::std::mem::size_of::<libc::c_int>() as
-                libc::c_ulong).wrapping_mul(200 as libc::c_int as
-                                                libc::c_ulong));
+               libc::c_ulong).wrapping_mul(200 as libc::c_int as
+               libc::c_ulong));
     i = 0 as libc::c_int;
     m_ptr = (*sp).mrph_data;
     while i < (*sp).Mrph_num {
@@ -4119,10 +4119,10 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
         }
         /* この形態素がsemantic headかどうかをチェック */
         if OptSemanticHead != 0 &&
-               appear_semantic_head_flag == 0 as libc::c_int &&
-               check_semantic_head(m_ptr,
-                                   (*sp).tag_data.offset(last_t as isize)) !=
-                   0 {
+            appear_semantic_head_flag == 0 as libc::c_int &&
+            check_semantic_head(m_ptr,
+                                (*sp).tag_data.offset(last_t as isize)) !=
+                0 {
             appear_semantic_head_flag =
                 (0 as libc::c_int == 0) as libc::c_int;
             last_content_m = (*m_ptr).num;
@@ -4132,7 +4132,7 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
         } else { this_is_semantic_head_flag = 0 as libc::c_int }
         /* この形態素がsyntactic headかどうかをチェック */
         if appear_syntactic_head_flag == 0 as libc::c_int &&
-               check_syntactic_head(m_ptr) != 0 {
+            check_syntactic_head(m_ptr) != 0 {
             appear_syntactic_head_flag =
                 (0 as libc::c_int == 0) as libc::c_int;
             this_is_syntactic_head_flag =
@@ -4144,26 +4144,26 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
         } else { this_is_syntactic_head_flag = 0 as libc::c_int }
         /* この形態素が句間要素なら、これ以降は常に親にする (for OptSemanticHead) */
         if appear_outer_word_flag == 0 as libc::c_int &&
-               (*(*sp).tag_data.offset(last_t as isize)).dpnd_head !=
-                   -(1 as libc::c_int) &&
-               !check_feature((*m_ptr).f,
-                              b"\xef\xbc\xb4\xe5\x8f\xa5\xe9\x96\x93\xe8\xa6\x81\xe7\xb4\xa0\x00"
-                                  as *const u8 as *const libc::c_char as
-                                  *mut libc::c_char).is_null() {
+            (*(*sp).tag_data.offset(last_t as isize)).dpnd_head !=
+                -(1 as libc::c_int) &&
+            !check_feature((*m_ptr).f,
+                           b"\xef\xbc\xb4\xe5\x8f\xa5\xe9\x96\x93\xe8\xa6\x81\xe7\xb4\xa0\x00"
+                               as *const u8 as *const libc::c_char as
+                               *mut libc::c_char).is_null() {
             appear_outer_word_flag = (0 as libc::c_int == 0) as libc::c_int
         }
         /* 隣にかける */
         if appear_syntactic_head_flag == 0 && this_is_semantic_head_flag == 0
-               &&
-               (OptSemanticHead != 0 &&
-                    (appear_semantic_head_flag == 0 as libc::c_int ||
-                         appear_outer_word_flag ==
-                             (0 as libc::c_int == 0) as libc::c_int) ||
-                    OptSemanticHead == 0 &&
-                        check_feature((*m_ptr).f,
-                                      b"\xef\xbc\xb4\xe5\x8f\xa5\xe5\x86\x85\xe8\xa6\x81\xe7\xb4\xa0\x00"
-                                          as *const u8 as *const libc::c_char
-                                          as *mut libc::c_char).is_null()) {
+            &&
+            (OptSemanticHead != 0 &&
+                (appear_semantic_head_flag == 0 as libc::c_int ||
+                    appear_outer_word_flag ==
+                        (0 as libc::c_int == 0) as libc::c_int) ||
+                OptSemanticHead == 0 &&
+                    check_feature((*m_ptr).f,
+                                  b"\xef\xbc\xb4\xe5\x8f\xa5\xe5\x86\x85\xe8\xa6\x81\xe7\xb4\xa0\x00"
+                                      as *const u8 as *const libc::c_char
+                                      as *mut libc::c_char).is_null()) {
             /* syntactic headかつ句内要素ではない */
             (*m_ptr).out_head_flag = 0 as libc::c_int;
             (*m_ptr).dpnd_head = (*m_ptr).num + 1 as libc::c_int;
@@ -4175,21 +4175,21 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
                 last_content_m_ptr = 0 as *mut MRPH_DATA
             }
         } else if appear_outer_word_flag == 0 as libc::c_int &&
-                      this_is_semantic_head_flag == 0 &&
-                      (OptSemanticHead != 0 &&
-                           appear_semantic_head_flag ==
-                               (0 as libc::c_int == 0) as libc::c_int &&
-                           !(appear_syntactic_head_flag != 0 &&
-                                 this_is_syntactic_head_flag == 0) ||
-                           !check_feature((*m_ptr).f,
-                                          b"\xef\xbc\xb4\xe5\x8f\xa5\xe5\x86\x85\xe8\xa6\x81\xe7\xb4\xa0\x00"
-                                              as *const u8 as
-                                              *const libc::c_char as
-                                              *mut libc::c_char).is_null() ||
-                           (*(*sp).tag_data.offset(last_t as isize)).dpnd_head
-                               == -(1 as libc::c_int) &&
-                               appear_syntactic_head_flag != 0 &&
-                               this_is_syntactic_head_flag == 0) {
+            this_is_semantic_head_flag == 0 &&
+            (OptSemanticHead != 0 &&
+                appear_semantic_head_flag ==
+                    (0 as libc::c_int == 0) as libc::c_int &&
+                !(appear_syntactic_head_flag != 0 &&
+                    this_is_syntactic_head_flag == 0) ||
+                !check_feature((*m_ptr).f,
+                               b"\xef\xbc\xb4\xe5\x8f\xa5\xe5\x86\x85\xe8\xa6\x81\xe7\xb4\xa0\x00"
+                                   as *const u8 as
+                                   *const libc::c_char as
+                                   *mut libc::c_char).is_null() ||
+                (*(*sp).tag_data.offset(last_t as isize)).dpnd_head
+                    == -(1 as libc::c_int) &&
+                    appear_syntactic_head_flag != 0 &&
+                    this_is_syntactic_head_flag == 0) {
             /* 基本句内の内容語(前側にある)にかける */
             /* semantic head時もしくは句内要素もしくは文末の句点 */
             (*m_ptr).out_head_flag = 0 as libc::c_int;
@@ -4201,9 +4201,9 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
                 1 as
                     libc::c_int; /* 基本句外に出る形態素であることを示す */
             if !last_content_m_ptr.is_null() &&
-                   this_is_semantic_head_flag == 0 &&
-                   !(appear_syntactic_head_flag != 0 &&
-                         this_is_syntactic_head_flag == 0) {
+                this_is_semantic_head_flag == 0 &&
+                !(appear_syntactic_head_flag != 0 &&
+                    this_is_syntactic_head_flag == 0) {
                 (*last_content_m_ptr).dpnd_head = (*m_ptr).num;
                 (*last_content_m_ptr).dpnd_type = 'D' as i32 as libc::c_char;
                 (*last_content_m_ptr).out_head_flag = 0 as libc::c_int;
@@ -4235,23 +4235,23 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
                     /* m_ptr->dpnd_head = (sp->tag_data + head)->head_ptr->num; */
                     head_ptr =
                         find_head_mrph_from_dpnd_bnst((*sp).tag_data.offset(last_t
-                                                                                as
-                                                                                isize)
+                            as
+                            isize)
                                                           as *mut BNST_DATA,
                                                       (*sp).tag_data.offset(head
-                                                                                as
-                                                                                isize)
+                                                          as
+                                                          isize)
                                                           as *mut BNST_DATA);
                     /* check projectivity */
                     if proj_table[i as usize] != 0 &&
-                           proj_table[i as usize] < (*head_ptr).num {
+                        proj_table[i as usize] < (*head_ptr).num {
                         if OptDisplay == 3 as libc::c_int {
                             fprintf(stderr,
                                     b";; violation of projectivity in mrph tree (%s: modified %dth mrph: %d -> %d)\n\x00"
                                         as *const u8 as *const libc::c_char,
                                     if !(*sp).KNPSID.is_null() {
                                         (*sp).KNPSID.offset(5 as libc::c_int
-                                                                as isize) as
+                                            as isize) as
                                             *const libc::c_char
                                     } else {
                                         b"?\x00" as *const u8 as
@@ -4266,8 +4266,8 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
                         j = i + 1 as libc::c_int;
                         while j < (*m_ptr).dpnd_head {
                             if proj_table[j as usize] == 0 ||
-                                   proj_table[j as usize] > (*m_ptr).dpnd_head
-                               {
+                                proj_table[j as usize] > (*m_ptr).dpnd_head
+                            {
                                 proj_table[j as usize] = (*m_ptr).dpnd_head
                             }
                             j += 1
@@ -4285,9 +4285,9 @@ pub unsafe extern "C" fn dpnd_info_to_mrph(mut sp: *mut SENTENCE_DATA)
 #[no_mangle]
 pub unsafe extern "C" fn copy_para_info(mut sp: *mut SENTENCE_DATA,
                                         mut dst: *mut BNST_DATA,
-                                        mut src: *mut BNST_DATA) 
- /*==================================================================*/
- {
+                                        mut src: *mut BNST_DATA)
+/*==================================================================*/
+{
     (*dst).para_num = (*src).para_num;
     (*dst).para_key_type = (*src).para_key_type;
     (*dst).para_top_p = (*src).para_top_p;
@@ -4297,9 +4297,9 @@ pub unsafe extern "C" fn copy_para_info(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn tag_bnst_postprocess(mut sp: *mut SENTENCE_DATA,
-                                              mut flag: libc::c_int) 
- /*==================================================================*/
- {
+                                              mut flag: libc::c_int)
+/*==================================================================*/
+{
     /* タグ単位・文節を後処理して、機能的なタグ単位をマージ
      flag == 0: num, dpnd_head の番号の付け替えはしない */
     let mut i: libc::c_int = 0;
@@ -4333,8 +4333,8 @@ pub unsafe extern "C" fn tag_bnst_postprocess(mut sp: *mut SENTENCE_DATA,
             merge_to = i - 1 as libc::c_int;
             while merge_to >= 0 as libc::c_int {
                 if (*(*sp).tag_data.offset(merge_to as isize)).num >=
-                       0 as libc::c_int {
-                    break ;
+                    0 as libc::c_int {
+                    break;
                 }
                 merge_to -= 1
             }
@@ -4351,14 +4351,14 @@ pub unsafe extern "C" fn tag_bnst_postprocess(mut sp: *mut SENTENCE_DATA,
                     (*(*sp).tag_data.offset(merge_to as isize)).length;
                 *fresh9 =
                     (*fresh9 as
-                         libc::c_ulong).wrapping_add(strlen((*(*t_ptr).mrph_ptr.offset(j
-                                                                                           as
-                                                                                           isize)).Goi2.as_mut_ptr()))
+                        libc::c_ulong).wrapping_add(strlen((*(*t_ptr).mrph_ptr.offset(j
+                        as
+                        isize)).Goi2.as_mut_ptr()))
                         as libc::c_int as libc::c_int;
                 j += 1
             }
             assign_cfeature(&mut (*(*sp).tag_data.offset(merge_to as
-                                                             isize)).f,
+                isize)).f,
                             b"\xe5\xbe\x8c\xe5\x87\xa6\xe7\x90\x86-\xe5\x9f\xba\xe6\x9c\xac\xe5\x8f\xa5\xe3\x83\x9e\xe3\x83\xbc\xe3\x82\xb8\x00"
                                 as *const u8 as *const libc::c_char as
                                 *mut libc::c_char, 0 as libc::c_int);
@@ -4368,8 +4368,8 @@ pub unsafe extern "C" fn tag_bnst_postprocess(mut sp: *mut SENTENCE_DATA,
                 merge_to = -(1 as libc::c_int);
                 while (*(*t_ptr).b_ptr).num + merge_to >= 0 as libc::c_int {
                     if (*(*t_ptr).b_ptr.offset(merge_to as isize)).num >=
-                           0 as libc::c_int {
-                        break ;
+                        0 as libc::c_int {
+                        break;
                     }
                     merge_to -= 1
                 }
@@ -4388,9 +4388,9 @@ pub unsafe extern "C" fn tag_bnst_postprocess(mut sp: *mut SENTENCE_DATA,
                         (*(*t_ptr).b_ptr.offset(merge_to as isize)).length;
                     *fresh10 =
                         (*fresh10 as
-                             libc::c_ulong).wrapping_add(strlen((*(*(*t_ptr).b_ptr).mrph_ptr.offset(j
-                                                                                                        as
-                                                                                                        isize)).Goi2.as_mut_ptr()))
+                            libc::c_ulong).wrapping_add(strlen((*(*(*t_ptr).b_ptr).mrph_ptr.offset(j
+                            as
+                            isize)).Goi2.as_mut_ptr()))
                             as libc::c_int as libc::c_int;
                     j += 1
                 }
@@ -4400,7 +4400,7 @@ pub unsafe extern "C" fn tag_bnst_postprocess(mut sp: *mut SENTENCE_DATA,
         i += 1;
         t_ptr = t_ptr.offset(1)
     }
-    if flag == 0 as libc::c_int { return }
+    if flag == 0 as libc::c_int { return; }
     count = -(1 as libc::c_int);
     i = 0 as libc::c_int;
     b_ptr = (*sp).bnst_data;
@@ -4445,9 +4445,9 @@ pub unsafe extern "C" fn tag_bnst_postprocess(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn undo_tag_bnst_postprocess(mut sp:
-                                                       *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+                                                   *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut b_count: libc::c_int = 0 as libc::c_int;
     let mut t_ptr: *mut TAG_DATA = 0 as *mut TAG_DATA;
@@ -4474,9 +4474,9 @@ pub unsafe extern "C" fn undo_tag_bnst_postprocess(mut sp:
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn para_postprocess(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn para_postprocess(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*sp).Bnst_num {
@@ -4484,30 +4484,30 @@ pub unsafe extern "C" fn para_postprocess(mut sp: *mut SENTENCE_DATA)
                           b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8 as
                               *const libc::c_char as
                               *mut libc::c_char).is_null() &&
-               check_feature((*(*sp).bnst_data.offset(i as isize)).f,
-                             b"\xe3\x80\x9c\xe3\x81\xa8\xe3\x81\xbf\xe3\x82\x89\xe3\x82\x8c\xe3\x82\x8b\x00"
-                                 as *const u8 as *const libc::c_char as
-                                 *mut libc::c_char).is_null() &&
-               (*(*sp).bnst_data.offset(i as isize)).para_num !=
-                   -(1 as libc::c_int) &&
-               (*(*sp).para_data.offset((*(*sp).bnst_data.offset(i as
-                                                                     isize)).para_num
-                                            as isize)).status as libc::c_int
-                   != 'x' as i32 {
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+                          b"\xe3\x80\x9c\xe3\x81\xa8\xe3\x81\xbf\xe3\x82\x89\xe3\x82\x8c\xe3\x82\x8b\x00"
+                              as *const u8 as *const libc::c_char as
+                              *mut libc::c_char).is_null() &&
+            (*(*sp).bnst_data.offset(i as isize)).para_num !=
+                -(1 as libc::c_int) &&
+            (*(*sp).para_data.offset((*(*sp).bnst_data.offset(i as
+                isize)).para_num
+                as isize)).status as libc::c_int
+                != 'x' as i32 {
             assign_cfeature(&mut (*(*sp).bnst_data.offset(i as isize)).f,
                             b"\xe6\x8f\x90\xe9\xa1\x8c\xe5\x8f\x97:30\x00" as
                                 *const u8 as *const libc::c_char as
                                 *mut libc::c_char, 0 as libc::c_int);
             assign_cfeature(&mut (*(*(*sp).bnst_data.offset(i as
-                                                                isize)).tag_ptr.offset((*(*sp).bnst_data.offset(i
-                                                                                                                    as
-                                                                                                                    isize)).tag_num
-                                                                                           as
-                                                                                           isize).offset(-(1
-                                                                                                               as
-                                                                                                               libc::c_int
-                                                                                                               as
-                                                                                                               isize))).f,
+                isize)).tag_ptr.offset((*(*sp).bnst_data.offset(i
+                as
+                isize)).tag_num
+                as
+                isize).offset(-(1
+                as
+                libc::c_int
+                as
+                isize))).f,
                             b"\xe6\x8f\x90\xe9\xa1\x8c\xe5\x8f\x97:30\x00" as
                                 *const u8 as *const libc::c_char as
                                 *mut libc::c_char, 0 as libc::c_int);
@@ -4519,9 +4519,9 @@ pub unsafe extern "C" fn para_postprocess(mut sp: *mut SENTENCE_DATA)
 #[no_mangle]
 pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
                                          mut dpnd: DPND,
-                                         mut eos_flag: libc::c_int) 
- /*==================================================================*/
- {
+                                         mut eos_flag: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -4571,10 +4571,10 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
                           b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8 as
                               *const libc::c_char as
                               *mut libc::c_char).is_null() ||
-               !check_feature((*g_ptr).f,
-                              b"\xe6\xba\x96\xe7\x94\xa8\xe8\xa8\x80\x00" as
-                                  *const u8 as *const libc::c_char as
-                                  *mut libc::c_char).is_null() {
+            !check_feature((*g_ptr).f,
+                           b"\xe6\xba\x96\xe7\x94\xa8\xe8\xa8\x80\x00" as
+                               *const u8 as *const libc::c_char as
+                               *mut libc::c_char).is_null() {
             pred_p = 1 as libc::c_int
         } else { pred_p = 0 as libc::c_int }
         j = i - 1 as libc::c_int;
@@ -4594,30 +4594,30 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
                 }
                 /* 読点をもつものが隣にかかることを防ぐ */
                 if j + 1 as libc::c_int == i &&
-                       !check_feature((*d_ptr).f,
-                                      b"\xe8\xaa\xad\xe7\x82\xb9\x00" as
-                                          *const u8 as *const libc::c_char as
-                                          *mut libc::c_char).is_null() {
+                    !check_feature((*d_ptr).f,
+                                   b"\xe8\xaa\xad\xe7\x82\xb9\x00" as
+                                       *const u8 as *const libc::c_char as
+                                       *mut libc::c_char).is_null() {
                     one_score -= 5 as libc::c_int
                 }
                 if pred_p != 0 &&
-                       {
-                           cp =
-                               check_feature((*d_ptr).f,
-                                             b"\xe4\xbf\x82\x00" as *const u8
-                                                 as *const libc::c_char as
-                                                 *mut libc::c_char);
-                           !cp.is_null()
-                       } {
+                    {
+                        cp =
+                            check_feature((*d_ptr).f,
+                                          b"\xe4\xbf\x82\x00" as *const u8
+                                              as *const libc::c_char as
+                                              *mut libc::c_char);
+                        !cp.is_null()
+                    } {
                     /* 未格 提題(「〜は」)の扱い */
                     if !check_feature((*d_ptr).f,
                                       b"\xe6\x8f\x90\xe9\xa1\x8c\x00" as
                                           *const u8 as *const libc::c_char as
                                           *mut libc::c_char).is_null() &&
-                           strcmp(cp,
-                                  b"\xe4\xbf\x82:\xe6\x9c\xaa\xe6\xa0\xbc\x00"
-                                      as *const u8 as *const libc::c_char) ==
-                               0 {
+                        strcmp(cp,
+                               b"\xe4\xbf\x82:\xe6\x9c\xaa\xe6\xa0\xbc\x00"
+                                   as *const u8 as *const libc::c_char) ==
+                            0 {
                         /* 文末, 「〜が」など, 並列末, C, B'に係ることを優先 */
                         cp2 =
                             check_feature((*g_ptr).f,
@@ -4639,13 +4639,13 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
                                           b"\xe6\x99\x82\xe9\x96\x93\x00" as
                                               *const u8 as *const libc::c_char
                                               as *mut libc::c_char).is_null()
-                               ||
-                               !check_feature((*d_ptr).f,
-                                              b"\xe6\x95\xb0\xe9\x87\x8f\x00"
-                                                  as *const u8 as
-                                                  *const libc::c_char as
-                                                  *mut libc::c_char).is_null()
-                           {
+                            ||
+                            !check_feature((*d_ptr).f,
+                                           b"\xe6\x95\xb0\xe9\x87\x8f\x00"
+                                               as *const u8 as
+                                               *const libc::c_char as
+                                               *mut libc::c_char).is_null()
+                        {
                             one_score += 10 as libc::c_int
                         } else if ha_check == 0 as libc::c_int {
                             one_score += 10 as libc::c_int;
@@ -4662,70 +4662,70 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
                                           b"\xe6\x99\x82\xe9\x96\x93\x00" as
                                               *const u8 as *const libc::c_char
                                               as *mut libc::c_char).is_null()
-                               ||
-                               !check_feature((*d_ptr).f,
-                                              b"\xe6\x95\xb0\xe9\x87\x8f\x00"
-                                                  as *const u8 as
-                                                  *const libc::c_char as
-                                                  *mut libc::c_char).is_null()
-                           {
+                            ||
+                            !check_feature((*d_ptr).f,
+                                           b"\xe6\x95\xb0\xe9\x87\x8f\x00"
+                                               as *const u8 as
+                                               *const libc::c_char as
+                                               *mut libc::c_char).is_null()
+                        {
                             one_score += 10 as libc::c_int
                         } else { un_count += 1 }
                     } else if strcmp(cp,
                                      b"\xe4\xbf\x82:\xe3\x83\x8e\xe6\xa0\xbc\x00"
                                          as *const u8 as *const libc::c_char)
-                                  == 0 {
+                        == 0 {
                         if check_feature((*g_ptr).f,
                                          b"\xe4\xbd\x93\xe8\xa8\x80\x00" as
                                              *const u8 as *const libc::c_char
                                              as *mut libc::c_char).is_null() {
                             one_score += 10 as libc::c_int;
-                            break ;
+                            break;
                         }
                     } else if strcmp(cp,
                                      b"\xe4\xbf\x82:\xe3\x82\xac\xe6\xa0\xbc\x00"
                                          as *const u8 as *const libc::c_char)
-                                  == 0 {
+                        == 0 {
                         if (*g_ptr).SCASE_code[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00"
-                                                            as *const u8 as
-                                                            *const libc::c_char
-                                                            as
-                                                            *mut libc::c_char)
-                                                   as usize] as libc::c_int !=
-                               0 &&
-                               scase_check[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00"
-                                                        as *const u8 as
-                                                        *const libc::c_char as
-                                                        *mut libc::c_char) as
-                                               usize] == 0 as libc::c_int {
+                            as *const u8 as
+                            *const libc::c_char
+                            as
+                            *mut libc::c_char)
+                            as usize] as libc::c_int !=
+                            0 &&
+                            scase_check[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00"
+                                as *const u8 as
+                                *const libc::c_char as
+                                *mut libc::c_char) as
+                                usize] == 0 as libc::c_int {
                             one_score += 10 as libc::c_int;
                             scase_check[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00"
-                                                     as *const u8 as
-                                                     *const libc::c_char as
-                                                     *mut libc::c_char) as
-                                            usize] = 1 as libc::c_int
+                                as *const u8 as
+                                *const libc::c_char as
+                                *mut libc::c_char) as
+                                usize] = 1 as libc::c_int
                         } else if (*g_ptr).SCASE_code[case2num(b"\xe3\x82\xac\xef\xbc\x92\x00"
-                                                                   as
-                                                                   *const u8
-                                                                   as
-                                                                   *const libc::c_char
-                                                                   as
-                                                                   *mut libc::c_char)
-                                                          as usize] as
-                                      libc::c_int != 0 &&
-                                      scase_check[case2num(b"\xe3\x82\xac\xef\xbc\x92\x00"
-                                                               as *const u8 as
-                                                               *const libc::c_char
-                                                               as
-                                                               *mut libc::c_char)
-                                                      as usize] ==
-                                          0 as libc::c_int {
+                            as
+                            *const u8
+                            as
+                            *const libc::c_char
+                            as
+                            *mut libc::c_char)
+                            as usize] as
+                            libc::c_int != 0 &&
+                            scase_check[case2num(b"\xe3\x82\xac\xef\xbc\x92\x00"
+                                as *const u8 as
+                                *const libc::c_char
+                                as
+                                *mut libc::c_char)
+                                as usize] ==
+                                0 as libc::c_int {
                             one_score += 10 as libc::c_int;
                             scase_check[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00"
-                                                     as *const u8 as
-                                                     *const libc::c_char as
-                                                     *mut libc::c_char) as
-                                            usize] = 1 as libc::c_int
+                                as *const u8 as
+                                *const libc::c_char as
+                                *mut libc::c_char) as
+                                usize] = 1 as libc::c_int
                         }
                     } else if k != -(1 as libc::c_int) {
                         if scase_check[k as usize] == 0 as libc::c_int {
@@ -4772,22 +4772,22 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
                                       b"\xe7\x94\xa8\xe8\xa8\x80\x00" as
                                           *const u8 as *const libc::c_char as
                                           *mut libc::c_char).is_null() &&
-                           (!check_feature((*d_ptr).f,
-                                           b"\xe4\xbf\x82:\xe6\x9c\xaa\xe6\xa0\xbc\x00"
+                        (!check_feature((*d_ptr).f,
+                                        b"\xe4\xbf\x82:\xe6\x9c\xaa\xe6\xa0\xbc\x00"
+                                            as *const u8 as
+                                            *const libc::c_char as
+                                            *mut libc::c_char).is_null() ||
+                            !check_feature((*d_ptr).f,
+                                           b"\xe4\xbf\x82:\xe3\x82\xac\xe6\xa0\xbc\x00"
                                                as *const u8 as
                                                *const libc::c_char as
-                                               *mut libc::c_char).is_null() ||
-                                !check_feature((*d_ptr).f,
-                                               b"\xe4\xbf\x82:\xe3\x82\xac\xe6\xa0\xbc\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char as
-                                                   *mut libc::c_char).is_null())
-                           &&
-                           !check_feature((*g_ptr).f,
-                                          b"\xe7\x94\xa8\xe8\xa8\x80:\xe5\x88\xa4\x00"
-                                              as *const u8 as
-                                              *const libc::c_char as
-                                              *mut libc::c_char).is_null() {
+                                               *mut libc::c_char).is_null())
+                        &&
+                        !check_feature((*g_ptr).f,
+                                       b"\xe7\x94\xa8\xe8\xa8\x80:\xe5\x88\xa4\x00"
+                                           as *const u8 as
+                                           *const libc::c_char as
+                                           *mut libc::c_char).is_null() {
                         one_score += 3 as libc::c_int
                     }
                 }
@@ -4806,18 +4806,18 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
                                   *const u8 as *const libc::c_char as
                                   *mut libc::c_char).is_null() {
                 if !check_feature((*(*sp).bnst_data.offset(dpnd.head[i as
-                                                                         usize]
-                                                               as isize)).f,
+                    usize]
+                    as isize)).f,
                                   b"\xe5\xa4\x96\xe3\x81\xae\xe9\x96\xa2\xe4\xbf\x82\x00"
                                       as *const u8 as *const libc::c_char as
                                       *mut libc::c_char).is_null() ||
-                       !check_feature((*(*sp).bnst_data.offset(dpnd.head[i as
-                                                                             usize]
-                                                                   as
-                                                                   isize)).f,
-                                      b"\xe3\x83\xab\xe3\x83\xbc\xe3\x83\xab\xe5\xa4\x96\xe3\x81\xae\xe9\x96\xa2\xe4\xbf\x82\x00"
-                                          as *const u8 as *const libc::c_char
-                                          as *mut libc::c_char).is_null() {
+                    !check_feature((*(*sp).bnst_data.offset(dpnd.head[i as
+                        usize]
+                        as
+                        isize)).f,
+                                   b"\xe3\x83\xab\xe3\x83\xbc\xe3\x83\xab\xe5\xa4\x96\xe3\x81\xae\xe9\x96\xa2\xe4\xbf\x82\x00"
+                                       as *const u8 as *const libc::c_char
+                                       as *mut libc::c_char).is_null() {
                     rentai = 0 as libc::c_int;
                     one_score += 10 as libc::c_int
                     /* 外の関係ならここで加点 */
@@ -4829,53 +4829,53 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
             /* 空いているガ格,ヲ格,ニ格,ガ２ */
             vacant_slot_num = 0 as libc::c_int;
             if (*g_ptr).SCASE_code[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00" as
-                                                *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char) as usize]
-                   as libc::c_int -
-                   scase_check[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00" as
-                                            *const u8 as *const libc::c_char
-                                            as *mut libc::c_char) as usize] ==
-                   1 as libc::c_int {
+                *const u8 as
+                *const libc::c_char as
+                *mut libc::c_char) as usize]
+                as libc::c_int -
+                scase_check[case2num(b"\xe3\x82\xac\xe6\xa0\xbc\x00" as
+                    *const u8 as *const libc::c_char
+                    as *mut libc::c_char) as usize] ==
+                1 as libc::c_int {
                 vacant_slot_num += 1
             }
             if (*g_ptr).SCASE_code[case2num(b"\xe3\x83\xb2\xe6\xa0\xbc\x00" as
-                                                *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char) as usize]
-                   as libc::c_int -
-                   scase_check[case2num(b"\xe3\x83\xb2\xe6\xa0\xbc\x00" as
-                                            *const u8 as *const libc::c_char
-                                            as *mut libc::c_char) as usize] ==
-                   1 as libc::c_int {
+                *const u8 as
+                *const libc::c_char as
+                *mut libc::c_char) as usize]
+                as libc::c_int -
+                scase_check[case2num(b"\xe3\x83\xb2\xe6\xa0\xbc\x00" as
+                    *const u8 as *const libc::c_char
+                    as *mut libc::c_char) as usize] ==
+                1 as libc::c_int {
                 vacant_slot_num += 1
             }
             if (*g_ptr).SCASE_code[case2num(b"\xe3\x83\x8b\xe6\xa0\xbc\x00" as
-                                                *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char) as usize]
-                   as libc::c_int -
-                   scase_check[case2num(b"\xe3\x83\x8b\xe6\xa0\xbc\x00" as
-                                            *const u8 as *const libc::c_char
-                                            as *mut libc::c_char) as usize] ==
-                   1 as libc::c_int && rentai == 1 as libc::c_int &&
-                   !check_feature((*g_ptr).f,
-                                  b"\xe7\x94\xa8\xe8\xa8\x80:\xe5\x8b\x95\x00"
-                                      as *const u8 as *const libc::c_char as
-                                      *mut libc::c_char).is_null() {
+                *const u8 as
+                *const libc::c_char as
+                *mut libc::c_char) as usize]
+                as libc::c_int -
+                scase_check[case2num(b"\xe3\x83\x8b\xe6\xa0\xbc\x00" as
+                    *const u8 as *const libc::c_char
+                    as *mut libc::c_char) as usize] ==
+                1 as libc::c_int && rentai == 1 as libc::c_int &&
+                !check_feature((*g_ptr).f,
+                               b"\xe7\x94\xa8\xe8\xa8\x80:\xe5\x8b\x95\x00"
+                                   as *const u8 as *const libc::c_char as
+                                   *mut libc::c_char).is_null() {
                 vacant_slot_num += 1
                 /* ニ格は動詞で連体修飾の場合だけ考慮，つまり連体
 	   修飾に割り当てるだけで，未格のスロットとはしない */
             }
             if (*g_ptr).SCASE_code[case2num(b"\xe3\x82\xac\xef\xbc\x92\x00" as
-                                                *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char) as usize]
-                   as libc::c_int -
-                   scase_check[case2num(b"\xe3\x82\xac\xef\xbc\x92\x00" as
-                                            *const u8 as *const libc::c_char
-                                            as *mut libc::c_char) as usize] ==
-                   1 as libc::c_int {
+                *const u8 as
+                *const libc::c_char as
+                *mut libc::c_char) as usize]
+                as libc::c_int -
+                scase_check[case2num(b"\xe3\x82\xac\xef\xbc\x92\x00" as
+                    *const u8 as *const libc::c_char
+                    as *mut libc::c_char) as usize] ==
+                1 as libc::c_int {
                 vacant_slot_num += 1
             }
             /* 空きスロット分だけ連体修飾，未格にスコアを与える */
@@ -4907,14 +4907,14 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
                 score);
     }
     if OptDisplay == 3 as libc::c_int ||
-           OptNbest == (0 as libc::c_int == 0) as libc::c_int {
+        OptNbest == (0 as libc::c_int == 0) as libc::c_int {
         dpnd_info_to_bnst(sp, &mut dpnd);
         if OptExpress & 2 as libc::c_int == 0 {
             dpnd_info_to_tag(sp, &mut dpnd);
         }
         if make_dpnd_tree(sp) != 0 {
             if OptExpress & 2 as libc::c_int == 0 {
-                tree_conv::bnst_to_tag_tree(sp);
+                bnst_to_tag_tree(sp);
                 /* タグ単位の木へ */
             }
             if OptNbest == (0 as libc::c_int == 0) as libc::c_int {
@@ -4940,14 +4940,14 @@ pub unsafe extern "C" fn dpnd_evaluation(mut sp: *mut SENTENCE_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn count_dpnd_candidates(mut sp: *mut SENTENCE_DATA,
                                                mut dpnd: *mut DPND,
-                                               mut pos: libc::c_int) 
- /*==================================================================*/
- {
+                                               mut pos: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut count: libc::c_int = 0 as libc::c_int;
     let mut d_possibility: libc::c_int = 1 as libc::c_int;
     let mut b_ptr: *mut BNST_DATA = (*sp).bnst_data.offset(pos as isize);
-    if pos == -(1 as libc::c_int) { return }
+    if pos == -(1 as libc::c_int) { return; }
     if pos < (*sp).Bnst_num - 2 as libc::c_int {
         i = pos + 2 as libc::c_int;
         while i < (*dpnd).head[(pos + 1 as libc::c_int) as usize] {
@@ -4958,41 +4958,41 @@ pub unsafe extern "C" fn count_dpnd_candidates(mut sp: *mut SENTENCE_DATA,
     i = pos + 1 as libc::c_int;
     while i < (*sp).Bnst_num {
         if (*Quote_matrix.as_mut_ptr().offset(pos as isize))[i as usize] != 0
-               && (*dpnd).mask[i as usize] != 0 {
+            && (*dpnd).mask[i as usize] != 0 {
             if (OptCKY != 0 || d_possibility != 0) &&
-                   (*Dpnd_matrix.as_mut_ptr().offset(pos as
-                                                         isize))[i as usize]
-                       == 'd' as i32 {
+                (*Dpnd_matrix.as_mut_ptr().offset(pos as
+                    isize))[i as usize]
+                    == 'd' as i32 {
                 if OptCKY != 0 ||
-                       check_uncertain_d_condition(sp, dpnd, i) != 0 {
+                    check_uncertain_d_condition(sp, dpnd, i) != 0 {
                     (*dpnd).check[pos as usize].pos[count as usize] = i;
                     count += 1
                 }
                 d_possibility = 0 as libc::c_int
             } else if (*Dpnd_matrix.as_mut_ptr().offset(pos as
-                                                            isize))[i as
-                                                                        usize]
-                          != 0 &&
-                          (*Dpnd_matrix.as_mut_ptr().offset(pos as
-                                                                isize))[i as
-                                                                            usize]
-                              != 'd' as i32 {
+                isize))[i as
+                usize]
+                != 0 &&
+                (*Dpnd_matrix.as_mut_ptr().offset(pos as
+                    isize))[i as
+                    usize]
+                    != 'd' as i32 {
                 (*dpnd).check[pos as usize].pos[count as usize] = i;
                 count += 1;
                 d_possibility = 0 as libc::c_int
             }
             /* バリアのチェック */
             if count != 0 &&
-                   !(*(*b_ptr).dpnd_rule).barrier.fp[0 as libc::c_int as
-                                                         usize].is_null() &&
-                   feature_pattern_match(&mut (*(*b_ptr).dpnd_rule).barrier,
-                                         (*(*sp).bnst_data.offset(i as
-                                                                      isize)).f,
-                                         b_ptr as *mut libc::c_void,
-                                         (*sp).bnst_data.offset(i as isize) as
-                                             *mut libc::c_void) ==
-                       (0 as libc::c_int == 0) as libc::c_int {
-                break ; /* 候補数 */
+                !(*(*b_ptr).dpnd_rule).barrier.fp[0 as libc::c_int as
+                    usize].is_null() &&
+                feature_pattern_match(&mut (*(*b_ptr).dpnd_rule).barrier,
+                                      (*(*sp).bnst_data.offset(i as
+                                          isize)).f,
+                                      b_ptr as *mut libc::c_void,
+                                      (*sp).bnst_data.offset(i as isize) as
+                                          *mut libc::c_void) ==
+                    (0 as libc::c_int == 0) as libc::c_int {
+                break; /* 候補数 */
             }
         }
         i += 1
@@ -5010,10 +5010,10 @@ pub unsafe extern "C" fn count_dpnd_candidates(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn call_count_dpnd_candidates(mut sp:
-                                                        *mut SENTENCE_DATA,
-                                                    mut dpnd: *mut DPND) 
- /*==================================================================*/
- {
+                                                    *mut SENTENCE_DATA,
+                                                    mut dpnd: *mut DPND)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*sp).Bnst_num {
@@ -5030,9 +5030,9 @@ pub unsafe extern "C" fn call_count_dpnd_candidates(mut sp:
 #[no_mangle]
 pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
                                      mut dpnd: DPND,
-                                     mut eos_flag: libc::c_int) 
- /*==================================================================*/
- {
+                                     mut eos_flag: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut count: libc::c_int = 0;
     let mut possibilities: [libc::c_int; 200] = [0; 200];
@@ -5071,7 +5071,7 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
             if dpnd.head[i as usize] < 0 as libc::c_int {
                 /* ありえない係り受け */
                 if i >= dpnd.head[(i + dpnd.head[i as usize]) as usize] {
-                    return
+                    return;
                 }
                 dpnd.head[i as usize] =
                     dpnd.head[(i + dpnd.head[i as usize]) as usize];
@@ -5081,12 +5081,12 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
             i += 1
         }
         if OptAnalysis == 2 as libc::c_int || OptAnalysis == 6 as libc::c_int
-           {
+        {
             dpnd_evaluation(sp, dpnd, eos_flag);
         } else if OptAnalysis == 1 as libc::c_int {
             call_case_analysis(sp, dpnd, eos_flag);
         }
-        return
+        return;
     }
     b_ptr = (*sp).bnst_data.offset(dpnd.pos as isize);
     dpnd.f[dpnd.pos as usize] = (*b_ptr).f;
@@ -5103,26 +5103,26 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
     i = dpnd.pos + 1 as libc::c_int;
     while i < (*sp).Bnst_num {
         if (*Mask_matrix.as_mut_ptr().offset(dpnd.pos as isize))[i as usize]
-               == 2 as libc::c_int {
+            == 2 as libc::c_int {
             dpnd.head[dpnd.pos as usize] = i;
             dpnd.type_0[dpnd.pos as usize] = 'P' as i32 as libc::c_char;
             /* チェック用 */
-      /* 並列の場合は一意に決まっているので、候補を挙げるのは意味がない */
+            /* 並列の場合は一意に決まっているので、候補を挙げるのは意味がない */
             dpnd.check[dpnd.pos as usize].num = 1 as libc::c_int;
             dpnd.check[dpnd.pos as usize].pos[0 as libc::c_int as usize] = i;
             decide_dpnd(sp, dpnd, eos_flag);
-            return
+            return;
         } else {
             if (*Mask_matrix.as_mut_ptr().offset(dpnd.pos as
-                                                     isize))[i as usize] ==
-                   3 as libc::c_int {
+                isize))[i as usize] ==
+                3 as libc::c_int {
                 dpnd.head[dpnd.pos as usize] = i;
                 dpnd.type_0[dpnd.pos as usize] = 'I' as i32 as libc::c_char;
                 dpnd.check[dpnd.pos as usize].num = 1 as libc::c_int;
                 dpnd.check[dpnd.pos as usize].pos[0 as libc::c_int as usize] =
                     i;
                 decide_dpnd(sp, dpnd, eos_flag);
-                return
+                return;
             }
         }
         i += 1
@@ -5142,7 +5142,7 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
         dpnd.dflt[dpnd.pos as usize] = 0 as libc::c_int;
         dpnd.check[dpnd.pos as usize].num = 1 as libc::c_int;
         decide_dpnd(sp, dpnd, eos_flag);
-        return
+        return;
     }
     /* 通常の係り受け解析 */
     /* 係り先の候補を調べる */
@@ -5151,43 +5151,43 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
     i = dpnd.pos + 1 as libc::c_int;
     while i < (*sp).Bnst_num {
         if (*Mask_matrix.as_mut_ptr().offset(dpnd.pos as isize))[i as usize]
-               != 0 &&
-               (*Quote_matrix.as_mut_ptr().offset(dpnd.pos as
-                                                      isize))[i as usize] != 0
-               && dpnd.mask[i as usize] != 0 {
+            != 0 &&
+            (*Quote_matrix.as_mut_ptr().offset(dpnd.pos as
+                isize))[i as usize] != 0
+            && dpnd.mask[i as usize] != 0 {
             if d_possibility != 0 &&
-                   (*Dpnd_matrix.as_mut_ptr().offset(dpnd.pos as
-                                                         isize))[i as usize]
-                       == 'd' as i32 {
+                (*Dpnd_matrix.as_mut_ptr().offset(dpnd.pos as
+                    isize))[i as usize]
+                    == 'd' as i32 {
                 if check_uncertain_d_condition(sp, &mut dpnd, i) != 0 {
                     possibilities[count as usize] = i;
                     count += 1
                 }
                 d_possibility = 0 as libc::c_int
             } else if (*Dpnd_matrix.as_mut_ptr().offset(dpnd.pos as
-                                                            isize))[i as
-                                                                        usize]
-                          != 0 &&
-                          (*Dpnd_matrix.as_mut_ptr().offset(dpnd.pos as
-                                                                isize))[i as
-                                                                            usize]
-                              != 'd' as i32 {
+                isize))[i as
+                usize]
+                != 0 &&
+                (*Dpnd_matrix.as_mut_ptr().offset(dpnd.pos as
+                    isize))[i as
+                    usize]
+                    != 'd' as i32 {
                 possibilities[count as usize] = i;
                 count += 1;
                 d_possibility = 0 as libc::c_int
             }
             /* バリアのチェック */
             if count != 0 &&
-                   !(*(*b_ptr).dpnd_rule).barrier.fp[0 as libc::c_int as
-                                                         usize].is_null() &&
-                   feature_pattern_match(&mut (*(*b_ptr).dpnd_rule).barrier,
-                                         (*(*sp).bnst_data.offset(i as
-                                                                      isize)).f,
-                                         b_ptr as *mut libc::c_void,
-                                         (*sp).bnst_data.offset(i as isize) as
-                                             *mut libc::c_void) ==
-                       (0 as libc::c_int == 0) as libc::c_int {
-                break ;
+                !(*(*b_ptr).dpnd_rule).barrier.fp[0 as libc::c_int as
+                    usize].is_null() &&
+                feature_pattern_match(&mut (*(*b_ptr).dpnd_rule).barrier,
+                                      (*(*sp).bnst_data.offset(i as
+                                          isize)).f,
+                                      b_ptr as *mut libc::c_void,
+                                      (*sp).bnst_data.offset(i as isize) as
+                                          *mut libc::c_void) ==
+                    (0 as libc::c_int == 0) as libc::c_int {
+                break;
             }
         } else { MaskFlag = 1 as libc::c_int }
         i += 1
@@ -5211,8 +5211,8 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
         }
         /* 一意に決定する場合 */
         if (*(*b_ptr).dpnd_rule).barrier.fp[0 as libc::c_int as
-                                                usize].is_null() ||
-               (*(*b_ptr).dpnd_rule).decide != 0 {
+            usize].is_null() ||
+            (*(*b_ptr).dpnd_rule).decide != 0 {
             if default_pos <= count {
                 dpnd.head[dpnd.pos as usize] =
                     possibilities[(default_pos - 1 as libc::c_int) as usize]
@@ -5223,26 +5223,26 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
             }
             dpnd.type_0[dpnd.pos as usize] =
                 (*Dpnd_matrix.as_mut_ptr().offset(dpnd.pos as
-                                                      isize))[dpnd.head[dpnd.pos
-                                                                            as
-                                                                            usize]
-                                                                  as usize] as
+                    isize))[dpnd.head[dpnd.pos
+                    as
+                    usize]
+                    as usize] as
                     libc::c_char;
             dpnd.dflt[dpnd.pos as usize] = 0 as libc::c_int;
             decide_dpnd(sp, dpnd, eos_flag);
         } else {
             /* すべての可能性をつくり出す場合 */
-    /* 節間の係り受けの場合は一意に決めるべき */
+            /* 節間の係り受けの場合は一意に決めるべき */
             i = 0 as libc::c_int;
             while i < count {
                 dpnd.head[dpnd.pos as usize] = possibilities[i as usize];
                 dpnd.type_0[dpnd.pos as usize] =
                     (*Dpnd_matrix.as_mut_ptr().offset(dpnd.pos as
-                                                          isize))[dpnd.head[dpnd.pos
-                                                                                as
-                                                                                usize]
-                                                                      as
-                                                                      usize]
+                        isize))[dpnd.head[dpnd.pos
+                        as
+                        usize]
+                        as
+                        usize]
                         as libc::c_char;
                 dpnd.dflt[dpnd.pos as usize] =
                     abs(default_pos - 1 as libc::c_int - i);
@@ -5251,11 +5251,11 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
             }
         }
     } else if (*Mask_matrix.as_mut_ptr().offset(dpnd.pos as
-                                                    isize))[((*sp).Bnst_num -
-                                                                 1 as
-                                                                     libc::c_int)
-                                                                as usize] != 0
-     {
+        isize))[((*sp).Bnst_num -
+        1 as
+            libc::c_int)
+        as usize] != 0
+    {
         dpnd.head[dpnd.pos as usize] = (*sp).Bnst_num - 1 as libc::c_int;
         dpnd.type_0[dpnd.pos as usize] = 'D' as i32 as libc::c_char;
         dpnd.dflt[dpnd.pos as usize] = 10 as libc::c_int;
@@ -5269,14 +5269,14 @@ pub unsafe extern "C" fn decide_dpnd(mut sp: *mut SENTENCE_DATA,
      文末が並列にマスクされていなければ，文末に係るとする */
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn when_no_dpnd_struct(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn when_no_dpnd_struct(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     (*(*sp).Best_mgr).dpnd.head[((*sp).Bnst_num - 1 as libc::c_int) as usize]
         = -(1 as libc::c_int);
     (*(*sp).Best_mgr).dpnd.type_0[((*sp).Bnst_num - 1 as libc::c_int) as
-                                      usize] = 'D' as i32 as libc::c_char;
+        usize] = 'D' as i32 as libc::c_char;
     i = (*sp).Bnst_num - 2 as libc::c_int;
     while i >= 0 as libc::c_int {
         (*(*sp).Best_mgr).dpnd.head[i as usize] = i + 1 as libc::c_int;
@@ -5284,7 +5284,7 @@ pub unsafe extern "C" fn when_no_dpnd_struct(mut sp: *mut SENTENCE_DATA)
             'D' as i32 as libc::c_char;
         (*(*sp).Best_mgr).dpnd.check[i as usize].num = 1 as libc::c_int;
         (*(*sp).Best_mgr).dpnd.check[i as
-                                         usize].pos[0 as libc::c_int as usize]
+            usize].pos[0 as libc::c_int as usize]
             = i + 1 as libc::c_int;
         i -= 1
     }
@@ -5294,9 +5294,9 @@ pub unsafe extern "C" fn when_no_dpnd_struct(mut sp: *mut SENTENCE_DATA)
 #[no_mangle]
 pub unsafe extern "C" fn after_decide_dpnd(mut sp: *mut SENTENCE_DATA,
                                            mut eos_flag: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                           -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut check_b_ptr: *mut TAG_DATA = 0 as *mut TAG_DATA;
@@ -5309,7 +5309,7 @@ pub unsafe extern "C" fn after_decide_dpnd(mut sp: *mut SENTENCE_DATA,
                 -(10000 as libc::c_int) as libc::c_double;
             if call_case_analysis(sp, (*(*sp).Best_mgr).dpnd, eos_flag) ==
                 0 as libc::c_int {
-                return 0 as libc::c_int
+                return 0 as libc::c_int;
             }
         }
         /* 依存構造・格構造決定後の処理 */
@@ -5327,10 +5327,10 @@ pub unsafe extern "C" fn after_decide_dpnd(mut sp: *mut SENTENCE_DATA,
                 /* 格フレームの意味情報を用言基本句featureへ */
                 j = 0 as libc::c_int;
                 while j < (*(*(*sp).Best_mgr).cpm[i as usize].cmm[0 as libc::c_int as usize].cf_ptr).element_num {
-                    case_analysis::append_cf_feature(
+                    append_cf_feature(
                         &mut (*(*(*(*sp).Best_mgr).cpm.as_mut_ptr().offset(i as isize)).pred_b_ptr).f,
                         &mut *(*(*sp).Best_mgr).cpm.as_mut_ptr().offset(i as isize), (*(*sp).Best_mgr).cpm[i as usize].cmm[0 as libc::c_int as usize].cf_ptr,
-                        j
+                        j,
                     );
                     j += 1
                 }
@@ -5340,7 +5340,7 @@ pub unsafe extern "C" fn after_decide_dpnd(mut sp: *mut SENTENCE_DATA,
         /* 木を作成 */
         dpnd_info_to_bnst(sp,
                           &mut (*(*sp).Best_mgr).dpnd); /* タグ単位の木へ */
-        if make_dpnd_tree(sp) == 0 as libc::c_int { return 0 as libc::c_int }
+        if make_dpnd_tree(sp) == 0 as libc::c_int { return 0 as libc::c_int; }
         bnst_to_tag_tree(sp);
         if OptAnalysis == 1 as libc::c_int || OptAnalysis == 6 as libc::c_int
         {
@@ -5476,20 +5476,22 @@ pub unsafe extern "C" fn after_decide_dpnd(mut sp: *mut SENTENCE_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn detect_dpnd_case_struct(mut sp: *mut SENTENCE_DATA,
                                                  mut eos_flag: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                                 -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int =
         0; /* スコアは「より大きい」時に入れ換えるので，
 				   初期値は十分小さくしておく */
     let mut dpnd: DPND =
-        DPND{head: [0; 200],
-             type_0: [0; 200],
-             dflt: [0; 200],
-             mask: [0; 200],
-             pos: 0,
-             check: [CHECK_DATA{num: 0, def: 0, pos: [0; 200],}; 200],
-             f: [0 as *mut FEATURE; 200],};
+        DPND {
+            head: [0; 200],
+            type_0: [0; 200],
+            dflt: [0; 200],
+            mask: [0; 200],
+            pos: 0,
+            check: [CHECK_DATA { num: 0, def: 0, pos: [0; 200] }; 200],
+            f: [0 as *mut FEATURE; 200],
+        };
     (*(*sp).Best_mgr).score = -(10000 as libc::c_int) as libc::c_double;
     (*(*sp).Best_mgr).dflt = 0 as libc::c_int;
     (*(*sp).Best_mgr).ID = -(1 as libc::c_int);
@@ -5520,9 +5522,9 @@ pub unsafe extern "C" fn detect_dpnd_case_struct(mut sp: *mut SENTENCE_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn check_candidates(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn check_candidates(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut b2t_table: [libc::c_int; 200] = [0; 200];
@@ -5537,15 +5539,15 @@ pub unsafe extern "C" fn check_candidates(mut sp: *mut SENTENCE_DATA)
         /* 文節番号->基本句番号のテーブル */
         b2t_table[(*(*sp).bnst_data.offset(i as isize)).num as usize] =
             (*(*(*sp).bnst_data.offset(i as
-                                           isize)).tag_ptr.offset((*(*sp).bnst_data.offset(i
-                                                                                               as
-                                                                                               isize)).tag_num
-                                                                      as
-                                                                      isize).offset(-(1
-                                                                                          as
-                                                                                          libc::c_int
-                                                                                          as
-                                                                                          isize))).num;
+                isize)).tag_ptr.offset((*(*sp).bnst_data.offset(i
+                as
+                isize)).tag_num
+                as
+                isize).offset(-(1
+                as
+                libc::c_int
+                as
+                isize))).num;
         i += 1
     }
     /* 各文節ごとにチェック用の feature を与える */
@@ -5568,9 +5570,9 @@ pub unsafe extern "C" fn check_candidates(mut sp: *mut SENTENCE_DATA)
                 sprintf(tmp_t_buffer.as_mut_ptr(),
                         b":%d\x00" as *const u8 as *const libc::c_char,
                         b2t_table[(*tm).dpnd.check[i as usize].pos[j as usize]
-                                      as usize]);
+                            as usize]);
                 if strlen(t_buffer.as_mut_ptr()).wrapping_add(strlen(tmp_t_buffer.as_mut_ptr()))
-                       >= 5120 as libc::c_int as libc::c_ulong {
+                    >= 5120 as libc::c_int as libc::c_ulong {
                     fprintf(stderr,
                             b";; Too long string <%s> (%d) in check_candidates. (%s)\n\x00"
                                 as *const u8 as *const libc::c_char,
@@ -5582,7 +5584,7 @@ pub unsafe extern "C" fn check_candidates(mut sp: *mut SENTENCE_DATA)
                             } else {
                                 b"?\x00" as *const u8 as *const libc::c_char
                             });
-                    return
+                    return;
                 }
                 strcat(b_buffer.as_mut_ptr(), tmp_b_buffer.as_mut_ptr());
                 strcat(t_buffer.as_mut_ptr(), tmp_t_buffer.as_mut_ptr());
@@ -5591,15 +5593,15 @@ pub unsafe extern "C" fn check_candidates(mut sp: *mut SENTENCE_DATA)
             assign_cfeature(&mut (*(*sp).bnst_data.offset(i as isize)).f,
                             b_buffer.as_mut_ptr(), 0 as libc::c_int);
             assign_cfeature(&mut (*(*(*sp).bnst_data.offset(i as
-                                                                isize)).tag_ptr.offset((*(*sp).bnst_data.offset(i
-                                                                                                                    as
-                                                                                                                    isize)).tag_num
-                                                                                           as
-                                                                                           isize).offset(-(1
-                                                                                                               as
-                                                                                                               libc::c_int
-                                                                                                               as
-                                                                                                               isize))).f,
+                isize)).tag_ptr.offset((*(*sp).bnst_data.offset(i
+                as
+                isize)).tag_num
+                as
+                isize).offset(-(1
+                as
+                libc::c_int
+                as
+                isize))).f,
                             t_buffer.as_mut_ptr(), 0 as libc::c_int);
         }
         i += 1
@@ -5607,9 +5609,9 @@ pub unsafe extern "C" fn check_candidates(mut sp: *mut SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn memo_by_program(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn memo_by_program(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     /*
    *  プログラムによるメモへの書き込み
    */
@@ -5646,9 +5648,9 @@ pub unsafe extern "C" fn memo_by_program(mut sp: *mut SENTENCE_DATA)
 /* get gigaword pa count for Chinese, for cell (i,j), i is the position of argument, j is the position of predicate */
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn calc_gigaword_pa_matrix(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn calc_gigaword_pa_matrix(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut dis: libc::c_int = 0;
@@ -5669,10 +5671,10 @@ pub unsafe extern "C" fn calc_gigaword_pa_matrix(mut sp: *mut SENTENCE_DATA)
             if !check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                               b"PU\x00" as *const u8 as *const libc::c_char as
                                   *mut libc::c_char).is_null() ||
-                   !check_feature((*(*sp).bnst_data.offset(j as isize)).f,
-                                  b"PU\x00" as *const u8 as
-                                      *const libc::c_char as
-                                      *mut libc::c_char).is_null() {
+                !check_feature((*(*sp).bnst_data.offset(j as isize)).f,
+                               b"PU\x00" as *const u8 as
+                                   *const libc::c_char as
+                                   *mut libc::c_char).is_null() {
                 (*Chi_pa_matrix.as_mut_ptr().offset(i as isize))[j as usize] =
                     0 as libc::c_int as libc::c_double;
                 (*Chi_pa_matrix.as_mut_ptr().offset(j as isize))[i as usize] =
@@ -5699,9 +5701,9 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
                                        mut head: libc::c_int,
                                        mut left_arg_num: libc::c_int,
                                        mut right_arg_num: libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                       -> libc::c_double
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     // let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -5731,91 +5733,91 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
     let mut lamda_giga: libc::c_double = 0.;
     //printf("\nhead:%d left:", head);
     if OptChiGenerative != 0 && CHICaseExist == 0 as libc::c_int {
-        return case_prob
+        return case_prob;
     }
     if left_arg_num >= 30 as libc::c_int || right_arg_num >= 30 as libc::c_int
-       {
+    {
         fprintf(stderr,
                 b";;; number of arguments exceeded maximum\n\x00" as *const u8
                     as *const libc::c_char);
-        return case_prob
+        return case_prob;
     }
     if left_arg_num > 0 as libc::c_int {
         i = 0 as libc::c_int;
         while i < left_arg_num {
             if *left_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             left_arg_len =
                 (left_arg_len as
-                     libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                     as
-                                                                                                                     isize)
-                                                                                       as
-                                                                                       isize)).head_ptr).Type.as_mut_ptr()).wrapping_add(1
-                                                                                                                                             as
-                                                                                                                                             libc::c_int
-                                                                                                                                             as
-                                                                                                                                             libc::c_ulong))
+                    libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(*left_arg.as_mut_ptr().offset(i
+                    as
+                    isize)
+                    as
+                    isize)).head_ptr).Type.as_mut_ptr()).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong))
                     as libc::c_int as libc::c_int;
             i += 1
         }
     } else { left_arg_len = 4 as libc::c_int }
     left_arg_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul((left_arg_len +
-                                                     1 as libc::c_int) as
-                                                    libc::c_ulong)) as
+            libc::c_ulong).wrapping_mul((left_arg_len +
+            1 as libc::c_int) as
+            libc::c_ulong)) as
             *mut libc::c_char;
     if left_arg_num > 0 as libc::c_int {
         i = 0 as libc::c_int;
         while i < left_arg_num {
             if *left_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             //printf("%d,", left_arg[i]);
             if i == left_arg_num - 1 as libc::c_int {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*(*(*sp).bnst_data.offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                                as
-                                                                                                                                isize)
-                                                                                                  as
-                                                                                                  isize)).head_ptr).Type.as_mut_ptr().offset(2
-                                                                                                                                                 as
-                                                                                                                                                 libc::c_int
-                                                                                                                                                 as
-                                                                                                                                                 isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*(*(*sp).bnst_data.offset(*left_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).head_ptr).Type.as_mut_ptr().offset(2
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s\x00" as *const u8 as *const libc::c_char,
                         (*(*(*sp).bnst_data.offset(*left_arg.as_mut_ptr().offset(i
-                                                                                     as
-                                                                                     isize)
-                                                       as
-                                                       isize)).head_ptr).Type.as_mut_ptr());
+                            as
+                            isize)
+                            as
+                            isize)).head_ptr).Type.as_mut_ptr());
             } else {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*(*(*sp).bnst_data.offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                                as
-                                                                                                                                isize)
-                                                                                                  as
-                                                                                                  isize)).head_ptr).Type.as_mut_ptr().offset(1
-                                                                                                                                                 as
-                                                                                                                                                 libc::c_int
-                                                                                                                                                 as
-                                                                                                                                                 isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*(*(*sp).bnst_data.offset(*left_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).head_ptr).Type.as_mut_ptr().offset(1
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s_\x00" as *const u8 as *const libc::c_char,
                         (*(*(*sp).bnst_data.offset(*left_arg.as_mut_ptr().offset(i
-                                                                                     as
-                                                                                     isize)
-                                                       as
-                                                       isize)).head_ptr).Type.as_mut_ptr());
+                            as
+                            isize)
+                            as
+                            isize)).head_ptr).Type.as_mut_ptr());
             }
             if i == 0 as libc::c_int {
                 strcpy(left_arg_key, tmp_key);
@@ -5834,78 +5836,78 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
         i = right_arg_num - 1 as libc::c_int;
         while i >= 0 as libc::c_int {
             if *right_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             right_arg_len =
                 (right_arg_len as
-                     libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                      as
-                                                                                                                      isize)
-                                                                                       as
-                                                                                       isize)).head_ptr).Type.as_mut_ptr()).wrapping_add(1
-                                                                                                                                             as
-                                                                                                                                             libc::c_int
-                                                                                                                                             as
-                                                                                                                                             libc::c_ulong))
+                    libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(*right_arg.as_mut_ptr().offset(i
+                    as
+                    isize)
+                    as
+                    isize)).head_ptr).Type.as_mut_ptr()).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong))
                     as libc::c_int as libc::c_int;
             i -= 1
         }
     } else { right_arg_len = 4 as libc::c_int }
     right_arg_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul((right_arg_len +
-                                                     1 as libc::c_int) as
-                                                    libc::c_ulong)) as
+            libc::c_ulong).wrapping_mul((right_arg_len +
+            1 as libc::c_int) as
+            libc::c_ulong)) as
             *mut libc::c_char;
     if right_arg_num > 0 as libc::c_int {
         i = right_arg_num - 1 as libc::c_int;
         while i >= 0 as libc::c_int {
             if *right_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             //printf("%d,", right_arg[i]);
             if i == 0 as libc::c_int {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*(*(*sp).bnst_data.offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                                 as
-                                                                                                                                 isize)
-                                                                                                  as
-                                                                                                  isize)).head_ptr).Type.as_mut_ptr().offset(2
-                                                                                                                                                 as
-                                                                                                                                                 libc::c_int
-                                                                                                                                                 as
-                                                                                                                                                 isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*(*(*sp).bnst_data.offset(*right_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).head_ptr).Type.as_mut_ptr().offset(2
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s\x00" as *const u8 as *const libc::c_char,
                         (*(*(*sp).bnst_data.offset(*right_arg.as_mut_ptr().offset(i
-                                                                                      as
-                                                                                      isize)
-                                                       as
-                                                       isize)).head_ptr).Type.as_mut_ptr());
+                            as
+                            isize)
+                            as
+                            isize)).head_ptr).Type.as_mut_ptr());
             } else {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*(*(*sp).bnst_data.offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                                 as
-                                                                                                                                 isize)
-                                                                                                  as
-                                                                                                  isize)).head_ptr).Type.as_mut_ptr().offset(1
-                                                                                                                                                 as
-                                                                                                                                                 libc::c_int
-                                                                                                                                                 as
-                                                                                                                                                 isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*(*(*sp).bnst_data.offset(*right_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).head_ptr).Type.as_mut_ptr().offset(1
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s_\x00" as *const u8 as *const libc::c_char,
                         (*(*(*sp).bnst_data.offset(*right_arg.as_mut_ptr().offset(i
-                                                                                      as
-                                                                                      isize)
-                                                       as
-                                                       isize)).head_ptr).Type.as_mut_ptr());
+                            as
+                            isize)
+                            as
+                            isize)).head_ptr).Type.as_mut_ptr());
             }
             if i == right_arg_num - 1 as libc::c_int {
                 strcpy(right_arg_key, tmp_key);
@@ -5923,49 +5925,49 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
     /* get lex rule */
     lex_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul(((left_arg_len +
-                                                      right_arg_len) as
-                                                     libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(head
-                                                                                                                       as
-                                                                                                                       isize)).head_ptr).Goi.as_mut_ptr())).wrapping_add(strlen((*(*(*sp).bnst_data.offset(head
-                                                                                                                                                                                                               as
-                                                                                                                                                                                                               isize)).head_ptr).Type.as_mut_ptr())).wrapping_add(9
-                                                                                                                                                                                                                                                                      as
-                                                                                                                                                                                                                                                                      libc::c_int
-                                                                                                                                                                                                                                                                      as
-                                                                                                                                                                                                                                                                      libc::c_ulong)))
+            libc::c_ulong).wrapping_mul(((left_arg_len +
+            right_arg_len) as
+            libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(head
+            as
+            isize)).head_ptr).Goi.as_mut_ptr())).wrapping_add(strlen((*(*(*sp).bnst_data.offset(head
+            as
+            isize)).head_ptr).Type.as_mut_ptr())).wrapping_add(9
+            as
+            libc::c_int
+            as
+            libc::c_ulong)))
             as *mut libc::c_char;
     sprintf(lex_key,
             b"(%s_%s)_(%s)_(%s)\x00" as *const u8 as *const libc::c_char,
             (*(*(*sp).bnst_data.offset(head as
-                                           isize)).head_ptr).Type.as_mut_ptr(),
+                isize)).head_ptr).Type.as_mut_ptr(),
             (*(*(*sp).bnst_data.offset(head as
-                                           isize)).head_ptr).Goi.as_mut_ptr(),
+                isize)).head_ptr).Goi.as_mut_ptr(),
             left_arg_key, right_arg_key);
     lex_rule = db_get(chi_case_db, lex_key);
     //printf("\nlex_key: %s", lex_key);
-  //printf("\nlex_rule: %s", lex_rule);
+    //printf("\nlex_rule: %s", lex_rule);
     /* get bk rule */
     bk_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul(((left_arg_len +
-                                                      right_arg_len) as
-                                                     libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(head
-                                                                                                                       as
-                                                                                                                       isize)).head_ptr).Type.as_mut_ptr())).wrapping_add(11
-                                                                                                                                                                              as
-                                                                                                                                                                              libc::c_int
-                                                                                                                                                                              as
-                                                                                                                                                                              libc::c_ulong)))
+            libc::c_ulong).wrapping_mul(((left_arg_len +
+            right_arg_len) as
+            libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(head
+            as
+            isize)).head_ptr).Type.as_mut_ptr())).wrapping_add(11
+            as
+            libc::c_int
+            as
+            libc::c_ulong)))
             as *mut libc::c_char;
     sprintf(bk_key,
             b"(%s_XX)_(%s)_(%s)\x00" as *const u8 as *const libc::c_char,
             (*(*(*sp).bnst_data.offset(head as
-                                           isize)).head_ptr).Type.as_mut_ptr(),
+                isize)).head_ptr).Type.as_mut_ptr(),
             left_arg_key, right_arg_key);
     bk_rule = db_get(chi_case_db, bk_key);
     //printf("\nbk_key: %s", bk_key);
-  //printf("\nbk_rule: %s\n", bk_rule);
+    //printf("\nbk_rule: %s\n", bk_rule);
     k = 0 as libc::c_int;
     while k < 2 as libc::c_int {
         lex_occur[k as usize] = 0 as libc::c_int as libc::c_double;
@@ -5981,11 +5983,11 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc((::std::mem::size_of::<libc::c_char>() as
-                            libc::c_ulong).wrapping_mul(strlen(rule).wrapping_add(1
-                                                                                      as
-                                                                                      libc::c_int
-                                                                                      as
-                                                                                      libc::c_ulong)))
+                    libc::c_ulong).wrapping_mul(strlen(rule).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)))
                     as *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -6014,7 +6016,7 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
                 lex_total[0 as libc::c_int as usize] = atof(total)
             } else if strcmp(type_0,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 lex_occur[1 as libc::c_int as usize] = atof(occur);
                 lex_total[1 as libc::c_int as usize] = atof(total)
             }
@@ -6032,11 +6034,11 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc((::std::mem::size_of::<libc::c_char>() as
-                            libc::c_ulong).wrapping_mul(strlen(rule).wrapping_add(1
-                                                                                      as
-                                                                                      libc::c_int
-                                                                                      as
-                                                                                      libc::c_ulong)))
+                    libc::c_ulong).wrapping_mul(strlen(rule).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)))
                     as *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -6065,7 +6067,7 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
                 bk_total[0 as libc::c_int as usize] = atof(total)
             } else if strcmp(type_0,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 bk_occur[1 as libc::c_int as usize] = atof(occur);
                 bk_total[1 as libc::c_int as usize] = atof(total)
             }
@@ -6083,7 +6085,7 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
             lamda =
                 lex_occur[k as usize] /
                     (lex_occur[k as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             prob[k as usize] =
                 lamda * (lex_occur[k as usize] / lex_total[k as usize]);
             prob[k as usize] +=
@@ -6093,7 +6095,7 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
             lamda =
                 bk_occur[k as usize] /
                     (bk_occur[k as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             prob[k as usize] =
                 lamda * bk_occur[k as usize] / bk_total[k as usize]
         }
@@ -6104,16 +6106,16 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
             //	lamda = log(lex_occur[0] + bk_occur[0]) / (log(lex_occur[0] + bk_occur[0]) + 1);
             lamda_ctb =
                 (lex_occur[0 as libc::c_int as usize] +
-                     bk_occur[0 as libc::c_int as usize]) /
+                    bk_occur[0 as libc::c_int as usize]) /
                     (lex_occur[0 as libc::c_int as usize] +
-                         bk_occur[0 as libc::c_int as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        bk_occur[0 as libc::c_int as usize] +
+                        1 as libc::c_int as libc::c_double);
             lamda_giga =
                 (lex_occur[1 as libc::c_int as usize] +
-                     bk_occur[1 as libc::c_int as usize]) /
+                    bk_occur[1 as libc::c_int as usize]) /
                     (lex_occur[1 as libc::c_int as usize] +
-                         bk_occur[1 as libc::c_int as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        bk_occur[1 as libc::c_int as usize] +
+                        1 as libc::c_int as libc::c_double);
             lamda =
                 if lamda_ctb < lamda_giga {
                     (lamda_ctb) / lamda_giga
@@ -6127,14 +6129,14 @@ pub unsafe extern "C" fn get_case_prob(mut sp: *mut SENTENCE_DATA,
         //	lamda = (lex_occur[1] + bk_occur[1]) / (lex_occur[1] + bk_occur[1] + 1);
         lamda =
             log(lex_occur[1 as libc::c_int as usize] +
-                    bk_occur[1 as libc::c_int as usize]) /
+                bk_occur[1 as libc::c_int as usize]) /
                 (log(lex_occur[1 as libc::c_int as usize] +
-                         bk_occur[1 as libc::c_int as usize]) +
-                     1 as libc::c_int as libc::c_double);
+                    bk_occur[1 as libc::c_int as usize]) +
+                    1 as libc::c_int as libc::c_double);
         case_prob = prob[1 as libc::c_int as usize] * lamda
     } else { case_prob = 0 as libc::c_int as libc::c_double }
     //printf("prob_ctb: %f, prob_giga: %f, lamda: %f", prob[0], prob[1], lamda);
-  //printf("prob: %f\n\n", case_prob);
+    //printf("prob: %f\n\n", case_prob);
     if !left_arg_key.is_null() {
         free(left_arg_key as *mut libc::c_void);
         left_arg_key = 0 as *mut libc::c_char
@@ -6168,9 +6170,9 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
                                             mut left_arg_num: libc::c_int,
                                             mut right_arg_num: libc::c_int,
                                             mut pos_index_pre: libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                            -> libc::c_double
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     // let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -6196,89 +6198,89 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
     let mut lamda_giga: libc::c_double = 0.;
     //printf("\nhead:%d left:", head);
     if OptChiGenerative != 0 && CHICaseExist == 0 as libc::c_int {
-        return case_prob
+        return case_prob;
     }
     if left_arg_num >= 30 as libc::c_int || right_arg_num >= 30 as libc::c_int
-       {
+    {
         fprintf(stderr,
                 b";;; number of arguments exceeded maximum\n\x00" as *const u8
                     as *const libc::c_char);
-        return case_prob
+        return case_prob;
     }
     if left_arg_num > 0 as libc::c_int {
         i = 0 as libc::c_int;
         while i < left_arg_num {
             if *left_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             left_arg_len =
                 (left_arg_len as
-                     libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                             as
-                                                                                                                             isize)
-                                                                                               as
-                                                                                               isize)).wrapping_add(1
-                                                                                                                        as
-                                                                                                                        libc::c_int
-                                                                                                                        as
-                                                                                                                        libc::c_ulong))
+                    libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
+                    as
+                    isize)
+                    as
+                    isize)).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong))
                     as libc::c_int as libc::c_int;
             i += 1
         }
     } else { left_arg_len = 4 as libc::c_int }
     left_arg_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul((left_arg_len +
-                                                     1 as libc::c_int) as
-                                                    libc::c_ulong)) as
+            libc::c_ulong).wrapping_mul((left_arg_len +
+            1 as libc::c_int) as
+            libc::c_ulong)) as
             *mut libc::c_char;
     if left_arg_num > 0 as libc::c_int {
         i = 0 as libc::c_int;
         while i < left_arg_num {
             if *left_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             //printf("%d,", left_arg[i]);
             if i == left_arg_num - 1 as libc::c_int {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                                         as
-                                                                                                                                         isize)
-                                                                                                           as
-                                                                                                           isize)).offset(2
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).offset(2
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s\x00" as *const u8 as *const libc::c_char,
                         *Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                             as
-                                                                                             isize)
-                                                               as isize));
+                            as
+                            isize)
+                            as isize));
             } else {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                                         as
-                                                                                                                                         isize)
-                                                                                                           as
-                                                                                                           isize)).offset(1
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).offset(1
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s_\x00" as *const u8 as *const libc::c_char,
                         *Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                             as
-                                                                                             isize)
-                                                               as isize));
+                            as
+                            isize)
+                            as isize));
             }
             if i == 0 as libc::c_int {
                 strcpy(left_arg_key, tmp_key);
@@ -6297,76 +6299,76 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
         i = right_arg_num - 1 as libc::c_int;
         while i >= 0 as libc::c_int {
             if *right_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             right_arg_len =
                 (right_arg_len as
-                     libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                              as
-                                                                                                                              isize)
-                                                                                               as
-                                                                                               isize)).wrapping_add(1
-                                                                                                                        as
-                                                                                                                        libc::c_int
-                                                                                                                        as
-                                                                                                                        libc::c_ulong))
+                    libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
+                    as
+                    isize)
+                    as
+                    isize)).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong))
                     as libc::c_int as libc::c_int;
             i -= 1
         }
     } else { right_arg_len = 4 as libc::c_int }
     right_arg_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul((right_arg_len +
-                                                     1 as libc::c_int) as
-                                                    libc::c_ulong)) as
+            libc::c_ulong).wrapping_mul((right_arg_len +
+            1 as libc::c_int) as
+            libc::c_ulong)) as
             *mut libc::c_char;
     if right_arg_num > 0 as libc::c_int {
         i = right_arg_num - 1 as libc::c_int;
         while i >= 0 as libc::c_int {
             if *right_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             //printf("%d,", right_arg[i]);
             if i == 0 as libc::c_int {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                                          as
-                                                                                                                                          isize)
-                                                                                                           as
-                                                                                                           isize)).offset(2
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).offset(2
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s\x00" as *const u8 as *const libc::c_char,
                         *Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                              as
-                                                                                              isize)
-                                                               as isize));
+                            as
+                            isize)
+                            as isize));
             } else {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                                          as
-                                                                                                                                          isize)
-                                                                                                           as
-                                                                                                           isize)).offset(1
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).offset(1
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s_\x00" as *const u8 as *const libc::c_char,
                         *Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                              as
-                                                                                              isize)
-                                                               as isize));
+                            as
+                            isize)
+                            as isize));
             }
             if i == right_arg_num - 1 as libc::c_int {
                 strcpy(right_arg_key, tmp_key);
@@ -6384,15 +6386,15 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
     /* get bk rule */
     bk_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul(((left_arg_len +
-                                                      right_arg_len) as
-                                                     libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(pos_index_pre
-                                                                                                                               as
-                                                                                                                               isize))).wrapping_add(11
-                                                                                                                                                         as
-                                                                                                                                                         libc::c_int
-                                                                                                                                                         as
-                                                                                                                                                         libc::c_ulong)))
+            libc::c_ulong).wrapping_mul(((left_arg_len +
+            right_arg_len) as
+            libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(pos_index_pre
+            as
+            isize))).wrapping_add(11
+            as
+            libc::c_int
+            as
+            libc::c_ulong)))
             as *mut libc::c_char;
     sprintf(bk_key,
             b"(%s_XX)_(%s)_(%s)\x00" as *const u8 as *const libc::c_char,
@@ -6400,7 +6402,7 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
             left_arg_key, right_arg_key);
     bk_rule = db_get(chi_case_db, bk_key);
     //printf("\nbk_key: %s", bk_key);
-  //printf("\nbk_rule: %s\n", bk_rule);
+    //printf("\nbk_rule: %s\n", bk_rule);
     k = 0 as libc::c_int;
     while k < 2 as libc::c_int {
         bk_occur[k as usize] = 0 as libc::c_int as libc::c_double;
@@ -6414,11 +6416,11 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc((::std::mem::size_of::<libc::c_char>() as
-                            libc::c_ulong).wrapping_mul(strlen(rule).wrapping_add(1
-                                                                                      as
-                                                                                      libc::c_int
-                                                                                      as
-                                                                                      libc::c_ulong)))
+                    libc::c_ulong).wrapping_mul(strlen(rule).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)))
                     as *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -6447,7 +6449,7 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
                 bk_total[0 as libc::c_int as usize] = atof(total)
             } else if strcmp(type_0,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 bk_occur[1 as libc::c_int as usize] = atof(occur);
                 bk_total[1 as libc::c_int as usize] = atof(total)
             }
@@ -6465,7 +6467,7 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
             lamda =
                 bk_occur[k as usize] /
                     (bk_occur[k as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             prob[k as usize] =
                 lamda * bk_occur[k as usize] / bk_total[k as usize]
         }
@@ -6476,11 +6478,11 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
             lamda_ctb =
                 bk_occur[0 as libc::c_int as usize] /
                     (bk_occur[0 as libc::c_int as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             lamda_giga =
                 bk_occur[1 as libc::c_int as usize] /
                     (bk_occur[1 as libc::c_int as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             lamda =
                 if lamda_ctb < lamda_giga {
                     (lamda_ctb) / lamda_giga
@@ -6494,11 +6496,11 @@ pub unsafe extern "C" fn get_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
         lamda =
             log(bk_occur[1 as libc::c_int as usize]) /
                 (log(bk_occur[1 as libc::c_int as usize]) +
-                     1 as libc::c_int as libc::c_double);
+                    1 as libc::c_int as libc::c_double);
         case_prob = prob[1 as libc::c_int as usize] * lamda
     } else { case_prob = 0 as libc::c_int as libc::c_double }
     //printf("prob_ctb: %f, prob_giga: %f, lamda: %f", prob[0], prob[1], lamda);
-  //printf("prob: %f\n\n", case_prob);
+    //printf("prob: %f\n\n", case_prob);
     if !left_arg_key.is_null() {
         free(left_arg_key as *mut libc::c_void);
         left_arg_key = 0 as *mut libc::c_char
@@ -6523,12 +6525,12 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
                                                 mut head: libc::c_int,
                                                 mut left_arg_num: libc::c_int,
                                                 mut right_arg_num:
-                                                    libc::c_int,
+                                                libc::c_int,
                                                 mut pos_index_pre:
-                                                    libc::c_int)
- -> libc::c_double 
- /*==================================================================*/
- {
+                                                libc::c_int)
+                                                -> libc::c_double
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     // let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -6554,89 +6556,89 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
     let mut lamda_giga: libc::c_double = 0.;
     //printf("\nhead:%d left:", head);
     if OptChiGenerative != 0 && CHICaseExist == 0 as libc::c_int {
-        return case_prob
+        return case_prob;
     }
     if left_arg_num >= 30 as libc::c_int || right_arg_num >= 30 as libc::c_int
-       {
+    {
         fprintf(stderr,
                 b";;; number of arguments exceeded maximum\n\x00" as *const u8
                     as *const libc::c_char);
-        return case_prob
+        return case_prob;
     }
     if left_arg_num > 0 as libc::c_int {
         i = 0 as libc::c_int;
         while i < left_arg_num {
             if *left_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             left_arg_len =
                 (left_arg_len as
-                     libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                             as
-                                                                                                                             isize)
-                                                                                               as
-                                                                                               isize)).wrapping_add(1
-                                                                                                                        as
-                                                                                                                        libc::c_int
-                                                                                                                        as
-                                                                                                                        libc::c_ulong))
+                    libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
+                    as
+                    isize)
+                    as
+                    isize)).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong))
                     as libc::c_int as libc::c_int;
             i += 1
         }
     } else { left_arg_len = 4 as libc::c_int }
     left_arg_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul((left_arg_len +
-                                                     1 as libc::c_int) as
-                                                    libc::c_ulong)) as
+            libc::c_ulong).wrapping_mul((left_arg_len +
+            1 as libc::c_int) as
+            libc::c_ulong)) as
             *mut libc::c_char;
     if left_arg_num > 0 as libc::c_int {
         i = 0 as libc::c_int;
         while i < left_arg_num {
             if *left_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             //printf("%d,", left_arg[i]);
             if i == left_arg_num - 1 as libc::c_int {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                                         as
-                                                                                                                                         isize)
-                                                                                                           as
-                                                                                                           isize)).offset(2
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).offset(2
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s\x00" as *const u8 as *const libc::c_char,
                         *Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                             as
-                                                                                             isize)
-                                                               as isize));
+                            as
+                            isize)
+                            as isize));
             } else {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                                                                         as
-                                                                                                                                         isize)
-                                                                                                           as
-                                                                                                           isize)).offset(1
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).offset(1
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s_\x00" as *const u8 as *const libc::c_char,
                         *Chi_word_type.as_mut_ptr().offset(*left_arg.as_mut_ptr().offset(i
-                                                                                             as
-                                                                                             isize)
-                                                               as isize));
+                            as
+                            isize)
+                            as isize));
             }
             if i == 0 as libc::c_int {
                 strcpy(left_arg_key, tmp_key);
@@ -6655,76 +6657,76 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
         i = right_arg_num - 1 as libc::c_int;
         while i >= 0 as libc::c_int {
             if *right_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             right_arg_len =
                 (right_arg_len as
-                     libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                              as
-                                                                                                                              isize)
-                                                                                               as
-                                                                                               isize)).wrapping_add(1
-                                                                                                                        as
-                                                                                                                        libc::c_int
-                                                                                                                        as
-                                                                                                                        libc::c_ulong))
+                    libc::c_ulong).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
+                    as
+                    isize)
+                    as
+                    isize)).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong))
                     as libc::c_int as libc::c_int;
             i -= 1
         }
     } else { right_arg_len = 4 as libc::c_int }
     right_arg_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul((right_arg_len +
-                                                     1 as libc::c_int) as
-                                                    libc::c_ulong)) as
+            libc::c_ulong).wrapping_mul((right_arg_len +
+            1 as libc::c_int) as
+            libc::c_ulong)) as
             *mut libc::c_char;
     if right_arg_num > 0 as libc::c_int {
         i = right_arg_num - 1 as libc::c_int;
         while i >= 0 as libc::c_int {
             if *right_arg.as_mut_ptr().offset(i as isize) ==
-                   -(1 as libc::c_int) {
-                break ;
+                -(1 as libc::c_int) {
+                break;
             }
             //printf("%d,", right_arg[i]);
             if i == 0 as libc::c_int {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                                          as
-                                                                                                                                          isize)
-                                                                                                           as
-                                                                                                           isize)).offset(2
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).offset(2
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s\x00" as *const u8 as *const libc::c_char,
                         *Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                              as
-                                                                                              isize)
-                                                               as isize));
+                            as
+                            isize)
+                            as isize));
             } else {
                 tmp_key =
                     malloc((::std::mem::size_of::<libc::c_char>() as
-                                libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                                                                          as
-                                                                                                                                          isize)
-                                                                                                           as
-                                                                                                           isize)).offset(1
-                                                                                                                              as
-                                                                                                                              libc::c_int
-                                                                                                                              as
-                                                                                                                              isize))))
+                        libc::c_ulong).wrapping_mul(strlen((*Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
+                        as
+                        isize)
+                        as
+                        isize)).offset(1
+                        as
+                        libc::c_int
+                        as
+                        isize))))
                         as *mut libc::c_char;
                 sprintf(tmp_key,
                         b"%s_\x00" as *const u8 as *const libc::c_char,
                         *Chi_word_type.as_mut_ptr().offset(*right_arg.as_mut_ptr().offset(i
-                                                                                              as
-                                                                                              isize)
-                                                               as isize));
+                            as
+                            isize)
+                            as isize));
             }
             if i == right_arg_num - 1 as libc::c_int {
                 strcpy(right_arg_key, tmp_key);
@@ -6742,27 +6744,27 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
     /* get lex rule */
     lex_key =
         malloc((::std::mem::size_of::<libc::c_char>() as
-                    libc::c_ulong).wrapping_mul(((left_arg_len +
-                                                      right_arg_len) as
-                                                     libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(head
-                                                                                                                       as
-                                                                                                                       isize)).head_ptr).Goi.as_mut_ptr())).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(pos_index_pre
-                                                                                                                                                                                                                       as
-                                                                                                                                                                                                                       isize))).wrapping_add(9
-                                                                                                                                                                                                                                                 as
-                                                                                                                                                                                                                                                 libc::c_int
-                                                                                                                                                                                                                                                 as
-                                                                                                                                                                                                                                                 libc::c_ulong)))
+            libc::c_ulong).wrapping_mul(((left_arg_len +
+            right_arg_len) as
+            libc::c_ulong).wrapping_add(strlen((*(*(*sp).bnst_data.offset(head
+            as
+            isize)).head_ptr).Goi.as_mut_ptr())).wrapping_add(strlen(*Chi_word_type.as_mut_ptr().offset(pos_index_pre
+            as
+            isize))).wrapping_add(9
+            as
+            libc::c_int
+            as
+            libc::c_ulong)))
             as *mut libc::c_char;
     sprintf(lex_key,
             b"(%s_%s)_(%s)_(%s)\x00" as *const u8 as *const libc::c_char,
             *Chi_word_type.as_mut_ptr().offset(pos_index_pre as isize),
             (*(*(*sp).bnst_data.offset(head as
-                                           isize)).head_ptr).Goi.as_mut_ptr(),
+                isize)).head_ptr).Goi.as_mut_ptr(),
             left_arg_key, right_arg_key);
     lex_rule = db_get(chi_case_db, lex_key);
     //printf("\nlex_key: %s", lex_key);
-  //printf("\nlex_rule: %s", lex_rule);
+    //printf("\nlex_rule: %s", lex_rule);
     k = 0 as libc::c_int;
     while k < 2 as libc::c_int {
         lex_occur[k as usize] = 0 as libc::c_int as libc::c_double;
@@ -6776,11 +6778,11 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
         while !rule.is_null() {
             curRule[count as usize] =
                 malloc((::std::mem::size_of::<libc::c_char>() as
-                            libc::c_ulong).wrapping_mul(strlen(rule).wrapping_add(1
-                                                                                      as
-                                                                                      libc::c_int
-                                                                                      as
-                                                                                      libc::c_ulong)))
+                    libc::c_ulong).wrapping_mul(strlen(rule).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)))
                     as *mut libc::c_char;
             strcpy(curRule[count as usize], rule);
             count += 1;
@@ -6809,7 +6811,7 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
                 lex_total[0 as libc::c_int as usize] = atof(total)
             } else if strcmp(type_0,
                              b"GIGA\x00" as *const u8 as *const libc::c_char)
-                          == 0 {
+                == 0 {
                 lex_occur[1 as libc::c_int as usize] = atof(occur);
                 lex_total[1 as libc::c_int as usize] = atof(total)
             }
@@ -6827,7 +6829,7 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
             lamda =
                 lex_occur[k as usize] /
                     (lex_occur[k as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             prob[k as usize] =
                 lamda * (lex_occur[k as usize] / lex_total[k as usize]);
             prob[k as usize] +=
@@ -6841,11 +6843,11 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
             lamda_ctb =
                 lex_occur[0 as libc::c_int as usize] /
                     (lex_occur[0 as libc::c_int as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             lamda_giga =
                 lex_occur[1 as libc::c_int as usize] /
                     (lex_occur[1 as libc::c_int as usize] +
-                         1 as libc::c_int as libc::c_double);
+                        1 as libc::c_int as libc::c_double);
             lamda =
                 if lamda_ctb < lamda_giga {
                     (lamda_ctb) / lamda_giga
@@ -6859,11 +6861,11 @@ pub unsafe extern "C" fn get_lex_case_prob_wpos(mut sp: *mut SENTENCE_DATA,
         lamda =
             log(lex_occur[1 as libc::c_int as usize]) /
                 (log(lex_occur[1 as libc::c_int as usize]) +
-                     1 as libc::c_int as libc::c_double);
+                    1 as libc::c_int as libc::c_double);
         case_prob = prob[1 as libc::c_int as usize] * lamda
     } else { case_prob = 0 as libc::c_int as libc::c_double }
     //printf("prob_ctb: %f, prob_giga: %f, lamda: %f", prob[0], prob[1], lamda);
-  //printf("prob: %f\n\n", case_prob);
+    //printf("prob: %f\n\n", case_prob);
     if !left_arg_key.is_null() {
         free(left_arg_key as *mut libc::c_void);
         left_arg_key = 0 as *mut libc::c_char

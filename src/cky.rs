@@ -1,14 +1,15 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
 
-use crate::{BNST_DATA, case_analysis, case_data, Chi_dpnd_matrix, Chi_pa_matrix, Chi_pos_matrix, ctools, dpnd_analysis, Dpnd_matrix, ErrorComment, feature, Mask_matrix, para_dpnd, Para_matrix, Quote_matrix, TAG_DATA, tnode_t, TOTAL_MGR, tree_conv, types};
+use libc;
+use libc::{c_char, c_int};
+
+use crate::{BNST_DATA, bnst_data, case_analysis, case_data, Chi_dpnd_matrix, Chi_pa_matrix, Chi_pos_matrix, ctools, dpnd_analysis, Dpnd_matrix, ErrorComment, feature, fprintf, free, Mask_matrix, para_dpnd, Para_matrix, printf, Quote_matrix, sprintf, sscanf, strcmp, strcpy, strdup, TAG_DATA, tnode_t, TOTAL_MGR, tree_conv, types};
 use crate::case_analysis::{copy_cpm, find_best_cf, get_closest_case_component, init_case_frame, noun_lexical_disambiguation_by_case_analysis, pp_hstr_to_code, record_all_case_analisys, record_case_analysis, verb_lexical_disambiguation_by_case_analysis, Work_mgr};
 use crate::case_data::{_make_data_cframe_ex, _make_data_cframe_pp, _make_data_cframe_sm, make_data_cframe_child};
 use crate::case_ipal::{calc_adv_modifying_num_probability, calc_adv_modifying_probability, calc_vp_modifying_num_probability, calc_vp_modifying_probability, get_noun_co_ex_probability, get_noun_co_num_probability, get_para_ex_probability, get_para_exist_probability};
 use crate::case_print::{print_crrspnd, print_data_cframe};
-use crate::ctools::{assign_cfeature, check_feature, Language, malloc_data, OptAnalysis, OptChiPos, stderr};
+use crate::consts::CHINESE;
+use crate::ctools::{abs, assign_cfeature, check_feature, Chi_np_end_matrix, Chi_np_start_matrix, Chi_quote_end_matrix, Chi_quote_start_matrix, Language, log, malloc, malloc_data, OptAnalysis, OptChiPos, stderr};
 use crate::dpnd_analysis::{dpnd_info_to_bnst, dpnd_info_to_mrph, dpnd_info_to_tag, get_case_prob, get_case_prob_wpos, when_no_dpnd_struct};
 use crate::feature::{delete_cfeature, feature_pattern_match};
 use crate::lib_print::{do_postprocess, print_kakari, print_result};
@@ -689,42 +690,13 @@ pub unsafe extern "C" fn calc_score(mut sp: *mut SENTENCE_DATA,
                             {
                                 verb += 1
                             }
-                            if Language == 2 as libc::c_int && OptChiPos == 0
-                                &&
-                                !check_feature((*(*sp).bnst_data.offset(i
-                                    as
-                                    isize)).f,
-                                               b"PU\x00" as *const u8 as
-                                                   *const libc::c_char as
-                                                   *mut libc::c_char).is_null()
-                                &&
-                                (strcmp((*(*(*sp).bnst_data.offset(i as
-                                    isize)).head_ptr).Goi.as_mut_ptr(),
-                                        b",\x00" as *const u8 as
-                                            *const libc::c_char) == 0 ||
-                                    strcmp((*(*(*sp).bnst_data.offset(i as
-                                        isize)).head_ptr).Goi.as_mut_ptr(),
-                                           b"\xef\xbc\x9a\x00" as
-                                               *const u8 as
-                                               *const libc::c_char) == 0
-                                    ||
-                                    strcmp((*(*(*sp).bnst_data.offset(i as
-                                        isize)).head_ptr).Goi.as_mut_ptr(),
-                                           b":\x00" as *const u8 as
-                                               *const libc::c_char) == 0
-                                    ||
-                                    strcmp((*(*(*sp).bnst_data.offset(i as
-                                        isize)).head_ptr).Goi.as_mut_ptr(),
-                                           b"\xef\xbc\x9b\x00" as
-                                               *const u8 as
-                                               *const libc::c_char) == 0
-                                    ||
-                                    strcmp((*(*(*sp).bnst_data.offset(i as
-                                        isize)).head_ptr).Goi.as_mut_ptr(),
-                                           b"\xef\xbc\x8c\x00" as
-                                               *const u8 as
-                                               *const libc::c_char) == 0)
-                            {
+                            if Language == 2 as libc::c_int && OptChiPos == 0 &&
+                                !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"PU\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() &&
+                                (strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b",\x00" as *const u8 as *const libc::c_char) == 0 ||
+                                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x9a\x00" as *const u8 as *const libc::c_char) == 0 ||
+                                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b":\x00" as *const u8 as *const libc::c_char) == 0 ||
+                                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x9b\x00" as *const u8 as *const libc::c_char) == 0 ||
+                                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x8c\x00" as *const u8 as *const libc::c_char) == 0) {
                                 comma += 1
                             }
                         }
@@ -5278,6 +5250,77 @@ pub unsafe extern "C" fn cky(mut sp: *mut SENTENCE_DATA,
                      (0 as libc::c_int == 0) as libc::c_int, eos_flag);
 }
 
+pub unsafe extern "C" fn exist_chi(mut sp: *mut SENTENCE_DATA, mut i: libc::c_int, mut j: libc::c_int, mut type_0: *const c_char) -> libc::c_int {
+    if strcmp(type_0, b"noun\x00" as *const u8 as *const libc::c_char) == 0 {
+        while i <= j {
+            if !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"PU\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() &&
+                (strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b",\x00" as *const u8 as *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x9a\x00" as *const u8 as *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b":\x00" as *const u8 as *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x9b\x00" as *const u8 as *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x8c\x00" as *const u8 as *const libc::c_char) == 0){
+                break;
+            }
+            if !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"NN\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() ||
+                !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"NT\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() ||
+                !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"NR\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null(){
+                return i;
+            }
+            i += 1
+        }
+    } else if strcmp(type_0, b"DEC\x00" as *const u8 as *const libc::c_char) == 0 {
+        while i <= j {
+            if !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"DEC\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() {
+                return i;
+            }
+            i += 1
+        }
+    } else if strcmp(type_0, b"CC\x00" as *const u8 as *const libc::c_char) == 0 {
+        while i <= j {
+            if !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"CC\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() {
+                return i;
+            }
+            i += 1
+        }
+    } else if strcmp(type_0, b"pu\x00" as *const u8 as *const libc::c_char) == 0 {
+        while i <= j {
+            if !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"PU\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() &&
+                (strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b",\x00" as *const u8 as *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x9a\x00" as *const u8 as *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b":\x00" as *const u8 as *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x9b\x00" as *const u8 as *const libc::c_char) == 0 ||
+                    strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xef\xbc\x8c\x00" as *const u8 as *const libc::c_char) == 0){
+                return i;
+            }
+            i += 1
+        }
+    } else if strcmp(type_0, b"dunhao" as *const u8 as *const libc::c_char) == 0 {
+        while i <= j {
+            if !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"PU\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() &&
+                (strcmp((*(*(*sp).bnst_data.offset(i as isize)).head_ptr).Goi.as_mut_ptr(), b"\xE3\x80\x81\x00" as *const u8 as *const libc::c_char) == 0) {
+                return i;
+            }
+            i += 1
+        }
+    } else if strcmp(type_0, b"verb" as *const u8 as *const libc::c_char) == 0 {
+        while i <= j {
+            if !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"VV\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() ||
+                !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"VA\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null(){
+                return i;
+            }
+            i += 1
+        }
+    } else if strcmp(type_0, b"prep" as *const u8 as *const libc::c_char) == 0 {
+        while i <= j {
+            if !check_feature((*(*sp).bnst_data.offset(i as isize)).f, b"P\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() {
+                return i;
+            }
+            i += 1
+        }
+    }
+    return -1;
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn check_pos_num_chi(mut sp: *mut SENTENCE_DATA,
                                            mut type_0: *mut libc::c_char)
@@ -5287,21 +5330,10 @@ pub unsafe extern "C" fn check_pos_num_chi(mut sp: *mut SENTENCE_DATA,
     if strcmp(type_0, b"verb\x00" as *const u8 as *const libc::c_char) == 0 {
         k = 0 as libc::c_int;
         while k < (*sp).Bnst_num {
-            if !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                              b"VV\x00" as *const u8 as *const libc::c_char as
-                                  *mut libc::c_char).is_null() ||
-                !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                               b"VA\x00" as *const u8 as
-                                   *const libc::c_char as
-                                   *mut libc::c_char).is_null() ||
-                !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                               b"VC\x00" as *const u8 as
-                                   *const libc::c_char as
-                                   *mut libc::c_char).is_null() ||
-                !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                               b"VE\x00" as *const u8 as
-                                   *const libc::c_char as
-                                   *mut libc::c_char).is_null() {
+            if !check_feature((*(*sp).bnst_data.offset(k as isize)).f, b"VV\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() ||
+                !check_feature((*(*sp).bnst_data.offset(k as isize)).f, b"VA\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() ||
+                !check_feature((*(*sp).bnst_data.offset(k as isize)).f, b"VC\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() ||
+                !check_feature((*(*sp).bnst_data.offset(k as isize)).f, b"VE\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() {
                 num += 1
             }
             k += 1
@@ -5310,9 +5342,7 @@ pub unsafe extern "C" fn check_pos_num_chi(mut sp: *mut SENTENCE_DATA,
         == 0 {
         k = 0 as libc::c_int;
         while k < (*sp).Bnst_num {
-            if !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                              b"DEC\x00" as *const u8 as *const libc::c_char
-                                  as *mut libc::c_char).is_null() {
+            if !check_feature((*(*sp).bnst_data.offset(k as isize)).f, b"DEC\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() {
                 num += 1
             }
             k += 1
@@ -5400,4 +5430,410 @@ pub unsafe extern "C" fn has_child_chi(mut sp: *mut SENTENCE_DATA,
         }
     }
     return 0 as libc::c_int;
+}
+
+pub unsafe extern "C" fn check_chi_dpnd_possibility (mut i: libc::c_int,
+                                                     mut j: libc::c_int,
+                                                     mut k: libc::c_int,
+                                                     mut left: *mut CKY,
+                                                     mut right: *mut CKY,
+                                                     mut sp: *mut SENTENCE_DATA,
+                                                     mut direction: libc::c_int,
+                                                     mut index: libc::c_int) -> libc::c_int {
+    let mut left_pos: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut right_pos: *mut libc::c_char = 0 as *mut libc::c_char;
+
+    return if Language != CHINESE {
+        1
+    } else {
+        if Dpnd_matrix[left.b_ptr.num][right.b_ptr.num] > 0 && Dpnd_matrix[left.b_ptr.num][right.b_ptr.num] != 'O' {
+            if direction != Dpnd_matrix[left.b_ptr.num][right.b_ptr.num] {
+                return 0;
+            }
+        }
+
+        if !OptChiPos {
+            left_pos = (sp.bnst_data + left.b_ptr.num).head_ptr.Pos;
+            right_pos = (sp.bnst_data + right.b_ptr.num).head_ptr.Pos;
+        } else {
+            left_pos = Chi_word_pos[Chi_dpnd_matrix[left.b_ptr.num][right.b_ptr.num].left_pos_index[index]];
+            right_pos = Chi_word_pos[Chi_dpnd_matrix[left.b_ptr.num][right.b_ptr.num].right_pos_index[index]];
+        }
+
+        /* check if this cky corresponds with the grammar rules for Chinese */
+        /* LC cannot depend on noun */
+        if !strcmp(left_pos, "LC" as *const libc::c_char) != 0 &&
+            (!strcmp(right_pos, "NN" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "NR" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "PN" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "NT" as *const libc::c_char) != 0) &&
+            direction == 'R' as libc::c_int {
+            return 0;
+        }
+
+        /* sp and main verb */
+        if !strcmp(right_pos, "SP" as *const libc::c_char) != 0 &&
+            strcmp(left_pos, "VV" as *const libc::c_char) != 0 &&
+            strcmp(left_pos, "VA" as *const libc::c_char) != 0 &&
+            strcmp(left_pos, "VC" as *const libc::c_char) != 0 &&
+            strcmp(left_pos, "VE" as *const libc::c_char) != 0 &&
+            direction == 'L' as libc::c_int {
+            return 0;
+        }
+
+        /* verb cannot depend on SP */
+        if (!strcmp(right_pos, "SP" as *const libc::c_char) != 0 &&
+            (!strcmp(left_pos, "VV" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "VA" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "VC" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "VE" as *const libc::c_char) != 0) &&
+            direction == 'R' as libc::c_int) ||
+            (!strcmp(left_pos, "SP" as *const libc::c_char) != 0 &&
+                (!strcmp(right_pos, "VV" as *const libc::c_char) != 0 ||
+                    !strcmp(right_pos, "VA" as *const libc::c_char) != 0 ||
+                    !strcmp(right_pos, "VC" as *const libc::c_char) != 0 ||
+                    !strcmp(right_pos, "VE" as *const libc::c_char) != 0) &&
+                direction == 'L' as libc::c_int) {
+            return 0;
+        }
+
+        /* adj and verb cannot have dependency relation */
+        if (!strcmp(left_pos, "JJ" as *const libc::c_char) != 0 &&
+            (!strcmp(right_pos, "VV" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VA" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VC" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VE" as *const libc::c_char) != 0)) ||
+            (!strcmp(right_pos, "JJ" as *const libc::c_char) != 0 &&
+                (!strcmp(left_pos, "VV" as *const libc::c_char) != 0 ||
+                    !strcmp(left_pos, "VA" as *const libc::c_char) != 0 ||
+                    !strcmp(left_pos, "VC" as *const libc::c_char) != 0 ||
+                    !strcmp(left_pos, "VE" as *const libc::c_char) != 0)) {
+            return 0;
+        }
+
+        /* only the quote PU can be head */
+        if (direction == 'R' as libc::c_int &&
+            !strcmp(right_pos, "PU" as *const libc::c_char) != 0 &&
+            Chi_quote_end_matrix[right.b_ptr.num][right.b_ptr.num] != right.b_ptr.num) ||
+            (direction == 'L' as libc::c_int &&
+                !strcmp(left_pos, "PU" as *const libc::c_char) != 0 &&
+                Chi_quote_start_matrix[left.b_ptr.num][left.b_ptr.num] != left.b_ptr.num) {
+            return 0;
+        }
+
+        /* AD cannot be head except for AD */
+        if (!strcmp(left_pos, "AD" as *const libc::c_char) != 0 &&
+            strcmp(right_pos, "AD" as *const libc::c_char) != 0 &&
+            direction == 'L' as libc::c_int) ||
+            (!strcmp(right_pos, "AD" as *const libc::c_char) != 0 &&
+                strcmp(left_pos, "AD" as *const libc::c_char) != 0 &&
+                direction == 'R' as libc::c_int) {
+            return 0;
+        }
+
+        /* DEC cannot depend on VV before */
+        if !strcmp(left_pos, "VV" as *const libc::c_char) != 0 &&
+            direction == 'L' as libc::c_int &&
+            !strcmp(right_pos, "DEC" as *const libc::c_char) != 0 {
+            return 0;
+        }
+
+        /* for DEG , DEV, DEC and LC, there should not be two modifiers */
+        if (!strcmp(right_pos, "DEG" as *const libc::c_char) != 0 ||
+            !strcmp(right_pos, "DEV" as *const libc::c_char) != 0 ||
+            !strcmp(right_pos, "LC" as *const libc::c_char) != 0) &&
+            right.b_ptr.num - right.i > 0 &&
+            direction == 'R' as libc::c_int {
+            return 0;
+        }
+
+        /* DEC cannot have two verb modifiers */
+        if !strcmp(right_pos, "DEC" as *const libc::c_char) != 0 &&
+            direction == 'R' as libc::c_int &&
+            (!strcmp(left_pos, "VV" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "VA" as *const libc::c_char) != 0) &&
+            (has_child_chi(sp, right, "VV" as *mut libc::c_char, 0) ||
+                has_child_chi(sp, right, "VA" as *mut libc::c_char, 0)) {
+            return 0;
+        }
+
+        /* for DEC, if there exists noun between it and previous verb, the noun should depend on verb */
+        if !strcmp(right_pos, "DEC" as *const libc::c_char) != 0 &&
+            (!strcmp(left_pos, "VV" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "VA" as *const libc::c_char) != 0) &&
+            exist_chi(sp, right.i, right.b_ptr.num - 1, "noun" as *const libc::c_char) != -1 &&
+            direction == 'R' as libc::c_int {
+            return 0;
+        }
+
+        /* for DEG, its right head should be noun afterwords */
+        if !strcmp(left_pos, "DEG" as *const libc::c_char) != 0 &&
+            strcmp(right_pos, "NN" as *const libc::c_char) != 0 &&
+            strcmp(right_pos, "NT" as *const libc::c_char) != 0 &&
+            strcmp(right_pos, "NR" as *const libc::c_char) != 0 &&
+            strcmp(right_pos, "PN" as *const libc::c_char) != 0 &&
+            strcmp(right_pos, "M" as *const libc::c_char) != 0 &&
+            direction == 'R' as libc::c_int {
+            return 0;
+        }
+
+        /* for DEG and DEC, it must have some word before modifying it */
+        if ((!strcmp(left_pos, "DEG" as *const libc::c_char) != 0 ||
+            !strcmp(left_pos, "DEC" as *const libc::c_char) != 0) &&
+            left.i == left.b_ptr.num &&
+            direction == 'R' as libc::c_int) ||
+            ((!strcmp(right_pos, "DEG" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "DEC" as *const libc::c_char) != 0) &&
+                right.i == right.b_ptr.num &&
+                direction == 'L' as libc::c_int) {
+            return 0;
+        }
+
+        /* for DEC, it must have some verb before modifying it */
+        if strcmp(left_pos, "VV" as *const libc::c_char) != 0 &&
+            strcmp(left_pos, "VA" as *const libc::c_char) != 0 &&
+            strcmp(left_pos, "VC" as *const libc::c_char) != 0 &&
+            strcmp(left_pos, "VE" as *const libc::c_char) != 0 &&
+            !strcmp(right_pos, "DEC" as *const libc::c_char) != 0 &&
+            right.i == right.b_ptr.num &&
+            direction == 'R' as libc::c_int {
+            return 0;
+        }
+
+        /* LC must have modifier before */
+        if !strcmp(left_pos, "LC" as *const libc::c_char) && (left.i == left.b_ptr.num) as libc::c_int {
+            return 0;
+        }
+
+        /* VC and VE must have modifier behind */
+        if (!strcmp(left_pos, "VC" as *const libc::c_char) ||
+            !strcmp(left_pos, "VE" as *const libc::c_char)) &&
+            (direction == 'R' as libc::c_int &&
+                left.j == left.b_ptr.num) {
+            return 0;
+        }
+
+        /* for verb, there should be only one object afterword */
+        if (!strcmp(left_pos, "VV" as *const libc::c_char) ||
+            !strcmp(left_pos, "VC" as *const libc::c_char) ||
+            !strcmp(left_pos, "VE" as *const libc::c_char) != 0 ||
+            !strcmp(left_pos, "P" as *const libc::c_char) != 0 ||
+            !strcmp(left_pos, "VA" as *const libc::c_char) != 0) &&
+            (!strcmp(right_pos, "NN" as *const libc::c_char) ||
+                !strcmp(right_pos, "NR" as *const libc::c_char) ||
+                !strcmp(right_pos, "PN" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "M" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "DEG" as *const libc::c_char) != 0) &&
+            direction == 'L' as libc::c_int &&
+            left.j != left.i &&
+            (has_child_chi(sp, left, "NN" as *mut libc::c_char, 1) != 0 ||
+                has_child_chi(sp, left, "NR" as *mut libc::c_char, 1) != 0 ||
+                has_child_chi(sp, left, "M" as *mut libc::c_char, 1) != 0 ||
+                has_child_chi(sp, left, "DEG" as *mut libc::c_char, 1) != 0 ||
+                has_child_chi(sp, left, "PN" as *mut libc::c_char, 1) != 0) {
+            return 0;
+        }
+
+        /* if a verb has object, then between the verb and its object, there should not be another verb depend on the first verb */
+        if (!strcmp(left_pos, "VV" as *const libc::c_char) ||
+            !strcmp(left_pos, "VC" as *const libc::c_char) ||
+            !strcmp(left_pos, "VE" as *const libc::c_char) != 0 ||
+            !strcmp(left_pos, "VA" as *const libc::c_char) != 0) &&
+            (!strcmp(right_pos, "NN" as *const libc::c_char) ||
+                !strcmp(right_pos, "PN" as *const libc::c_char) ||
+                !strcmp(right_pos, "NR" as *const libc::c_char) != 0) &&
+            (has_child_chi(sp, left, "VV" as *mut libc::c_char, 1) ||
+                has_child_chi(sp, left, "VA" as *mut libc::c_char, 1) ||
+                has_child_chi(sp, left, "VC" as *mut libc::c_char, 1) != 0 ||
+                has_child_chi(sp, left, "VE" as *mut libc::c_char, 1) != 0) {
+            return 0;
+        }
+
+        /* for verb, there should be only one subject in front of it */
+        if (!strcmp(right_pos, "VV" as *const libc::c_char) ||
+            !strcmp(right_pos, "VC" as *const libc::c_char) ||
+            !strcmp(right_pos, "VE" as *const libc::c_char) != 0 ||
+            !strcmp(right_pos, "VA" as *const libc::c_char) != 0) &&
+            (!strcmp(left_pos, "NN" as *const libc::c_char) ||
+                !strcmp(left_pos, "PN" as *const libc::c_char) ||
+                !strcmp(left_pos, "NR" as *const libc::c_char) != 0) &&
+            direction == 'R' as libc::c_int &&
+            right.j != right.i &&
+            (has_child_chi(sp, right, "NN" as *mut libc::c_char, 0) != 0 ||
+                has_child_chi(sp, right, "NR" as *mut libc::c_char, 0) != 0 ||
+                has_child_chi(sp, right, "PN" as *mut libc::c_char, 0) != 0) {
+            return 0;
+        }
+
+        /* for preposition, it must have non-pu modifier */
+        if (!strcmp(left_pos, "P" as *const libc::c_char) && (direction == ('R' as libc::c_int)) as libc::c_int && left.j - left.i == 0) ||
+            (!strcmp(right_pos, "P" as *const libc::c_char) && (direction == ('L' as libc::c_int)) as libc::c_int && right.j - right.i == 0) {
+            return 0;
+        }
+
+        /* for preposition, it cannot depend on a preposition */
+        if !strcmp(right_pos, "P" as *const libc::c_char) && !strcmp(left_pos, "P" as *const libc::c_char) {
+            return 0;
+        }
+
+        /* for preposition, it cannot depend on a noun before */
+        if !strcmp(right_pos, "P" as *const libc::c_char) != 0 &&
+            (!strcmp(left_pos, "NN" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "NR" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "PN" as *const libc::c_char) != 0) {
+            return 0;
+        }
+
+        /* for preposition, it cannot depend on a CD or AD */
+        if !strcmp(left_pos, "P" as *const libc::c_char) && !strcmp(right_pos, "CD" as *const libc::c_char) && direction == 'R' as libc::c_int {
+            return 0;
+        }
+
+        /* a noun cannot depend on its following preposition */
+        if !strcmp(right_pos, "P" as *const libc::c_char) != 0 &&
+            (!strcmp(left_pos, "NN" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "NR" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "PN" as *const libc::c_char) != 0) &&
+            direction == 'R' as libc::c_int {
+            return 0;
+        }
+
+        /* for preposition, if it depend on verb, it should have modifier */
+        if (!strcmp(left_pos, "P" as *const libc::c_char) != 0 &&
+            (!strcmp(right_pos, "VA" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VC" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VE" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VV" as *const libc::c_char) != 0) &&
+            direction == 'R' as libc::c_int &&
+            left.j == left.b_ptr.num) ||
+            (!strcmp(right_pos, "P" as *const libc::c_char) != 0 &&
+                (!strcmp(left_pos, "VA" as *const libc::c_char) != 0 ||
+                    !strcmp(left_pos, "VC" as *const libc::c_char) != 0 ||
+                    !strcmp(left_pos, "VE" as *const libc::c_char) != 0 ||
+                    !strcmp(left_pos, "VV" as *const libc::c_char) != 0) &&
+                direction == 'L' as libc::c_int &&
+                right.j == right.b_ptr.num) {
+            return 0;
+        }
+
+        /* for preposition, it cannot have two modifiers after it */
+        if !strcmp(left_pos, "P" as *const libc::c_char) != 0 &&
+            left.right as bool &&
+            !check_feature((sp.bnst_data + left.right.b_ptr.num).f, "PU" as *mut libc::c_char) as bool &&
+            direction == 'L' as libc::c_int {
+            return 0;
+        }
+
+        /* for preposition, if it depend on verb before, the verb should have object */
+        if !strcmp(right_pos, "P" as *const libc::c_char) != 0 &&
+            (!strcmp(left_pos, "VC" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "VE" as *const libc::c_char) != 0 ||
+                !strcmp(left_pos, "VV" as *const libc::c_char) != 0) &&
+            direction == 'L' as libc::c_int &&
+            right.j == sp.Bnst_num - 1 {
+            return 0;
+        }
+
+        /* for preposition, if there is LC in the following (no preposibion between them), the words between P and LC should depend on LC */
+        if !strcmp(left_pos, "P" as *const libc::c_char) &&
+            !strcmp(right_pos, "LC" as *const libc::c_char) &&
+            left.j - left.i > 0 &&
+            exist_chi(sp, left.b_ptr.num + 1, right.b_ptr.num - 1, "prep" as *const libc::c_char) == -1 {
+            return 0;
+        }
+
+        /* for preposition, if there is noun between it and following verb, if preposition is head of the verb, all the noun should depend on verb, if verb is head of preposition, all the noun should depend on preposition */
+        if !strcmp(left_pos, "P" as *const libc::c_char) != 0 &&
+            (!strcmp(right_pos, "VV" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VA" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VC" as *const libc::c_char) != 0 ||
+                !strcmp(right_pos, "VE" as *const libc::c_char) != 0) &&
+            (direction == 'L' as libc::c_int && /* preposition is head */
+                left.j != left.i &&
+                (has_child_chi(sp, left, "NN" as *mut libc::c_char, 1) ||
+                    has_child_chi(sp, left, "NR" as *mut libc::c_char, 1) ||
+                    has_child_chi(sp, left, "PN" as *mut libc::c_char, 1) != 0)) {
+            return 0;
+        }
+
+        if !OptChiPos {
+            /* the word before dunhao cannot have left dependency */
+            if direction == 'L' as libc::c_int &&
+                check_feature((sp.bnst_data + right.b_ptr.num + 1).f, "PU" as *mut libc::c_char) as bool &&
+                !check_feature((sp.bnst_data + right.b_ptr.num + 2).f, "VV" as *mut libc::c_char) as bool &&
+                !check_feature((sp.bnst_data + right.b_ptr.num + 2).f, "VC" as *mut libc::c_char) as bool &&
+                !check_feature((sp.bnst_data + right.b_ptr.num + 2).f, "VE" as *mut libc::c_char) as bool &&
+                !check_feature((sp.bnst_data + right.b_ptr.num + 2).f, "VA" as *mut libc::c_char) as bool &&
+                !strcmp((sp.bnst_data + right.b_ptr.num + 1).head_ptr.Goi, "、" as *mut libc::c_char) != 0 {
+                return 0;
+            }
+
+            /* if a SB is followed by VV, then this SB cannot have modifier */
+            if (check_feature((sp.bnst_data + left.b_ptr.num).f, "SB" as *mut libc::c_char) &&
+                check_feature((sp.bnst_data + left.b_ptr.num + 1).f, "VV" as *mut libc::c_char) &&
+                left.i != left.b_ptr.num) ||
+                (check_feature((sp.bnst_data + right.b_ptr.num).f, "SB" as *mut libc::c_char) &&
+                    check_feature((sp.bnst_data + right.b_ptr.num + 1).f, "VV" as *mut libc::c_char) &&
+                    (right.i != right.b_ptr.num || direction == 'R' as libc::c_int)) {
+                return 0;
+            }
+
+            /* the noun before dunhao should depend on noun after it */
+            if direction == 'R' as libc::c_int &&
+                (check_feature((sp.bnst_data + left.b_ptr.num).f, "NN" as *mut libc::c_char) ||
+                    check_feature((sp.bnst_data + left.b_ptr.num).f, "NR" as *mut libc::c_char) ||
+                    check_feature((sp.bnst_data + left.b_ptr.num).f, "PN" as *mut libc::c_char) as bool ||
+                    check_feature((sp.bnst_data + left.b_ptr.num).f, "JJ" as *mut libc::c_char) as bool ||
+                    check_feature((sp.bnst_data + left.b_ptr.num).f, "NT" as *mut libc::c_char) as bool ||
+                    check_feature((sp.bnst_data + left.b_ptr.num).f, "M" as *mut libc::c_char) as bool ||
+                    check_feature((sp.bnst_data + left.b_ptr.num).f, "DEG" as *mut libc::c_char) as bool) &&
+                (!check_feature((sp.bnst_data + right.b_ptr.num).f, "NN" as *mut libc::c_char) &&
+                    !check_feature((sp.bnst_data + right.b_ptr.num).f, "NT" as *mut libc::c_char) &&
+                    !check_feature((sp.bnst_data + right.b_ptr.num).f, "JJ" as *mut libc::c_char) as bool &&
+                    !check_feature((sp.bnst_data + right.b_ptr.num).f, "NR" as *mut libc::c_char) as bool &&
+                    !check_feature((sp.bnst_data + right.b_ptr.num).f, "PN" as *mut libc::c_char) as bool &&
+                    !check_feature((sp.bnst_data + right.b_ptr.num).f, "DEG" as *mut libc::c_char) as bool &&
+                    !check_feature((sp.bnst_data + right.b_ptr.num).f, "M" as *mut libc::c_char) as bool) &&
+                check_feature((sp.bnst_data + left.b_ptr.num + 1).f, "PU" as *mut libc::c_char) as bool &&
+                !check_feature((sp.bnst_data + left.b_ptr.num + 2).f, "VV" as *mut libc::c_char) as bool &&
+                !check_feature((sp.bnst_data + left.b_ptr.num + 2).f, "VC" as *mut libc::c_char) as bool &&
+                !check_feature((sp.bnst_data + left.b_ptr.num + 2).f, "VE" as *mut libc::c_char) as bool &&
+                !check_feature((sp.bnst_data + left.b_ptr.num + 2).f, "VA" as *mut libc::c_char) as bool &&
+                !strcmp((sp.bnst_data + left.b_ptr.num + 1).head_ptr.Goi, "、" as *mut libc::c_char) != 0 {
+                return 0;
+            }
+
+            /* for preposition, if it has a VV modifier after it, this VV should have object or subject */
+            if check_feature((sp.bnst_data + left.b_ptr.num).f, "P" as *mut libc::c_char) &&
+                check_feature((sp.bnst_data + right.b_ptr.num).f, "VV" as *mut libc::c_char) &&
+                direction == 'L' as libc::c_int &&
+                !check_feature((sp.bnst_data + right.b_ptr.num + 1).f, "CC" as *mut libc::c_char) as bool &&
+                (!has_child_chi(sp, right, "NN" as *mut libc::c_char, 0) &&
+                    !has_child_chi(sp, right, "NR" as *mut libc::c_char, 0) &&
+                    !has_child_chi(sp, right, "PN" as *mut libc::c_char, 0) != 0) &&
+                (!has_child_chi(sp, right, "NN" as *mut libc::c_char, 1) &&
+                    !has_child_chi(sp, right, "NR" as *mut libc::c_char, 1) &&
+                    !has_child_chi(sp, right, "PN" as *mut libc::c_char, 1) != 0) {
+                return 0;
+            }
+
+            /* VC and VE must have modifier before */
+            if (check_feature((sp.bnst_data + left.j).f, "VC" as *mut libc::c_char) && (left.j != left.b_ptr.num) as *mut libc::c_char) ||
+                (check_feature((sp.bnst_data + right.i).f, "VC" as *mut libc::c_char) && (right.i != right.b_ptr.num) as *mut libc::c_char) {
+                return 0;
+            }
+
+            /* check if this cky corresponds with the constraint of NP and quote */
+            if (Chi_np_end_matrix[i][i + k] != -1 && j > Chi_np_end_matrix[i][i + k]) ||
+                (Chi_np_start_matrix[i + k + 1][j] != -1 && i < Chi_np_start_matrix[i + k + 1][j]) {
+                return 0;
+            }
+            if (Chi_quote_end_matrix[i][i + k] != -1 && j > Chi_quote_end_matrix[i][i + k]) ||
+                (Chi_quote_start_matrix[i + k + 1][j] != -1 && i < Chi_quote_start_matrix[i + k + 1][j]) {
+                return 0;
+            }
+        }
+
+        1
+    }
 }

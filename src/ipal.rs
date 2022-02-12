@@ -1,22 +1,21 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-         non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, main, register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
 
-use crate::ctools::{exit, stderr, stdin};
+use libc;
+
+use crate::{fclose, fgets, fopen, fprintf, free, fwrite, memset, sscanf, strcmp, strcpy, strdup, strlen, strncmp, tools};
+use crate::ctools::{exit, stderr, stdin, strtok};
 use crate::structs::IPAL_TRANS_FRAME;
-use crate::tools;
 use crate::types::FILE;
-
 
 #[no_mangle]
 pub static mut buffer: [libc::c_char; 8192000] = [0; 8192000];
 #[no_mangle]
-pub static mut ipal_frame: IPAL_TRANS_FRAME = IPAL_TRANS_FRAME{DATA: [0; 8192000],};
+pub static mut ipal_frame: IPAL_TRANS_FRAME = IPAL_TRANS_FRAME { DATA: [0; 8192000] };
 #[no_mangle]
 pub static mut fp_idx: *mut FILE = 0 as *const FILE as *mut FILE;
 #[no_mangle]
 pub static mut fp_dat: *mut FILE = 0 as *const FILE as *mut FILE;
+
 #[no_mangle]
 pub unsafe extern "C" fn fprint_ipal_idx(mut fp: *mut FILE,
                                          mut entry: *mut libc::c_uchar,
@@ -37,16 +36,16 @@ pub unsafe extern "C" fn fprint_ipal_idx(mut fp: *mut FILE,
             if *point as libc::c_int == ' ' as i32 {
                 output_buf[length as usize] = '\u{0}' as i32 as libc::c_uchar;
                 if length > 0 as libc::c_int &&
-                       (output_buf[0 as libc::c_int as usize] as libc::c_int
-                            != '<' as i32 ||
-                            output_buf[strlen(output_buf.as_mut_ptr() as
-                                                  *const libc::c_char).wrapping_sub(1
-                                                                                        as
-                                                                                        libc::c_int
-                                                                                        as
-                                                                                        libc::c_ulong)
-                                           as usize] as libc::c_int ==
-                                '>' as i32) {
+                    (output_buf[0 as libc::c_int as usize] as libc::c_int
+                        != '<' as i32 ||
+                        output_buf[strlen(output_buf.as_mut_ptr() as
+                            *const libc::c_char).wrapping_sub(1
+                            as
+                            libc::c_int
+                            as
+                            libc::c_ulong)
+                            as usize] as libc::c_int ==
+                            '>' as i32) {
                     /* <CT など以外 */
                     fprintf(fp,
                             b"%s-%s-%s %lu:%d\n\x00" as *const u8 as
@@ -83,15 +82,15 @@ pub unsafe extern "C" fn fprint_ipal_idx(mut fp: *mut FILE,
         }
         output_buf[length as usize] = '\u{0}' as i32 as libc::c_uchar;
         if length > 0 as libc::c_int &&
-               (output_buf[0 as libc::c_int as usize] as libc::c_int !=
-                    '<' as i32 ||
-                    output_buf[strlen(output_buf.as_mut_ptr() as
-                                          *const libc::c_char).wrapping_sub(1
-                                                                                as
-                                                                                libc::c_int
-                                                                                as
-                                                                                libc::c_ulong)
-                                   as usize] as libc::c_int == '>' as i32) {
+            (output_buf[0 as libc::c_int as usize] as libc::c_int !=
+                '<' as i32 ||
+                output_buf[strlen(output_buf.as_mut_ptr() as
+                    *const libc::c_char).wrapping_sub(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong)
+                    as usize] as libc::c_int == '>' as i32) {
             /* <CT など以外 */
             fprintf(fp,
                     b"%s-%s-%s %lu:%d\n\x00" as *const u8 as
@@ -103,6 +102,7 @@ pub unsafe extern "C" fn fprint_ipal_idx(mut fp: *mut FILE,
                 hyouki, address, size);
     };
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn write_data(mut ipal_frame_0: *mut IPAL_TRANS_FRAME,
                                     mut point: *mut libc::c_int,
@@ -115,17 +115,17 @@ pub unsafe extern "C" fn write_data(mut ipal_frame_0: *mut IPAL_TRANS_FRAME,
     let mut pp: *mut libc::c_char = 0 as *mut libc::c_char;
     fprint_ipal_idx(fp_idx,
                     (*ipal_frame_0).DATA.as_mut_ptr().offset(*point.offset(1
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               isize)
-                                                                 as isize),
+                        as
+                        libc::c_int
+                        as
+                        isize)
+                        as isize),
                     (*ipal_frame_0).DATA.as_mut_ptr().offset(*point.offset(2
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               isize)
-                                                                 as isize),
+                        as
+                        libc::c_int
+                        as
+                        isize)
+                        as isize),
                     0 as *mut libc::c_uchar, *address, writesize, flag);
     /* 「直前格要素-直前格-用言」で登録」 */
     if flag != 0 {
@@ -133,46 +133,46 @@ pub unsafe extern "C" fn write_data(mut ipal_frame_0: *mut IPAL_TRANS_FRAME,
         i = 0 as libc::c_int; /* *をけす */
         while i < casenum {
             if *closest.offset(i as isize) > 0 as libc::c_int &&
-                   *(*ipal_frame_0).DATA.as_mut_ptr().offset(*point.offset(*closest.offset(i
-                                                                                               as
-                                                                                               isize)
-                                                                               as
-                                                                               isize)
-                                                                 as isize) as
-                       libc::c_int != '\u{0}' as i32 {
+                *(*ipal_frame_0).DATA.as_mut_ptr().offset(*point.offset(*closest.offset(i
+                    as
+                    isize)
+                    as
+                    isize)
+                    as isize) as
+                    libc::c_int != '\u{0}' as i32 {
                 pp =
                     strdup((*ipal_frame_0).DATA.as_mut_ptr().offset(*point.offset((i
-                                                                                       *
-                                                                                       3
-                                                                                           as
-                                                                                           libc::c_int
-                                                                                       +
-                                                                                       4
-                                                                                           as
-                                                                                           libc::c_int)
-                                                                                      as
-                                                                                      isize)
-                                                                        as
-                                                                        isize)
-                               as *const libc::c_char);
+                        *
+                        3
+                            as
+                            libc::c_int
+                        +
+                        4
+                            as
+                            libc::c_int)
+                        as
+                        isize)
+                        as
+                        isize)
+                        as *const libc::c_char);
                 *pp.offset(strlen(pp) as
-                               isize).offset(-(1 as libc::c_int as isize)) =
+                    isize).offset(-(1 as libc::c_int as isize)) =
                     '\u{0}' as i32 as libc::c_char;
                 fprint_ipal_idx(fp_idx,
                                 (*ipal_frame_0).DATA.as_mut_ptr().offset(*point.offset(2
-                                                                                           as
-                                                                                           libc::c_int
-                                                                                           as
-                                                                                           isize)
-                                                                             as
-                                                                             isize),
+                                    as
+                                    libc::c_int
+                                    as
+                                    isize)
+                                    as
+                                    isize),
                                 (*ipal_frame_0).DATA.as_mut_ptr().offset(*point.offset(*closest.offset(i
-                                                                                                           as
-                                                                                                           isize)
-                                                                                           as
-                                                                                           isize)
-                                                                             as
-                                                                             isize),
+                                    as
+                                    isize)
+                                    as
+                                    isize)
+                                    as
+                                    isize),
                                 pp as *mut libc::c_uchar, *address, writesize,
                                 0 as libc::c_int);
                 free(pp as *mut libc::c_void);
@@ -183,7 +183,7 @@ pub unsafe extern "C" fn write_data(mut ipal_frame_0: *mut IPAL_TRANS_FRAME,
     /* データ書き出し */
     if fwrite(ipal_frame_0 as *const libc::c_void, writesize as libc::c_ulong,
               1 as libc::c_int as libc::c_ulong, fp_dat) <
-           1 as libc::c_int as libc::c_ulong {
+        1 as libc::c_int as libc::c_ulong {
         fprintf(stderr,
                 b"Error in fwrite.\n\x00" as *const u8 as
                     *const libc::c_char);
@@ -191,8 +191,9 @@ pub unsafe extern "C" fn write_data(mut ipal_frame_0: *mut IPAL_TRANS_FRAME,
     }
     *address = (*address).wrapping_add(writesize as libc::c_ulong);
 }
+
 unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
- -> libc::c_int {
+                 -> libc::c_int {
     let mut tag: [libc::c_char; 256] = [0; 256];
     let mut DATA: [libc::c_char; 8192000] = [0; 8192000];
     // let mut pp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -233,17 +234,17 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
                 *argv.offset(2 as libc::c_int as isize));
         exit(1 as libc::c_int);
     }
-    loop  {
+    loop {
         line += 1;
         if fgets(buffer.as_mut_ptr(), 8192000 as libc::c_int, stdin).is_null()
-           {
+        {
             /* 最後のデータ */
             write_data(&mut ipal_frame, point.as_mut_ptr(),
                        closest.as_mut_ptr(), pos, casenum, &mut address,
                        flag);
             fclose(fp_idx);
             fclose(fp_dat);
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         }
         sscanf(buffer.as_mut_ptr(),
                b"%s %[^\n]\n\x00" as *const u8 as *const libc::c_char,
@@ -264,13 +265,13 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
             memset(closest.as_mut_ptr() as *mut libc::c_void,
                    0 as libc::c_int,
                    (::std::mem::size_of::<libc::c_int>() as
-                        libc::c_ulong).wrapping_mul(20 as libc::c_int as
-                                                        libc::c_ulong));
+                       libc::c_ulong).wrapping_mul(20 as libc::c_int as
+                       libc::c_ulong));
         } else if strncmp(tag.as_mut_ptr(),
                           b"\xe6\xa0\xbc\x00" as *const u8 as
                               *const libc::c_char,
                           strlen(b"\xe6\xa0\xbc\x00" as *const u8 as
-                                     *const libc::c_char)) == 0 {
+                              *const libc::c_char)) == 0 {
             casenum += 1;
             if casenum > 20 as libc::c_int {
                 fprintf(stderr,
@@ -281,11 +282,11 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
             }
             /* 直前格 */
             if *DATA.as_mut_ptr().offset(strlen(DATA.as_mut_ptr()) as
-                                             isize).offset(-(1 as libc::c_int
-                                                                 as isize)) as
-                   libc::c_int == '*' as i32 {
+                isize).offset(-(1 as libc::c_int
+                as isize)) as
+                libc::c_int == '*' as i32 {
                 closest[((item - 4 as libc::c_int) / 3 as libc::c_int) as
-                            usize] = item + 1 as libc::c_int
+                    usize] = item + 1 as libc::c_int
                 /* この格の用例の位置 */
             }
         }
@@ -300,11 +301,11 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
         } else {
             pos =
                 (pos as
-                     libc::c_ulong).wrapping_add(strlen(DATA.as_mut_ptr()).wrapping_add(1
-                                                                                            as
-                                                                                            libc::c_int
-                                                                                            as
-                                                                                            libc::c_ulong))
+                    libc::c_ulong).wrapping_add(strlen(DATA.as_mut_ptr()).wrapping_add(1
+                    as
+                    libc::c_int
+                    as
+                    libc::c_ulong))
                     as libc::c_int as libc::c_int
         }
         if pos > 8192000 as libc::c_int {
@@ -320,7 +321,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
                    b"\xe7\xb4\xa0\xe6\x80\xa7\x00" as *const u8 as
                        *const libc::c_char,
                    strlen(b"\xe7\xb4\xa0\xe6\x80\xa7\x00" as *const u8 as
-                              *const libc::c_char)) == 0 {
+                       *const libc::c_char)) == 0 {
             flag = 1 as libc::c_int;
             /* 要素をsplit */
             token =
@@ -332,7 +333,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
                           b"\xe5\x92\x8c\xe3\x83\x95\xe3\x83\xac\xe3\x83\xbc\xe3\x83\xa0\x00"
                               as *const u8 as *const libc::c_char) == 0 {
                     flag = 0 as libc::c_int;
-                    break ;
+                    break;
                 } else {
                     token =
                         strtok(0 as *mut libc::c_char,
@@ -342,15 +343,17 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
         }
     };
 }
+
 #[no_mangle]
 pub unsafe extern "C" fn tolend(mut i: libc::c_int) -> libc::c_int {
     return i >> 24 as libc::c_int |
-               (i >> 16 as libc::c_int & 0xff as libc::c_int) <<
-                   8 as libc::c_int |
-               (i >> 8 as libc::c_int & 0xff as libc::c_int) <<
-                   16 as libc::c_int |
-               (i & 0xff as libc::c_int) << 24 as libc::c_int;
+        (i >> 16 as libc::c_int & 0xff as libc::c_int) <<
+            8 as libc::c_int |
+        (i >> 8 as libc::c_int & 0xff as libc::c_int) <<
+            16 as libc::c_int |
+        (i & 0xff as libc::c_int) << 24 as libc::c_int;
 }
+
 #[main]
 pub fn main() {
     let mut args: Vec<*mut libc::c_char> = Vec::new();

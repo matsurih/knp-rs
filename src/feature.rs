@@ -1,22 +1,10 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, ptr_wrapping_offset_from, register_tool)]
 
-use crate::case_data::{make_fukugoji_case_string, make_fukugoji_id, set_pred_voice};
-use crate::{ctools, PM_Memo};
-use crate::bnst_compare::{subordinate_level_check, subordinate_level_comp};
-use crate::case_match::_sm_match_score;
-use crate::ctools::{exit, stderr};
-use crate::dic::check_auto_dic;
-use crate::lib_bgh::bgh_match_check;
-use crate::lib_scase::get_scase_code;
-use crate::lib_sm::{assign_sm, sm2code, SM2CODEExist, sm_all_match, sm_match_check};
-use crate::nv_mi::check_nv_mi_parent_and_children;
-use crate::read_data::{change_mrph, change_one_mrph_rep};
-use crate::read_rule::case2num;
-use crate::regexp::matched_ptr;
+use libc;
+
+use crate::{atoi, Class, fprintf, free, PM_Memo, sprintf, sscanf, strcasecmp, strcat, strchr, strcmp, strcpy, strdup, strlen, strncmp, strstr};
+use crate::ctools::{_sm_match_score, assign_sm, bgh_match_check, car, case2num, cdr, change_mrph, change_one_mrph_rep, check_auto_dic, check_nv_mi_parent_and_children, exit, get_scase_code, make_fukugoji_case_string, make_fukugoji_id, malloc, matched_ptr, set_pred_voice, sm2code, SM2CODEExist, sm_all_match, sm_match_check, stderr, subordinate_level_check, subordinate_level_comp, Thesaurus};
 use crate::structs::{FEATURE_PATTERN, MRPH_DATA};
-use crate::thesaurus::Thesaurus;
 use crate::tools::{OptDisplay, OptExpress, OptInput, Options, OptPosModification};
 use crate::types::{BNST_DATA, CELL, FEATURE, FEATUREptr, FILE, TAG_DATA};
 
@@ -176,7 +164,7 @@ pub unsafe extern "C" fn delete_cfeature(mut fpp: *mut *mut FEATURE, mut type_0:
                 free(*fpp as *mut libc::c_void);
                 (*prep).next = next
             }
-            return
+            return;
         }
         prep = *fpp;
         fpp = &mut (*prep).next
@@ -203,7 +191,10 @@ pub unsafe extern "C" fn delete_alt_feature(mut fpp: *mut *mut FEATURE) {
                 (*prep).next = next;
                 fpp = &mut (*prep).next
             }
-        } else { prep = *fpp; fpp = &mut (*prep).next }
+        } else {
+            prep = *fpp;
+            fpp = &mut (*prep).next
+        }
     };
 }
 /*==================================================================*/
@@ -236,7 +227,8 @@ pub unsafe extern "C" fn delete_temp_feature(mut fpp: *mut *mut FEATURE) {
             }
             fpp = &mut (*prep).next
         } else {
-            prep = *fpp; fpp = &mut (*prep).next
+            prep = *fpp;
+            fpp = &mut (*prep).next
         }
     };
 }
@@ -249,7 +241,10 @@ pub unsafe extern "C" fn delete_temp_feature(mut fpp: *mut *mut FEATURE) {
 pub unsafe extern "C" fn copy_cfeature(mut fpp: *mut *mut FEATURE, mut fname: *mut libc::c_char) {
     while !(*fpp).is_null() { fpp = &mut (**fpp).next }
     *fpp = malloc(::std::mem::size_of::<FEATURE>() as libc::c_ulong) as *mut FEATURE;
-    if (*fpp).is_null() || { (**fpp).cp = malloc(strlen(fname).wrapping_add(1 as libc::c_int as libc::c_ulong)) as *mut libc::c_char;(**fpp).cp.is_null() } {
+    if (*fpp).is_null() || {
+        (**fpp).cp = malloc(strlen(fname).wrapping_add(1 as libc::c_int as libc::c_ulong)) as *mut libc::c_char;
+        (**fpp).cp.is_null()
+    } {
         fprintf(stderr, b"Can\'t allocate memory for FEATURE\n\x00" as *const u8 as *const libc::c_char);
         exit(-(1 as libc::c_int));
     }
@@ -272,7 +267,7 @@ pub unsafe extern "C" fn list2feature_pattern(mut f: *mut FEATURE_PATTERN, mut c
     let mut nth: libc::c_int = 0 as libc::c_int; /* ?? &(f->fp[nth]) */
     while !car(cell).is_null() {
         clear_feature((*f).fp.as_mut_ptr().offset(nth as
-                                                      isize)); /* ?? &(f->fp[nth]) */
+            isize)); /* ?? &(f->fp[nth]) */
         list2feature(car(cell), (*f).fp.as_mut_ptr().offset(nth as isize));
         cell = cdr(cell);
         nth += 1
@@ -290,7 +285,7 @@ pub unsafe extern "C" fn string2feature_pattern_OLD(mut f: *mut FEATURE_PATTERN,
     let mut ecp: *mut libc::c_char = 0 as *mut libc::c_char; /* ?? &(f->fp[nth]) */
     if cp.is_null() || *cp.offset(0 as libc::c_int as isize) as libc::c_int == '\u{0}' as i32 {
         (*f).fp[nth as usize] = 0 as *mut FEATURE;
-        return
+        return;
     }
     strcpy(feature_buffer.as_mut_ptr(), cp);
     ecp = feature_buffer.as_mut_ptr();
@@ -322,7 +317,7 @@ pub unsafe extern "C" fn string2feature_pattern(mut f: *mut FEATURE_PATTERN, mut
     let mut fpp: *mut *mut FEATURE = 0 as *mut *mut FEATURE;
     if *cp == 0 {
         (*f).fp[0 as libc::c_int as usize] = 0 as *mut FEATURE;
-        return
+        return;
     }
     strcpy(feature_buffer.as_mut_ptr(), cp);
     nth = 0 as libc::c_int;
@@ -396,7 +391,7 @@ pub unsafe extern "C" fn assign_cfeature(mut fpp: *mut *mut FEATURE, mut fname: 
                 exit(-(1 as libc::c_int));
             }
             strcpy((**fpp).cp, fname);
-            return
+            return;
             /* 上書きで終了 */
         }
         fpp = &mut (**fpp).next
@@ -404,10 +399,10 @@ pub unsafe extern "C" fn assign_cfeature(mut fpp: *mut *mut FEATURE, mut fname: 
     /* 上書きできなければ末尾に追加 */
     *fpp = malloc(::std::mem::size_of::<FEATURE>() as libc::c_ulong) as *mut FEATURE;
     if (*fpp).is_null() ||
-           {
-               (**fpp).cp = malloc(strlen(fname).wrapping_add(strlen(b"\xe4\xbb\xae\xe4\xbb\x98\xe4\xb8\x8e:\x00" as *const u8 as *const libc::c_char)).wrapping_add(1 as libc::c_int as libc::c_ulong)) as *mut libc::c_char;
-               (**fpp).cp.is_null()
-           } {
+        {
+            (**fpp).cp = malloc(strlen(fname).wrapping_add(strlen(b"\xe4\xbb\xae\xe4\xbb\x98\xe4\xb8\x8e:\x00" as *const u8 as *const libc::c_char)).wrapping_add(1 as libc::c_int as libc::c_ulong)) as *mut libc::c_char;
+            (**fpp).cp.is_null()
+        } {
         fprintf(stderr, b"Can\'t allocate memory for FEATURE\n\x00" as *const u8 as *const libc::c_char);
         exit(-(1 as libc::c_int));
     }
@@ -435,7 +430,7 @@ pub unsafe extern "C" fn str_delete_last_column(mut str: *mut libc::c_char) -> *
             if count == 1 as libc::c_int {
                 /* 2つ目の':' */
                 *cp = '\u{0}' as i32 as libc::c_char; /* あれば終端 */
-                return ret
+                return ret;
             } /* 次のstrchrのために一つ進める */
             cp = cp.offset(1);
             count += 1
@@ -467,8 +462,8 @@ pub unsafe extern "C" fn assign_feature(mut fpp1: *mut *mut FEATURE, mut fpp2: *
             while !(*fpp).is_null() {
                 if comp_feature((**fpp).cp,
                                 &mut *(**fpp2).cp.offset(1 as libc::c_int as
-                                                             isize)) ==
-                       (0 as libc::c_int == 0) as libc::c_int {
+                                    isize)) ==
+                    (0 as libc::c_int == 0) as libc::c_int {
                     free((**fpp).cp as *mut libc::c_void);
                     next = (**fpp).next;
                     free(*fpp as *mut libc::c_void);
@@ -566,7 +561,7 @@ pub unsafe extern "C" fn assign_feature(mut fpp1: *mut *mut FEATURE, mut fpp2: *
                     if strncmp((**fpp2).cp.offset(strlen(b"&\xe8\x87\xaa\xe5\x8b\x95\xe8\xbe\x9e\xe6\x9b\xb8:\x00" as *const u8 as *const libc::c_char) as isize),
                                b"\xe5\x85\x88\xe9\xa0\xad:\x00" as *const u8 as *const libc::c_char,
                                strlen(b"\xe5\x85\x88\xe9\xa0\xad:\x00" as *const u8 as *const libc::c_char))
-                           == 0 {
+                        == 0 {
                         assign_pos = 0 as libc::c_int
                     } else if strncmp((**fpp2).cp.offset(strlen(b"&\xe8\x87\xaa\xe5\x8b\x95\xe8\xbe\x9e\xe6\x9b\xb8:\x00" as *const u8 as *const libc::c_char) as isize), b"\xe6\x9c\xab\xe5\xb0\xbe:\x00" as *const u8 as *const libc::c_char, strlen(b"\xe6\x9c\xab\xe5\xb0\xbe:\x00" as *const u8 as *const libc::c_char)) == 0 {
                         assign_pos = length - 1 as libc::c_int
@@ -574,7 +569,7 @@ pub unsafe extern "C" fn assign_feature(mut fpp1: *mut *mut FEATURE, mut fpp2: *
                         fprintf(stderr, b";; Invalid feature: %s\n\x00" as *const u8 as *const libc::c_char, (**fpp2).cp);
                         exit(-(1 as libc::c_int));
                     }
-                    check_auto_dic(ptr as *mut MRPH_DATA, assign_pos, length, (**fpp2).cp.offset(strlen(b"&\xe8\x87\xaa\xe5\x8b\x95\xe8\xbe\x9e\xe6\x9b\xb8:\xe5\x85\x88\xe9\xa0\xad:\x00" as *const u8 as *const libc::c_char) as isize),temp_assign_flag);
+                    check_auto_dic(ptr as *mut MRPH_DATA, assign_pos, length, (**fpp2).cp.offset(strlen(b"&\xe8\x87\xaa\xe5\x8b\x95\xe8\xbe\x9e\xe6\x9b\xb8:\xe5\x85\x88\xe9\xa0\xad:\x00" as *const u8 as *const libc::c_char) as isize), temp_assign_flag);
                 }
             }
         } else {
@@ -626,8 +621,8 @@ pub unsafe extern "C" fn comp_feature_NE(mut data: *mut libc::c_char, mut patter
 pub unsafe extern "C" fn check_feature(mut fp: *mut FEATURE, mut fname: *mut libc::c_char) -> *mut libc::c_char {
     while !fp.is_null() {
         if comp_feature((*fp).cp, fname) ==
-               (0 as libc::c_int == 0) as libc::c_int {
-            return (*fp).cp
+            (0 as libc::c_int == 0) as libc::c_int {
+            return (*fp).cp;
         }
         fp = (*fp).next
     }
@@ -638,8 +633,8 @@ pub unsafe extern "C" fn check_feature(mut fp: *mut FEATURE, mut fname: *mut lib
 pub unsafe extern "C" fn check_feature_NE(mut fp: *mut FEATURE, mut fname: *mut libc::c_char) -> *mut libc::c_char {
     while !fp.is_null() {
         if comp_feature_NE((*fp).cp, fname) ==
-               (0 as libc::c_int == 0) as libc::c_int {
-            return (*fp).cp
+            (0 as libc::c_int == 0) as libc::c_int {
+            return (*fp).cp;
         }
         fp = (*fp).next
     }
@@ -651,11 +646,14 @@ pub unsafe extern "C" fn check_category(mut fp: *mut FEATURE, mut fname: *mut li
     /* strict_flag == TRUE: カテゴリが複数ある(曖昧な)ときはFALSEを返す */
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     if 0 as libc::c_int != 0 &&
-           strlen(fname) == 1 as libc::c_int as libc::c_ulong {
+        strlen(fname) == 1 as libc::c_int as libc::c_ulong {
         /* fnameが'a'または'v'の場合 */
-	/* <代表表記:...[av]>もカテゴリの一種として扱う */
-        if check_feature(fp, b"\xe7\x96\x91\xe4\xbc\xbc\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() && { cp = check_feature(fp, b"\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\x00" as *const u8 as *const libc::c_char as *mut libc::c_char);!cp.is_null() } && *cp.offset(strlen(cp) as isize).offset(-(1 as libc::c_int as isize)) as libc::c_int == *fname as libc::c_int {
-            return (0 as libc::c_int == 0) as libc::c_int
+        /* <代表表記:...[av]>もカテゴリの一種として扱う */
+        if check_feature(fp, b"\xe7\x96\x91\xe4\xbc\xbc\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\x00" as *const u8 as *const libc::c_char as *mut libc::c_char).is_null() && {
+            cp = check_feature(fp, b"\xe4\xbb\xa3\xe8\xa1\xa8\xe8\xa1\xa8\xe8\xa8\x98\x00" as *const u8 as *const libc::c_char as *mut libc::c_char);
+            !cp.is_null()
+        } && *cp.offset(strlen(cp) as isize).offset(-(1 as libc::c_int as isize)) as libc::c_int == *fname as libc::c_int {
+            return (0 as libc::c_int == 0) as libc::c_int;
         }
     } else {
         cp =
@@ -663,17 +661,17 @@ pub unsafe extern "C" fn check_category(mut fp: *mut FEATURE, mut fname: *mut li
         if !cp.is_null() {
             if strict_flag != 0 && !strchr(cp, ';' as i32).is_null() {
                 /* strict_flag時: カテゴリが複数あるときはFALSE */
-                return 0 as libc::c_int
+                return 0 as libc::c_int;
             }
             /* 複数ある場合は";"で区切られている */
             cp = cp.offset(strlen(b"\xe3\x82\xab\xe3\x83\x86\xe3\x82\xb4\xe3\x83\xaa\x00" as *const u8 as *const libc::c_char) as isize); /* ":"の分はdoの中で足す */
-            loop  {
+            loop {
                 cp = cp.offset(1); /* ":"もしくは";"の分 */
                 if strcmp(cp, fname) == 0 || strncmp(cp, fname, strlen(fname)) == 0 && *cp.offset(strlen(fname) as isize) as libc::c_int == ';' as i32 {
-                    return (0 as libc::c_int == 0) as libc::c_int
+                    return (0 as libc::c_int == 0) as libc::c_int;
                 }
                 cp = strchr(cp, ';' as i32);
-                if cp.is_null() { break ; }
+                if cp.is_null() { break; }
             }
         }
     }
@@ -687,29 +685,29 @@ pub unsafe extern "C" fn compare_threshold(mut value: libc::c_int, mut threshold
             (0 as libc::c_int == 0) as libc::c_int
         } else {
             0 as libc::c_int
-        }
+        };
     } else {
         if strcmp(eq, b"le\x00" as *const u8 as *const libc::c_char) == 0 {
             return if value <= threshold {
                 (0 as libc::c_int == 0) as libc::c_int
             } else {
                 0 as libc::c_int
-            }
+            };
         } else {
             if strcmp(eq, b"gt\x00" as *const u8 as *const libc::c_char) == 0 {
-                   return if value > threshold {
-                       (0 as libc::c_int == 0) as libc::c_int
-                   } else {
-                       0 as libc::c_int
-                   }
+                return if value > threshold {
+                    (0 as libc::c_int == 0) as libc::c_int
+                } else {
+                    0 as libc::c_int
+                };
             } else {
                 if strcmp(eq, b"ge\x00" as *const u8 as *const libc::c_char)
-                       == 0 {
+                    == 0 {
                     return if value >= threshold {
                         (0 as libc::c_int == 0) as libc::c_int
                     } else {
                         0 as libc::c_int
-                    }
+                    };
                 }
             }
         }
@@ -721,11 +719,11 @@ pub unsafe extern "C" fn compare_threshold(mut value: libc::c_int, mut threshold
 pub unsafe extern "C" fn check_Bunrui(mut mp: *mut MRPH_DATA, mut class: *mut libc::c_char, mut flag: libc::c_int) -> libc::c_int {
     let mut string: [libc::c_char; 14] = [0; 14];
     if strcmp(Class[6 as libc::c_int as usize][(*mp).Bunrui as usize].id as *const libc::c_char, class) == 0 {
-        return flag
+        return flag;
     }
     sprintf(string.as_mut_ptr(), b"\xe5\x93\x81\xe6\x9b\x96-%s\x00" as *const u8 as *const libc::c_char, class);
     if !check_feature((*mp).f, string.as_mut_ptr()).is_null() {
-        return flag
+        return flag;
     }
     return 1 as libc::c_int - flag;
 }
@@ -804,9 +802,9 @@ pub unsafe extern "C" fn check_str_type(mut ucp: *mut libc::c_uchar, mut allowed
             i += 1
         }
         if allowed_type != 0 {
-            if code & allowed_type == 0 { return 0 as libc::c_int }
+            if code & allowed_type == 0 { return 0 as libc::c_int; }
         } else if precode != 0 && precode != code {
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
             /* code is mixed */
         }
         precode = code
@@ -849,19 +847,19 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
             strncmp(
                 (*(ptr2 as *mut MRPH_DATA)).Goi2.as_mut_ptr(),
                 b"\xe3\x82\xab\x00" as *const u8 as *const libc::c_char,
-                3 as libc::c_int as libc::c_ulong
+                3 as libc::c_int as libc::c_ulong,
             ) == 0 || strncmp(
-                (*(ptr2 as *mut MRPH_DATA)).Goi2.as_mut_ptr(),
-                b"\xe3\x83\xb6\x00" as *const u8 as *const libc::c_char,
-                3 as libc::c_int as libc::c_ulong
-            ) == 0 {
-                if strlen((*(ptr2 as *mut MRPH_DATA)).Goi2.as_mut_ptr()) == 3 as libc::c_int as libc::c_ulong {
+            (*(ptr2 as *mut MRPH_DATA)).Goi2.as_mut_ptr(),
+            b"\xe3\x83\xb6\x00" as *const u8 as *const libc::c_char,
+            3 as libc::c_int as libc::c_ulong,
+        ) == 0 {
+            if strlen((*(ptr2 as *mut MRPH_DATA)).Goi2.as_mut_ptr()) == 3 as libc::c_int as libc::c_ulong {
                 (0 as libc::c_int == 0) as libc::c_int;
             } else {
                 check_str_type(
                     (*(ptr2 as *mut MRPH_DATA)).Goi2.as_mut_ptr().offset(3 as libc::c_int as isize) as *mut libc::c_uchar,
                     4 as libc::c_int,
-                    0 as libc::c_int
+                    0 as libc::c_int,
                 );
             }
         } else {
@@ -913,7 +911,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
         /* パターンの方が大きければFALSE */
         if strlen(cp) > strlen((*(ptr2 as *mut MRPH_DATA)).Goi2.as_mut_ptr())
         {
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         } /* 表記をチェック */
         ucp =
             (*(ptr2 as *mut MRPH_DATA)).Goi2.as_mut_ptr() as
@@ -923,7 +921,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                 *const libc::c_char).wrapping_sub(strlen(cp))
                 as isize);
         if strcmp(ucp as *const libc::c_char, cp) != 0 {
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         }
         (0 as libc::c_int == 0) as libc::c_int
     } else if strcmp(rule,
@@ -1001,7 +999,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                           *const u8 as *const libc::c_char)) == 0 {
         if Thesaurus != 2 as libc::c_int ||
             (*(ptr2 as *mut MRPH_DATA)).SM.is_null() {
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         }
         cp =
             rule.offset(strlen(b"&\xe6\x84\x8f\xe5\x91\xb3\xe7\xb4\xa0:\x00"
@@ -1024,7 +1022,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                                        as
                                        isize),
                                    flag) != 0 {
-                    return (0 as libc::c_int == 0) as libc::c_int
+                    return (0 as libc::c_int == 0) as libc::c_int;
                 }
                 i += 12 as libc::c_int
             }
@@ -1036,7 +1034,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                       strlen(b"&\xe6\x96\x87\xe7\xaf\x80\xe6\x84\x8f\xe5\x91\xb3\xe7\xb4\xa0:\x00"
                           as *const u8 as *const libc::c_char)) == 0 {
         if Thesaurus != 2 as libc::c_int && Thesaurus != 1 as libc::c_int {
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         }
         cp =
             rule.offset(strlen(b"&\xe6\x96\x87\xe7\xaf\x80\xe6\x84\x8f\xe5\x91\xb3\xe7\xb4\xa0:\x00"
@@ -1056,14 +1054,14 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                                   (*(ptr2 as
                                       *mut BNST_DATA)).SM_code.as_mut_ptr(),
                                   flag) != 0 {
-                    return (0 as libc::c_int == 0) as libc::c_int
+                    return (0 as libc::c_int == 0) as libc::c_int;
                 }
             } else if Thesaurus == 1 as libc::c_int {
                 if bgh_match_check(cp,
                                    (*(ptr2 as
                                        *mut BNST_DATA)).BGH_code.as_mut_ptr())
                     != 0 {
-                    return (0 as libc::c_int == 0) as libc::c_int
+                    return (0 as libc::c_int == 0) as libc::c_int;
                 }
             }
         }
@@ -1074,7 +1072,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                       strlen(b"&\xe6\x96\x87\xe7\xaf\x80\xe5\x85\xa8\xe6\x84\x8f\xe5\x91\xb3\xe7\xb4\xa0:\x00"
                           as *const u8 as *const libc::c_char)) == 0 {
         if Thesaurus != 2 as libc::c_int && Thesaurus != 1 as libc::c_int {
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         }
         cp =
             rule.offset(strlen(b"&\xe6\x96\x87\xe7\xaf\x80\xe5\x85\xa8\xe6\x84\x8f\xe5\x91\xb3\xe7\xb4\xa0:\x00"
@@ -1095,7 +1093,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                 sm_all_match((*(ptr2 as
                     *mut BNST_DATA)).SM_code.as_mut_ptr(),
                              cp) != 0 {
-                return (0 as libc::c_int == 0) as libc::c_int
+                return (0 as libc::c_int == 0) as libc::c_int;
             }
         } else if Thesaurus == 1 as libc::c_int {
             if !cp.is_null() &&
@@ -1105,7 +1103,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                 sm_all_match((*(ptr2 as
                     *mut BNST_DATA)).BGH_code.as_mut_ptr(),
                              cp) != 0 {
-                return (0 as libc::c_int == 0) as libc::c_int
+                return (0 as libc::c_int == 0) as libc::c_int;
             }
         }
         0 as libc::c_int
@@ -1134,7 +1132,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                 libc::c_int;
         if length == code * 3 as libc::c_int ||
             flag != 0 && length > code * 3 as libc::c_int {
-            return (0 as libc::c_int == 0) as libc::c_int
+            return (0 as libc::c_int == 0) as libc::c_int;
         }
         0 as libc::c_int
     } else if strncmp(rule,
@@ -1178,7 +1176,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                 *mut MRPH_DATA)).Goi2.as_mut_ptr().offset(i as
                 isize),
                    cp) == 0 {
-            return (0 as libc::c_int == 0) as libc::c_int
+            return (0 as libc::c_int == 0) as libc::c_int;
         }
         0 as libc::c_int
     } else if strncmp(rule,
@@ -1195,7 +1193,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
                 check_feature((*(ptr1 as *mut BNST_DATA)).f,
                               b"\xe4\xbf\x82\x00" as *const u8 as
                                   *const libc::c_char as *mut libc::c_char);
-            if cp.is_null() { return 0 as libc::c_int }
+            if cp.is_null() { return 0 as libc::c_int; }
             if (*(ptr2 as
                 *mut BNST_DATA)).SCASE_code[case2num(cp.offset(strlen(b"\xe4\xbf\x82:\x00"
                 as
@@ -1287,7 +1285,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
             if !check_feature((*(*(ptr2 as
                 *mut BNST_DATA)).child[i as usize]).f,
                               cp).is_null() {
-                return (0 as libc::c_int == 0) as libc::c_int
+                return (0 as libc::c_int == 0) as libc::c_int;
             }
             i += 1
         }
@@ -1354,7 +1352,7 @@ pub unsafe extern "C" fn check_function(mut rule: *mut libc::c_char, mut fd: *mu
         opt = Options;
         while !(*opt).is_null() {
             if strcasecmp(cp, *opt) == 0 {
-                return (0 as libc::c_int == 0) as libc::c_int
+                return (0 as libc::c_int == 0) as libc::c_int;
             }
             opt = opt.offset(1)
         }
@@ -1423,28 +1421,28 @@ pub unsafe extern "C" fn feature_AND_match(mut fp: *mut FEATURE, mut fd: *mut FE
     let mut value: libc::c_int = 0;
     while !fp.is_null() {
         if *(*fp).cp.offset(0 as libc::c_int as isize) as libc::c_int ==
-               '^' as i32 &&
-               *(*fp).cp.offset(1 as libc::c_int as isize) as libc::c_int ==
-                   '&' as i32 {
+            '^' as i32 &&
+            *(*fp).cp.offset(1 as libc::c_int as isize) as libc::c_int ==
+                '&' as i32 {
             value =
                 check_function((*fp).cp.offset(1 as libc::c_int as isize), fd,
                                p1, p2);
             if value == (0 as libc::c_int == 0) as libc::c_int {
-                return 0 as libc::c_int
+                return 0 as libc::c_int;
             }
         } else if *(*fp).cp.offset(0 as libc::c_int as isize) as libc::c_int
-                      == '&' as i32 {
+            == '&' as i32 {
             value = check_function((*fp).cp, fd, p1, p2);
-            if value == 0 as libc::c_int { return 0 as libc::c_int }
+            if value == 0 as libc::c_int { return 0 as libc::c_int; }
         } else if *(*fp).cp.offset(0 as libc::c_int as isize) as libc::c_int
-                      == '^' as i32 {
+            == '^' as i32 {
             if !check_feature(fd,
                               (*fp).cp.offset(1 as libc::c_int as
-                                                  isize)).is_null() {
-                return 0 as libc::c_int
+                                  isize)).is_null() {
+                return 0 as libc::c_int;
             }
         } else if check_feature(fd, (*fp).cp).is_null() {
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         }
         fp = (*fp).next
     }
@@ -1462,14 +1460,14 @@ pub unsafe extern "C" fn feature_pattern_match(mut fr: *mut FEATURE_PATTERN, mut
     let mut value: libc::c_int = 0;
     /* PATTERNがなければマッチ */
     if (*fr).fp[0 as libc::c_int as usize].is_null() {
-        return (0 as libc::c_int == 0) as libc::c_int
+        return (0 as libc::c_int == 0) as libc::c_int;
     }
     /* ORの各条件を調べる */
     i = 0 as libc::c_int;
     while !(*fr).fp[i as usize].is_null() {
         value = feature_AND_match((*fr).fp[i as usize], fd, p1, p2);
         if value == (0 as libc::c_int == 0) as libc::c_int {
-            return (0 as libc::c_int == 0) as libc::c_int
+            return (0 as libc::c_int == 0) as libc::c_int;
         }
         i += 1
     }
@@ -1478,9 +1476,9 @@ pub unsafe extern "C" fn feature_pattern_match(mut fr: *mut FEATURE_PATTERN, mut
 /*====================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_feature_for_chi(mut p_ptr: *mut BNST_DATA)
- -> *mut libc::c_char 
- /*====================================================================*/
- {
+                                             -> *mut libc::c_char
+/*====================================================================*/
+{
     let mut feature: *mut libc::c_char = 0 as *mut libc::c_char;
     if !check_feature((*p_ptr).f,
                       b"AD\x00" as *const u8 as *const libc::c_char as

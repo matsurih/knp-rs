@@ -1,17 +1,17 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, const_transmute, extern_types, ptr_wrapping_offset_from, register_tool)]
 
-use crate::{_FEATURE, BNST_DATA, case_analysis, corefer, cpm_def, FEATURE, MRPH_DATA, PARA_DATA, PARA_MANAGER, sentence_data, TAG_DATA, TOTAL_MGR};
+use libc;
+
+use crate::{_FEATURE, atoi, BNST_DATA, case_analysis, corefer, cpm_def, FEATURE, fprintf, free, memset, MRPH_DATA, PARA_DATA, PARA_MANAGER, sentence_data, sprintf, sscanf, strcat, strcmp, strcpy, strdup, strlen, strncmp, strstr, TAG_DATA, TOTAL_MGR};
 use crate::bnst_compare::subordinate_level_check;
 use crate::case_analysis::{copy_cf_with_alloc, make_print_string, MatchPP, noun_lexical_disambiguation_by_case_analysis, pp_code_to_kstr, pp_code_to_kstr_in_context, pp_kstr_to_code, record_case_analysis, verb_lexical_disambiguation_by_case_analysis};
 use crate::case_data::{_make_data_cframe_ex, _make_data_cframe_sm, make_data_cframe};
 use crate::case_ipal::{CFSimExist, clear_cf, clear_mgr_cf, get_cfs_similarity, init_mgr_cf};
 use crate::case_match::{calc_similarity_word_cf, calc_similarity_word_cf_with_sm, case_frame_match, cf_match_element, cf_match_sm_thesaurus, count_pat_element, EX_match_exact, EX_match_score, EX_match_subject, sms_match};
 use crate::case_print::{print_data_cframe, print_good_crrspnds};
-use crate::consts::{VERBOSE2, VERBOSE3};
+use crate::consts::{CF_PRED, OPT_DISC_TWIN_CAND, UNASSIGNED, VERBOSE2, VERBOSE3};
 use crate::corefer::corefer_id;
-use crate::ctools::{assign_cfeature, check_feature, malloc_data, Outfp, stderr, stdout};
+use crate::ctools::{assign_cfeature, check_feature, fputc, log, malloc_data, Outfp, sqrt, stderr, stdout};
 use crate::feature::{append_feature, check_str_type, clear_feature, print_feature};
 use crate::lib_dt::dt_classify;
 use crate::lib_event::get_cf_event_value;
@@ -4732,8 +4732,7 @@ pub unsafe extern "C" fn EllipsisDetectRecursive2(mut s: *mut SENTENCE_DATA,
     while (*tp2).para_top_p != 0 {
         tp2 = (*tp2).child[0 as libc::c_int as usize]
     }
-    SearchCaseComponent(s, cs, em_ptr, cpm_ptr, cmm_ptr, l, tp2, cf_ptr, n,
-                        loc);
+    SearchCaseComponent(s, cs, em_ptr, cpm_ptr, cmm_ptr, l, tp2, cf_ptr, n, loc);
     if OptDiscFlag & 2 as libc::c_int == 0 && ScoreCheck(cf_ptr, n) != 0 {
         return 1 as libc::c_int;
     }
@@ -4929,6 +4928,71 @@ pub unsafe extern "C" fn ListPredChildren(mut tp: *mut TAG_DATA)
     *fresh42 = 0 as *mut TAG_DATA;
     return ret;
 }
+
+/// cpm_ptr: 省略格要素をもつ用言
+/// bp:      格要素の探索対象となっている用言文節
+/// ★並列のNは?
+pub unsafe extern "C" fn SearchCaseComponent(mut s: *mut SENTENCE_DATA,
+                                             mut cs: *mut SENTENCE_DATA,
+                                             mut em_ptr: *mut ELLIPSIS_MGR,
+                                             mut cpm_ptr: *mut CF_PRED_MGR,
+                                             mut cmm_ptr: *mut CF_MATCH_MGR,
+                                             mut l: libc::c_int,
+                                             mut bp: *mut TAG_DATA,
+                                             mut cf_ptr: *mut CASE_FRAME,
+                                             mut n: libc::c_int,
+                                             mut loc: libc::c_int) -> libc::c_int {
+
+    let mut i: libc::c_int = 0;
+    let mut num: libc::c_int = 0;
+    let mut flag: libc::c_int = 0;
+    let mut children: *mut *mut TAG_DATA = 0 as *mut *mut TAG_DATA;
+
+    /* 用言の格要素をチェック */
+    if bp.cpm_ptr {
+        if bp.cpm_ptr.cmm[0].score != -2 as libc::c_double {
+            /* 名詞: 親用言の格要素は位置が後でも許すflag */
+            flag = (cpm_ptr.pred_b_ptr.dpnd_head == bp.cpm_ptr.pred_b_ptr.num) as libc::c_int;
+            i = 0;
+            while i < bp.cpm_ptr.cmm[0].cf_ptr.element_num {
+                num = bp.cpm_ptr.cmm[0].result_lists_p[0].flag[i];
+                if num != UNASSIGNED {
+                    if bp.cpm_ptr.elem_b_num[num] <= -2 && bp.cpm_ptr.elem_b_ptr[num].is_null() { /* 不特定 */
+                        if cpm_ptr.cf.type_0 == CF_PRED && (OptDiscFlag & OPT_DISC_TWIN_CAND) != 0 {
+                            EllipsisDetectSubcontractExtraTags(cs, em_ptr, cpm_ptr, cmm_ptr, l, 1, cf_ptr, n, loc); /* "1"は不特定-人 */
+                        }
+                    } else if CheckLocation(if bp.cpm_ptr.elem_b_num[num] > -2 { s } else {bp.cpm_ptr.elem_s_ptr[num]} , cs, cpm_ptr, bp.cpm_ptr.elem_b_ptr[num], loc) &&
+                        CheckAppropriateCandidate(if bp.cpm_ptr.elem_b_num[num] > -2 { s } else { bp.cpm_ptr.elem_s_ptr[num] }, cs, cpm_ptr, bp.cpm_ptr.elem_b_ptr[num], bp.cpm_ptr.cmm[0].cf_ptr.pp[i][0], cf_ptr, n, loc, flag) {
+                        EllipsisDetectSubcontract(if bp.cpm_ptr.elem_b_num[num] > -2 { s } else { bp.cpm_ptr.elem_s_ptr[num]}, cs, em_ptr, cpm_ptr, cmm_ptr, l, bp.cpm_ptr.elem_b_ptr[num], cf_ptr, n, loc, s, bp);
+                    /* 省略を補ったものでなければ */
+                        if bp.cpm_ptr.elem_b_num[num] > -2 {
+                            Bcheck[cs - s][bp.cpm_ptr.elem_b_ptr[num].num] = 1;
+                        }
+
+                        /* ノ格の子供をチェック */
+                        SearchCompoundChild(if bp.cpm_ptr.elem_b_num[num] > -2 { s } else { bp.cpm_ptr.elem_s_ptr[num] }, cs, em_ptr, cpm_ptr, cmm_ptr, l, bp.cpm_ptr.elem_b_ptr[num], cf_ptr, n, loc, (bp.cpm_ptr.elem_b_num[num] <= -2) as libc::c_int);
+                    }
+                }
+                i += 1;
+            }
+        }
+
+        /* 格要素になっていない子供もチェック */
+        children = ListPredChildren(bp.cpm_ptr.pred_b_ptr);
+        for x in children.iter(){
+            if CheckAppropriateCandidate(s, cs, cpm_ptr, x, -2, cf_ptr, n, loc, 0) {
+                EllipsisDetectSubcontract(s, cs, em_ptr, cpm_ptr, cmm_ptr, l, x, cf_ptr, n, loc, s, bp);
+                Bcheck[cs - s][x.num] = 1;
+                /* ノ格の子供をチェック */
+                SearchCompoundChild(s, cs, em_ptr, cpm_ptr, cmm_ptr, l, x, cf_ptr, n, loc, 0);
+            }
+        }
+        free(children);
+    }
+    return 0;
+}
+
+
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn _SearchCaseComponent(mut cs: *mut SENTENCE_DATA,

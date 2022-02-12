@@ -1,9 +1,7 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
-
-use crate::{Chi_np_end_matrix, Chi_np_start_matrix, Chi_quote_end_matrix, Chi_quote_start_matrix, ctools, Dpnd_matrix, tools};
+use libc;
+use crate::{Chi_np_end_matrix, Chi_np_start_matrix, Chi_quote_end_matrix, Chi_quote_start_matrix, Dpnd_matrix, printf};
 use crate::ctools::check_feature;
 use crate::structs::CDB_FILE;
 use crate::tools::{Chi_root, OptDisplay};
@@ -57,58 +55,58 @@ pub unsafe extern "C" fn check_phrase(mut sp: *mut SENTENCE_DATA) -> libc::c_int
     i = 0 as libc::c_int;
     while i < (*sp).Bnst_num {
         /* assign root feature */
-        if !ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+        if !check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                           b"IS_ROOT\x00" as *const u8 as *const libc::c_char
                               as *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"CC\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"DEG\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"DEC\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"DER\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"DEV\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"DT\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"ETC\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"FW\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"IJ\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"LC\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"MSP\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() &&
-            ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+            check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                              b"PU\x00" as *const u8 as *const libc::c_char as
                                  *mut libc::c_char).is_null() {
             Chi_root = i
         }
         /* assign NP feature */
-        if !ctools::check_feature((*(*sp).bnst_data.offset(i as isize)).f,
+        if !check_feature((*(*sp).bnst_data.offset(i as isize)).f,
                           b"NP_B\x00" as *const u8 as *const libc::c_char as
                               *mut libc::c_char).is_null() {
             j = i + 1 as libc::c_int;
             while j < (*sp).Bnst_num &&
-                ctools::check_feature((*(*sp).bnst_data.offset(j as isize)).f,
+                check_feature((*(*sp).bnst_data.offset(j as isize)).f,
                                     b"NP_B\x00" as *const u8 as
                                         *const libc::c_char as
                                         *mut libc::c_char).is_null() &&
-                ctools::check_feature((*(*sp).bnst_data.offset(j as isize)).f,
+                check_feature((*(*sp).bnst_data.offset(j as isize)).f,
                                     b"NP_O\x00" as *const u8 as
                                         *const libc::c_char as
                                         *mut libc::c_char).is_null() {
@@ -130,15 +128,15 @@ pub unsafe extern "C" fn check_phrase(mut sp: *mut SENTENCE_DATA) -> libc::c_int
             /* if the last word of baseNP is not noun, then reduce baseNP scope */
             j = np_matrix[i as usize];
             while j >= i {
-                if !ctools::check_feature((*(*sp).bnst_data.offset(j as isize)).f,
+                if !check_feature((*(*sp).bnst_data.offset(j as isize)).f,
                                   b"NN\x00" as *const u8 as
                                       *const libc::c_char as
                                       *mut libc::c_char).is_null() ||
-                       !ctools::check_feature((*(*sp).bnst_data.offset(j as isize)).f,
+                       !check_feature((*(*sp).bnst_data.offset(j as isize)).f,
                                       b"NR\x00" as *const u8 as
                                           *const libc::c_char as
                                           *mut libc::c_char).is_null() ||
-                       !ctools::check_feature((*(*sp).bnst_data.offset(j as isize)).f,
+                       !check_feature((*(*sp).bnst_data.offset(j as isize)).f,
                                       b"NT\x00" as *const u8 as
                                           *const libc::c_char as
                                           *mut libc::c_char).is_null() {

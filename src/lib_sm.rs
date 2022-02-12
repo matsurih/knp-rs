@@ -1,17 +1,14 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 //! NTT  検索プログラム
 
-use crate::case_analysis::MatchPP;
-use crate::case_match::{_sm_match_score, cf_match_element, comp_sm, sms_match};
+use libc;
+
+use crate::{assign_cfeature, check_feature, fprintf, fputs, free, malloc_data, Outfp, sprintf, stderr, strcat, strcmp, strcpy, strdup, strlen, strncmp};
 use crate::consts::VERBOSE2;
-use crate::ctools::{assign_cfeature, check_dict_filename, check_feature, malloc_data, Outfp, stderr};
+use crate::ctools::{_sm_match_score, cf_match_element, check_dict_filename, code_depth, comp_sm, DICT, fputc, get_most_similar_code, hash, MatchPP, OptDisplay, SM2CODEExist, SMExist, smlist, SMP2SMGExist, sms_match, strncpy, THESAURUS, Thesaurus, VerboseLevel};
 use crate::db::{db_close, db_get, db_read_open};
-use crate::dic::DICT;
 use crate::structs::sm_list;
-use crate::thesaurus::{code_depth, get_most_similar_code};
-use crate::tools::{code2sm_db, CODE2SMExist, cont_str, hash, OptDisplay, sm2code_db, SM2CODEExist, sm_db, SMExist, smlist, smp2smg_db, SMP2SMGExist, Thesaurus, VerboseLevel};
+use crate::tools::{code2sm_db, CODE2SMExist, cont_str, sm2code_db, sm_db, smp2smg_db};
 use crate::types::{BNST_DATA, CF_PRED_MGR, FILE, SENTENCE_DATA, SMLIST};
 
 #[no_mangle]

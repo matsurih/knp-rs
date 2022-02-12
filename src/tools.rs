@@ -1,15 +1,11 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
-use std::str;
-use crate::types::{DBM_FILE, SENTENCE_DATA, SMLIST};
-use crate::types::FILE;
-use crate::types::CLASS;
-use crate::{__jmp_buf_tag, ctools, structs, tools, types};
+use libc;
+use crate::{__sigset_t, BNST_DATA, CF_PRED_MGR, exit, FEATURE, fprintf, size_t, stderr, strdup, strlen, VerboseType};
 use crate::consts::VERBOSE0;
-use crate::structs::{CDB_FILE, CHI_ROOT, sm_list};
-
+use crate::ctools::{malloc, rand, realloc, srand, time};
+use crate::structs::{__jmp_buf_tag, _CKY, CDB_FILE, CHI_ROOT, sm_list};
+use crate::types::{CKY, DBM_FILE, jmp_buf, RuleVector, SENTENCE_DATA, SMLIST, time_t};
 
 #[no_mangle]
 pub static mut code2sm_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
@@ -24,7 +20,7 @@ pub static mut SMP2SMGExist: libc::c_int = 0;
 #[no_mangle]
 pub static mut cont_str: [libc::c_char; 5120] = [0; 5120];
 #[no_mangle]
-pub static mut smlist: [SMLIST; 1024] = [SMLIST{key: 0 as *const libc::c_char as *mut libc::c_char, sm: 0 as *const libc::c_char as *mut libc::c_char, next: 0 as *const sm_list as *mut sm_list,}; 1024];
+pub static mut smlist: [SMLIST; 1024] = [SMLIST { key: 0 as *const libc::c_char as *mut libc::c_char, sm: 0 as *const libc::c_char as *mut libc::c_char, next: 0 as *const sm_list as *mut sm_list }; 1024];
 #[no_mangle]
 pub static mut Bnst_start: [libc::c_int; 200] = [0; 200];
 #[no_mangle]
@@ -34,9 +30,9 @@ pub static mut Tag_dpnd: [libc::c_int; 200] = [0; 200];
 #[no_mangle]
 pub static mut Tag_type: [libc::c_int; 200] = [0; 200];
 #[no_mangle]
-pub static mut Input_bnst_feature: [*mut types::FEATURE; 200] = [0 as *const types::FEATURE as *mut types::FEATURE; 200];
+pub static mut Input_bnst_feature: [*mut FEATURE; 200] = [0 as *const FEATURE as *mut FEATURE; 200];
 #[no_mangle]
-pub static mut Input_tag_feature: [*mut types::FEATURE; 200] = [0 as *const types::FEATURE as *mut types::FEATURE; 200];
+pub static mut Input_tag_feature: [*mut FEATURE; 200] = [0 as *const FEATURE as *mut FEATURE; 200];
 #[no_mangle]
 pub static mut ArticleID: [libc::c_char; 256] = [0; 256];
 #[no_mangle]
@@ -44,11 +40,11 @@ pub static mut preArticleID: [libc::c_char; 256] = [0; 256];
 #[no_mangle]
 pub static mut total_sen_num: libc::c_int = 0 as libc::c_int;
 #[no_mangle]
-pub static mut sm_db: types::DBM_FILE = 0 as *const structs::CDB_FILE as *mut structs::CDB_FILE;
+pub static mut sm_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
-pub static mut sm2code_db: types::DBM_FILE = 0 as *const structs::CDB_FILE as *mut structs::CDB_FILE;
+pub static mut sm2code_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
-pub static mut smp2smg_db: types::DBM_FILE = 0 as *const structs::CDB_FILE as *mut structs::CDB_FILE;
+pub static mut smp2smg_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
 pub static mut EtcRuleArray: *mut libc::c_void = 0 as *const libc::c_void as *mut libc::c_void;
 #[no_mangle]
@@ -64,11 +60,11 @@ pub static mut base_sentence_num: libc::c_int = 0 as libc::c_int;
 #[no_mangle]
 pub static mut base_entity_num: libc::c_int = 0 as libc::c_int;
 #[no_mangle]
-pub static mut event_db: types::DBM_FILE = 0 as *const structs::CDB_FILE as *mut structs::CDB_FILE;
+pub static mut event_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
 pub static mut EventDicExist: libc::c_int = 0;
 #[no_mangle]
-pub static mut Chi_root_prob_matrix: [CHI_ROOT; 200] = [CHI_ROOT{prob: [0.; 33], pos_index: [0; 33],}; 200];
+pub static mut Chi_root_prob_matrix: [CHI_ROOT; 200] = [CHI_ROOT { prob: [0.; 33], pos_index: [0; 33] }; 200];
 #[no_mangle]
 pub static mut Chi_root: libc::c_int = 0;
 #[no_mangle]
@@ -214,7 +210,7 @@ pub static mut learned_all_arguments_weight: libc::c_double = 0.000000f64;
 #[no_mangle]
 pub static mut PrintNum: libc::c_int = 0;
 #[no_mangle]
-pub static mut VerboseLevel: types::VerboseType = VERBOSE0;
+pub static mut VerboseLevel: VerboseType = VERBOSE0;
 /* sentence id, only for Chinese */
 #[no_mangle]
 pub static mut sen_num: libc::c_int = 0;
@@ -223,12 +219,12 @@ pub static mut sen_num: libc::c_int = 0;
 pub static mut is_frag: libc::c_int = 0;
 /* DB file for Chinese dpnd rule */
 #[no_mangle]
-pub static mut chi_dpnd_db: tools::DBM_FILE = 0 as *const structs::CDB_FILE as *mut structs::CDB_FILE;
+pub static mut chi_dpnd_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
 pub static mut CHIDpndExist: libc::c_int = 0;
 /* Server Client Extention */
-static mut sfd: libc::c_int = 0;
-static mut fd: libc::c_int = 0;
+pub(crate) static mut sfd: libc::c_int = 0;
+pub(crate) static mut fd: libc::c_int = 0;
 #[no_mangle]
 pub static mut OptMode: libc::c_int = 0 as libc::c_int;
 #[no_mangle]
@@ -266,10 +262,12 @@ pub static mut ProgName: *mut libc::c_char =
 #[no_mangle]
 pub static mut CLASS_num: libc::c_int = 0;
 #[no_mangle]
-pub static mut timeout: types::jmp_buf =
-    [structs::__jmp_buf_tag{__jmpbuf: [0; 8],
+pub static mut timeout: jmp_buf =
+    [__jmp_buf_tag {
+        __jmpbuf: [0; 8],
         __mask_was_saved: 0,
-        __saved_mask: structs::__sigset_t{__val: [0; 16],},}; 1];
+        __saved_mask: __sigset_t { __val: [0; 16] },
+    }; 1];
 #[no_mangle]
 pub static mut ParseTimeout: libc::c_int = 180 as libc::c_int;
 #[no_mangle]
@@ -296,7 +294,7 @@ pub static mut Knpdict_Dirname: *mut libc::c_char = 0 as *const libc::c_char as 
 #[no_mangle]
 pub static mut KnpNE_Dirname: *mut libc::c_char = 0 as *const libc::c_char as *mut libc::c_char;
 #[no_mangle]
-pub static mut RULE: *mut types::RuleVector = 0 as *const types::RuleVector as *mut types::RuleVector;
+pub static mut RULE: *mut RuleVector = 0 as *const RuleVector as *mut RuleVector;
 #[no_mangle]
 pub static mut CurrentRuleNum: libc::c_int = 0 as libc::c_int;
 #[no_mangle]
@@ -306,9 +304,10 @@ pub static mut DICT: [*mut libc::c_char; 39] = [0 as *const libc::c_char as *mut
 #[no_mangle]
 pub static mut knp_dict_file_already_defined: libc::c_int = 0 as libc::c_int;
 #[no_mangle]
-pub static mut cky_matrix: [[*mut types::CKY; 200]; 200] = [[0 as *const types::CKY as *mut types::CKY; 200]; 200];
+pub static mut cky_matrix: [[*mut CKY; 200]; 200] = [[0 as *const CKY as *mut CKY; 200]; 200];
 #[no_mangle]
-pub static mut cky_table: [types::CKY; 1000000] = [types::CKY{i: 0,
+pub static mut cky_table: [CKY; 1000000] = [CKY {
+    i: 0,
     j: 0,
     cp: 0,
     score: 0.,
@@ -319,36 +318,37 @@ pub static mut cky_table: [types::CKY; 1000000] = [types::CKY{i: 0,
     dpnd_type: 0,
     direction: 0,
     index: 0,
-    b_ptr: 0 as *const types::BNST_DATA as *mut types::BNST_DATA,
+    b_ptr: 0 as *const BNST_DATA as *mut BNST_DATA,
     scase_check: [0; 11],
     un_count: 0,
-    cpm_ptr: 0 as *const types::CF_PRED_MGR as *mut types::CF_PRED_MGR,
-    left: 0 as *const structs::_CKY as *mut structs::_CKY,
-    right: 0 as *const structs::_CKY as *mut structs::_CKY,
-    next: 0 as *const structs::_CKY as *mut structs::_CKY,
+    cpm_ptr: 0 as *const CF_PRED_MGR as *mut CF_PRED_MGR,
+    left: 0 as *const _CKY as *mut _CKY,
+    right: 0 as *const _CKY as *mut _CKY,
+    next: 0 as *const _CKY as *mut _CKY,
     left_pos_index: 0,
-    right_pos_index: 0,}; 1000000];
+    right_pos_index: 0,
+}; 1000000];
 
 #[no_mangle]
-pub unsafe extern "C" fn malloc_data(mut size: types::size_t, mut comment: *mut libc::c_char) -> *mut libc::c_void {
+pub unsafe extern "C" fn malloc_data(mut size: size_t, mut comment: *mut libc::c_char) -> *mut libc::c_void {
     let mut p: *mut libc::c_void = 0 as *mut libc::c_void;
     p = malloc(size);
     if p.is_null() {
-        fprintf(ctools::stderr, b"Can\'t allocate memory for %s\n\x00" as *const u8 as *const libc::c_char, comment);
-        ctools::exit(-(1 as libc::c_int));
+        fprintf(stderr, b"Can\'t allocate memory for %s\n\x00" as *const u8 as *const libc::c_char, comment);
+        exit(-(1 as libc::c_int));
     }
     return p;
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn realloc_data(mut ptr: *mut libc::c_void, mut size: types::size_t,  mut comment: *mut libc::c_char) -> *mut libc::c_void {
+pub unsafe extern "C" fn realloc_data(mut ptr: *mut libc::c_void, mut size: size_t, mut comment: *mut libc::c_char) -> *mut libc::c_void {
     let mut p: *mut libc::c_void = 0 as *mut libc::c_void;
-    p = ctools::realloc(ptr, size);
+    p = realloc(ptr, size);
     if p.is_null() {
-        fprintf(ctools::stderr,
+        fprintf(stderr,
                 b"Can\'t allocate memory for %s\n\x00" as *const u8 as
                     *const libc::c_char, comment);
-        ctools::exit(-(1 as libc::c_int));
+        exit(-(1 as libc::c_int));
     }
     return p;
 }
@@ -357,7 +357,7 @@ pub unsafe extern "C" fn realloc_data(mut ptr: *mut libc::c_void, mut size: type
 pub unsafe extern "C" fn init_hash() {
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
-    srand(time(0 as *mut types::time_t) as libc::c_uint);
+    srand(time(0 as *mut time_t) as libc::c_uint);
     i = 0 as libc::c_int;
     while i < 32 as libc::c_int {
         j = 0 as libc::c_int;

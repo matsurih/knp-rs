@@ -1,23 +1,16 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-         non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
+//! 中国語類似度計算
 
+use libc;
+
+use crate::{atoi, ctools, fprintf, free, sprintf, strcmp, strlen};
 use crate::case_ipal::malloc_db_buf;
 use crate::configfile::open_dict;
-use crate::ctools;
-use crate::ctools::stderr;
+use crate::ctools::{stderr, strtok};
 use crate::db::db_get;
 use crate::structs::CDB_FILE;
 use crate::types::DBM_FILE;
 
-/*====================================================================
-
-                         中国語類似度計算
-
-                                                  KunYu  2007.01.22
-
-====================================================================*/
 #[no_mangle]
 pub static mut hownet_def_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
@@ -53,9 +46,9 @@ pub static mut concept_sem_w1: [*mut libc::c_char; 50] = [0 as *const libc::c_ch
 pub static mut concept_sem_w2: [*mut libc::c_char; 50] = [0 as *const libc::c_char as *mut libc::c_char; 50];
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_hownet() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_hownet()
+/*==================================================================*/
+{
     hownet_def_db =
         open_dict(27 as libc::c_int,
                   b"ebcf/hownet_def.db\x00" as *const u8 as
@@ -86,15 +79,15 @@ pub unsafe extern "C" fn init_hownet()
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_hownet_def(mut str: *mut libc::c_char)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                        -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
-    if HownetDefExist == 0 as libc::c_int { return 0 as *mut libc::c_char }
+    if HownetDefExist == 0 as libc::c_int { return 0 as *mut libc::c_char; }
     key =
         malloc_db_buf(strlen(str).wrapping_add(1 as libc::c_int as
-                                                   libc::c_ulong) as
-                          libc::c_int);
+            libc::c_ulong) as
+            libc::c_int);
     sprintf(key, b"%s\x00" as *const u8 as *const libc::c_char, str);
     return db_get(hownet_def_db, key);
 }
@@ -102,15 +95,15 @@ pub unsafe extern "C" fn get_hownet_def(mut str: *mut libc::c_char)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_hownet_tran(mut str: *mut libc::c_char)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
+                                         -> *mut libc::c_char
+/*==================================================================*/
+{
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
-    if HownetTranExist == 0 as libc::c_int { return 0 as *mut libc::c_char }
+    if HownetTranExist == 0 as libc::c_int { return 0 as *mut libc::c_char; }
     key =
         malloc_db_buf(strlen(str).wrapping_add(1 as libc::c_int as
-                                                   libc::c_ulong) as
-                          libc::c_int);
+            libc::c_ulong) as
+            libc::c_int);
     sprintf(key, b"%s\x00" as *const u8 as *const libc::c_char, str);
     return db_get(hownet_tran_db, key);
 }
@@ -119,22 +112,22 @@ pub unsafe extern "C" fn get_hownet_tran(mut str: *mut libc::c_char)
 #[no_mangle]
 pub unsafe extern "C" fn get_hownet_antonym(mut str1: *mut libc::c_char,
                                             mut str2: *mut libc::c_char)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                            -> libc::c_int
+/*==================================================================*/
+{
     let mut key1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut key2: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value2: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_int = 0;
-    if HownetAntonymExist == 0 as libc::c_int { return 0 as libc::c_int }
+    if HownetAntonymExist == 0 as libc::c_int { return 0 as libc::c_int; }
     key1 =
         malloc_db_buf(strlen(str1).wrapping_add(strlen(str2)).wrapping_add(2
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               libc::c_ulong)
-                          as libc::c_int);
+            as
+            libc::c_int
+            as
+            libc::c_ulong)
+            as libc::c_int);
     sprintf(key1, b"%s:%s\x00" as *const u8 as *const libc::c_char, str1,
             str2);
     value1 = db_get(hownet_antonym_db, key1);
@@ -144,11 +137,11 @@ pub unsafe extern "C" fn get_hownet_antonym(mut str1: *mut libc::c_char,
     } else {
         key2 =
             malloc_db_buf(strlen(str1).wrapping_add(strlen(str2)).wrapping_add(2
-                                                                                   as
-                                                                                   libc::c_int
-                                                                                   as
-                                                                                   libc::c_ulong)
-                              as libc::c_int);
+                as
+                libc::c_int
+                as
+                libc::c_ulong)
+                as libc::c_int);
         sprintf(key2, b"%s:%s\x00" as *const u8 as *const libc::c_char, str2,
                 str1);
         value2 = db_get(hownet_antonym_db, key2);
@@ -163,22 +156,22 @@ pub unsafe extern "C" fn get_hownet_antonym(mut str1: *mut libc::c_char,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_hownet_sem_def(mut key: *mut libc::c_char)
- -> *mut libc::c_char 
- /*==================================================================*/
- {
-    if HownetSemDefExist == 0 as libc::c_int { return 0 as *mut libc::c_char }
+                                            -> *mut libc::c_char
+/*==================================================================*/
+{
+    if HownetSemDefExist == 0 as libc::c_int { return 0 as *mut libc::c_char; }
     return db_get(hownet_sem_def_db, key);
 }
 /* get hownet category for word */
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn get_hownet_category(mut key: *mut libc::c_char)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                             -> libc::c_int
+/*==================================================================*/
+{
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_int = 0;
-    if HownetCategoryExist == 0 as libc::c_int { return 0 as libc::c_int }
+    if HownetCategoryExist == 0 as libc::c_int { return 0 as libc::c_int; }
     value = db_get(hownet_category_db, key);
     if !value.is_null() {
         ret = atoi(value);
@@ -191,9 +184,9 @@ pub unsafe extern "C" fn get_hownet_category(mut key: *mut libc::c_char)
 #[no_mangle]
 pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
                                             mut str2: *mut libc::c_char)
- -> libc::c_float 
- /*==================================================================*/
- {
+                                            -> libc::c_float
+/*==================================================================*/
+{
     let mut sim: libc::c_float = 0.;
     let mut p1: libc::c_float = 0.;
     let mut p2: libc::c_float = 0.;
@@ -261,8 +254,8 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
     trans_w1 = get_hownet_tran(str1);
     trans_w2 = get_hownet_tran(str2);
     if def_w1.is_null() || def_w2.is_null() || trans_w1.is_null() ||
-           trans_w2.is_null() {
-        return 0.0f64 as libc::c_float
+        trans_w2.is_null() {
+        return 0.0f64 as libc::c_float;
         /* memory leak? */
     }
     i = 0 as libc::c_int;
@@ -270,20 +263,20 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
         tran_w1[0 as libc::c_int as usize] = 0 as *mut libc::c_char;
         tran_w1[0 as libc::c_int as usize] =
             strtok(trans_w1, b":\x00" as *const u8 as *const libc::c_char);
-        loop  {
+        loop {
             i += 1;
             if i == 100 as libc::c_int {
                 fprintf(stderr,
                         b"Too many translations for one word\x00" as *const u8
                             as *const libc::c_char);
-                return 0 as libc::c_int as libc::c_float
+                return 0 as libc::c_int as libc::c_float;
                 /* memory leak? */
             }
             tran_w1[i as usize] = 0 as *mut libc::c_char;
             tran_w1[i as usize] =
                 strtok(0 as *mut libc::c_char,
                        b":\x00" as *const u8 as *const libc::c_char);
-            if tran_w1[i as usize].is_null() { break ; }
+            if tran_w1[i as usize].is_null() { break; }
         }
     }
     tran_num_w1 = i;
@@ -292,20 +285,20 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
         tran_w2[0 as libc::c_int as usize] = 0 as *mut libc::c_char;
         tran_w2[0 as libc::c_int as usize] =
             strtok(trans_w2, b":\x00" as *const u8 as *const libc::c_char);
-        loop  {
+        loop {
             i += 1;
             if i == 100 as libc::c_int {
                 fprintf(stderr,
                         b"Too many translations for one word\x00" as *const u8
                             as *const libc::c_char);
-                return 0 as libc::c_int as libc::c_float
+                return 0 as libc::c_int as libc::c_float;
                 /* memory leak? */
             }
             tran_w2[i as usize] = 0 as *mut libc::c_char;
             tran_w2[i as usize] =
                 strtok(0 as *mut libc::c_char,
                        b":\x00" as *const u8 as *const libc::c_char);
-            if tran_w2[i as usize].is_null() { break ; }
+            if tran_w2[i as usize].is_null() { break; }
         }
     }
     tran_num_w2 = i;
@@ -314,20 +307,20 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
         concept_w1[0 as libc::c_int as usize] = 0 as *mut libc::c_char;
         concept_w1[0 as libc::c_int as usize] =
             strtok(def_w1, b":\x00" as *const u8 as *const libc::c_char);
-        loop  {
+        loop {
             i += 1;
             if i == 50 as libc::c_int {
                 fprintf(stderr,
                         b"Too many concept definitions for one word\x00" as
                             *const u8 as *const libc::c_char);
-                return 0 as libc::c_int as libc::c_float
+                return 0 as libc::c_int as libc::c_float;
                 /* memory leak? */
             }
             concept_w1[i as usize] = 0 as *mut libc::c_char;
             concept_w1[i as usize] =
                 strtok(0 as *mut libc::c_char,
                        b":\x00" as *const u8 as *const libc::c_char);
-            if concept_w1[i as usize].is_null() { break ; }
+            if concept_w1[i as usize].is_null() { break; }
         }
     }
     concept_num_w1 = i;
@@ -336,20 +329,20 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
         concept_w2[0 as libc::c_int as usize] = 0 as *mut libc::c_char;
         concept_w2[0 as libc::c_int as usize] =
             strtok(def_w2, b":\x00" as *const u8 as *const libc::c_char);
-        loop  {
+        loop {
             i += 1;
             if i == 50 as libc::c_int {
                 fprintf(stderr,
                         b"Too many concept definitions for one word\x00" as
                             *const u8 as *const libc::c_char);
-                return 0 as libc::c_int as libc::c_float
+                return 0 as libc::c_int as libc::c_float;
                 /* memory leak? */
             }
             concept_w2[i as usize] = 0 as *mut libc::c_char;
             concept_w2[i as usize] =
                 strtok(0 as *mut libc::c_char,
                        b":\x00" as *const u8 as *const libc::c_char);
-            if concept_w2[i as usize].is_null() { break ; }
+            if concept_w2[i as usize].is_null() { break; }
         }
     }
     concept_num_w2 = i;
@@ -361,20 +354,20 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
         concept_sem_w1[0 as libc::c_int as usize] = 0 as *mut libc::c_char;
         concept_sem_w1[0 as libc::c_int as usize] =
             strtok(def_sem_w1, b":\x00" as *const u8 as *const libc::c_char);
-        loop  {
+        loop {
             i += 1;
             if i == 50 as libc::c_int {
                 fprintf(stderr,
                         b"Too many concept definitions for one sememe\x00" as
                             *const u8 as *const libc::c_char);
-                return 0 as libc::c_int as libc::c_float
+                return 0 as libc::c_int as libc::c_float;
                 /* memory leak? */
             }
             concept_sem_w1[i as usize] = 0 as *mut libc::c_char;
             concept_sem_w1[i as usize] =
                 strtok(0 as *mut libc::c_char,
                        b":\x00" as *const u8 as *const libc::c_char);
-            if concept_sem_w1[i as usize].is_null() { break ; }
+            if concept_sem_w1[i as usize].is_null() { break; }
         }
     }
     concept_sem_num_w1 = i;
@@ -383,20 +376,20 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
         concept_sem_w2[0 as libc::c_int as usize] = 0 as *mut libc::c_char;
         concept_sem_w2[0 as libc::c_int as usize] =
             strtok(def_sem_w2, b":\x00" as *const u8 as *const libc::c_char);
-        loop  {
+        loop {
             i += 1;
             if i == 50 as libc::c_int {
                 fprintf(stderr,
                         b"Too many concept definitions for one sememe\x00" as
                             *const u8 as *const libc::c_char);
-                return 0 as libc::c_int as libc::c_float
+                return 0 as libc::c_int as libc::c_float;
                 /* memory leak? */
             }
             concept_sem_w2[i as usize] = 0 as *mut libc::c_char;
             concept_sem_w2[i as usize] =
                 strtok(0 as *mut libc::c_char,
                        b":\x00" as *const u8 as *const libc::c_char);
-            if concept_sem_w2[i as usize].is_null() { break ; }
+            if concept_sem_w2[i as usize].is_null() { break; }
         }
     }
     concept_sem_num_w2 = i;
@@ -406,50 +399,56 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
     }
     i = 0 as libc::c_int;
     while i < tran_num_w1 {
-        if is_sim == 0 { break ; }
+        if is_sim == 0 { break; }
         j = 0 as libc::c_int;
         while j < tran_num_w2 {
             if !tran_w1[i as usize].is_null() &&
-                   !tran_w2[j as usize].is_null() &&
-                   strcmp(tran_w1[i as usize], tran_w2[j as usize]) == 0 {
+                !tran_w2[j as usize].is_null() &&
+                strcmp(tran_w1[i as usize], tran_w2[j as usize]) == 0 {
                 j += 1
-            } else { is_sim = 0 as libc::c_int; break ; }
+            } else {
+                is_sim = 0 as libc::c_int;
+                break;
+            }
         }
         i += 1
     }
     if is_sim != 0 {
         sim = 1.0f64 as libc::c_float;
-        return sim
+        return sim;
         /* memory leak? */
     }
     /* step 2 */
     if concept_num_w1 > 0 as libc::c_int && concept_num_w2 > 0 as libc::c_int
-       {
+    {
         is_sim = 1 as libc::c_int
     }
     i = 0 as libc::c_int;
     while i < concept_num_w1 {
-        if is_sim == 0 { break ; }
+        if is_sim == 0 { break; }
         j = 0 as libc::c_int;
         while j < concept_num_w2 {
             if !concept_w1[i as usize].is_null() &&
-                   !concept_w2[j as usize].is_null() &&
-                   strcmp(concept_w1[i as usize], concept_w2[j as usize]) == 0
-               {
+                !concept_w2[j as usize].is_null() &&
+                strcmp(concept_w1[i as usize], concept_w2[j as usize]) == 0
+            {
                 j += 1
-            } else { is_sim = 0 as libc::c_int; break ; }
+            } else {
+                is_sim = 0 as libc::c_int;
+                break;
+            }
         }
         i += 1
     }
     if is_sim != 0 {
         sim = 0.95f64 as libc::c_float;
-        return sim
+        return sim;
         /* memory leak? */
     }
     /* step 3 */
     if get_hownet_antonym(str1, str2) != 0 {
         sim = 1.0f64 as libc::c_float;
-        return sim
+        return sim;
         /* memory leak? */
     }
     /* step 5 */
@@ -457,36 +456,36 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
     is_include = 0 as libc::c_int;
     i = 0 as libc::c_int;
     while i <
-              (if concept_num_w1 < concept_num_w2 {
-                   concept_num_w1
-               } else { concept_num_w2 }) {
+        (if concept_num_w1 < concept_num_w2 {
+            concept_num_w1
+        } else { concept_num_w2 }) {
         j = 0 as libc::c_int;
         while j <
-                  (if concept_num_w1 < concept_num_w2 {
-                       concept_num_w2
-                   } else { concept_num_w1 }) {
+            (if concept_num_w1 < concept_num_w2 {
+                concept_num_w2
+            } else { concept_num_w1 }) {
             if !concept_w1[(if concept_num_w1 < concept_num_w2 {
-                                i
-                            } else { j }) as usize].is_null() &&
-                   !concept_w2[(if concept_num_w1 < concept_num_w2 {
-                                    j
-                                } else { i }) as usize].is_null() &&
-                   strcmp(concept_w1[(if concept_num_w1 < concept_num_w2 {
-                                          i
-                                      } else { j }) as usize],
-                          concept_w2[(if concept_num_w1 < concept_num_w2 {
-                                          j
-                                      } else { i }) as usize]) == 0 {
+                i
+            } else { j }) as usize].is_null() &&
+                !concept_w2[(if concept_num_w1 < concept_num_w2 {
+                    j
+                } else { i }) as usize].is_null() &&
+                strcmp(concept_w1[(if concept_num_w1 < concept_num_w2 {
+                    i
+                } else { j }) as usize],
+                       concept_w2[(if concept_num_w1 < concept_num_w2 {
+                           j
+                       } else { i }) as usize]) == 0 {
                 is_include += 1;
-                break ;
+                break;
             } else { j += 1 }
         }
         i += 1
     }
     if is_include ==
-           (if concept_num_w1 < concept_num_w2 {
-                concept_num_w1
-            } else { concept_num_w2 }) {
+        (if concept_num_w1 < concept_num_w2 {
+            concept_num_w1
+        } else { concept_num_w2 }) {
         p1 = 1.0f64 as libc::c_float
     }
     /* step 5.2 */
@@ -496,32 +495,32 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
         } else { concept_num_w2 };
     i = 0 as libc::c_int;
     while i <
-              (if concept_num_w1 < concept_num_w2 {
-                   concept_num_w1
-               } else { concept_num_w2 }) {
+        (if concept_num_w1 < concept_num_w2 {
+            concept_num_w1
+        } else { concept_num_w2 }) {
         if !concept_w1[i as usize].is_null() &&
-               !concept_w2[j as usize].is_null() &&
-               strcmp(concept_w1[i as usize], concept_w2[i as usize]) !=
-                   0 as libc::c_int {
+            !concept_w2[j as usize].is_null() &&
+            strcmp(concept_w1[i as usize], concept_w2[i as usize]) !=
+                0 as libc::c_int {
             diff = i;
-            break ;
+            break;
         } else { i += 1 }
     }
     if diff > 0 as libc::c_int {
         dis =
             get_hownet_category(concept_w1[(diff - 1 as libc::c_int) as
-                                               usize]) as libc::c_float
+                usize]) as libc::c_float
     }
     if dis > 0 as libc::c_int as libc::c_float {
         p2 =
             (1.0f64 * alpha as libc::c_double /
-                 (dis + alpha) as libc::c_double) as libc::c_float
+                (dis + alpha) as libc::c_double) as libc::c_float
     }
     /* step 5.3 */
     if is_include ==
-           (if concept_num_w1 < concept_num_w2 {
-                concept_num_w1
-            } else { concept_num_w2 }) {
+        (if concept_num_w1 < concept_num_w2 {
+            concept_num_w1
+        } else { concept_num_w2 }) {
         ns = is_include
     } else {
         i = 0 as libc::c_int;
@@ -529,9 +528,9 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
             j = 0 as libc::c_int;
             while j < concept_num_w2 {
                 if !concept_w1[i as usize].is_null() &&
-                       !concept_w2[j as usize].is_null() &&
-                       strcmp(concept_w1[i as usize], concept_w2[j as usize])
-                           == 0 {
+                    !concept_w2[j as usize].is_null() &&
+                    strcmp(concept_w1[i as usize], concept_w2[j as usize])
+                        == 0 {
                     ns += 1
                 }
                 j += 1
@@ -552,9 +551,9 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
         j = 0 as libc::c_int;
         while j < concept_sem_num_w2 {
             if !concept_sem_w1[i as usize].is_null() &&
-                   !concept_sem_w2[j as usize].is_null() &&
-                   strcmp(concept_sem_w1[i as usize],
-                          concept_sem_w2[j as usize]) == 0 {
+                !concept_sem_w2[j as usize].is_null() &&
+                strcmp(concept_sem_w1[i as usize],
+                       concept_sem_w2[j as usize]) == 0 {
                 ns_sem += 1
             }
             j += 1
@@ -566,7 +565,7 @@ pub unsafe extern "C" fn similarity_chinese(mut str1: *mut libc::c_char,
     if nc1_sem != 0 as libc::c_int || nc2_sem != 0 as libc::c_int {
         p4 =
             (2.0f64 * ns_sem as libc::c_double /
-                 (nc1_sem + nc2_sem) as libc::c_double) as libc::c_float
+                (nc1_sem + nc2_sem) as libc::c_double) as libc::c_float
     } else { p4 = 0.0f64 as libc::c_float }
     /* step 5.5 */
     sim = p1 * beta1 + p2 * beta2 + p3 * beta3 + p4 * beta4;

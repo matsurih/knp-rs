@@ -1,17 +1,14 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types,
-ptr_wrapping_offset_from, register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
 
-use crate::{case_match, db, dic, tools, types};
+use libc;
+use crate::{_FEATURE, BNST_DATA, case_match, Class, FEATURE, fprintf, fputs, free, MRPH_DATA, sprintf, sscanf, strcat, strchr, strcmp, strcpy, strlen, strncmp, strstr, TAG_DATA, tnode_b};
 use crate::case_ipal::rep2id;
-use crate::ctools::{assign_cfeature, check_dict_filename, check_feature, get_mrph_rep_from_f, Language, malloc_data, Outfp, stderr};
+use crate::ctools::{assign_cfeature, calc_distsim, check_dict_filename, check_feature, db_close, get_mrph_rep_from_f, Language, malloc_data, Outfp, stderr, strncat, strncpy, THESAURUS, Type};
 use crate::db::{db_get, db_read_open};
 use crate::lib_bgh::{_get_bgh, bgh_code_match_for_case, close_bgh, init_bgh};
 use crate::lib_sm::{_get_ntt, check_noun_sm, close_ntt, delete_specified_sm, init_ntt, ntt_code_match};
 use crate::read_data::{get_bnst_head_canonical_rep, get_mrph_rep};
-use crate::tools::{katakana2hiragana, OptCaseFlag, OptDisplay, OptUseRN, ParaThesaurus, static_buffer1, static_buffer2, Thesaurus};
+use crate::tools::{katakana2hiragana, OptCaseFlag, OptDisplay, OptUseRN, ParaThesaurus, sm2code_db, static_buffer1, static_buffer2, Thesaurus};
 use crate::types::THESAURUS_FILE;
 
 
@@ -89,7 +86,7 @@ pub unsafe extern "C" fn close_thesaurus() {
     i = 0 as libc::c_int;
     while i < 3 as libc::c_int {
         if !(i == 1 as libc::c_int || i == 2 as libc::c_int || (*THESAURUS.as_mut_ptr().offset(i as isize)).exist == 0 as libc::c_int) {
-            db::db_close((*THESAURUS.as_mut_ptr().offset(i as isize)).db);
+            db_close((*THESAURUS.as_mut_ptr().offset(i as isize)).db);
         }
         i += 1
     };
@@ -184,7 +181,7 @@ pub unsafe extern "C" fn overflowed_function(mut str: *mut libc::c_char,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn get_bnst_code_all(mut ptr: *mut tools::BNST_DATA)
+pub unsafe extern "C" fn get_bnst_code_all(mut ptr: *mut BNST_DATA)
 /*==================================================================*/
 {
     let mut i: libc::c_int = 0;
@@ -196,7 +193,7 @@ pub unsafe extern "C" fn get_bnst_code_all(mut ptr: *mut tools::BNST_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn add_rep_str(mut ptr: *mut tools::MRPH_DATA,
+pub unsafe extern "C" fn add_rep_str(mut ptr: *mut MRPH_DATA,
                                      mut str_buffer: *mut libc::c_char,
                                      mut org_flag: libc::c_int,
                                      mut flag: libc::c_int) -> libc::c_int
@@ -286,7 +283,7 @@ pub unsafe extern "C" fn bgh_code_match_for_sm(mut result_code:
 {
     let mut i: libc::c_int = 0;
     let mut code: *mut libc::c_char = 0 as *mut libc::c_char;
-    code = db_get(tools::sm2code_db, sm);
+    code = db_get(sm2code_db, sm);
     if !code.is_null() {
         i = 0 as libc::c_int;
         while *code.offset(i as isize) != 0 {
@@ -307,7 +304,7 @@ pub unsafe extern "C" fn bgh_code_match_for_sm(mut result_code:
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn make_key_and_get_code(mut ptr: *mut tools::BNST_DATA,
+pub unsafe extern "C" fn make_key_and_get_code(mut ptr: *mut BNST_DATA,
                                                mut strt: libc::c_int,
                                                mut end: libc::c_int,
                                                mut str_buffer: *mut libc::c_char,
@@ -315,14 +312,14 @@ pub unsafe extern "C" fn make_key_and_get_code(mut ptr: *mut tools::BNST_DATA,
                                                mut used_key: *mut libc::c_char,
                                                mut flag: libc::c_int)
 {
-    let mut fpp: *mut *mut tools::FEATURE =
+    let mut fpp: *mut *mut FEATURE =
         &mut (*(*ptr).mrph_ptr.offset(end as isize)).f;
-    let mut m: dic::MRPH_DATA =
-        dic::MRPH_DATA {
+    let mut m: MRPH_DATA =
+        MRPH_DATA {
             type_0: 0,
             num: 0,
-            parent: 0 as *mut tools::tnode_b,
-            child: [0 as *mut tools::tnode_b; 32],
+            parent: 0 as *mut tnode_b,
+            child: [0 as *mut tnode_b; 32],
             length: 0,
             space: 0,
             dpnd_head: 0,
@@ -344,7 +341,7 @@ pub unsafe extern "C" fn make_key_and_get_code(mut ptr: *mut tools::BNST_DATA,
             Katuyou_Kata: 0,
             Katuyou_Kei: 0,
             Imi: [0; 1024],
-            f: 0 as *mut tools::_FEATURE,
+            f: 0 as *mut _FEATURE,
             Num: 0,
             SM: 0 as *mut libc::c_char,
             Pos: [0; 4],
@@ -506,7 +503,7 @@ pub unsafe extern "C" fn make_key_and_get_code(mut ptr: *mut tools::BNST_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn get_bnst_code(mut ptr: *mut types::BNST_DATA, mut flag: libc::c_int)
+pub unsafe extern "C" fn get_bnst_code(mut ptr: *mut BNST_DATA, mut flag: libc::c_int)
 /*==================================================================*/
 {
     /* 文節の意味素コードを取得
@@ -580,7 +577,7 @@ pub unsafe extern "C" fn get_bnst_code(mut ptr: *mut types::BNST_DATA, mut flag:
         lookup_pos = 8 as libc::c_int;
         strt = end
     } else if (*ptr).type_0 == 2 as libc::c_int {
-        strt = (*(ptr as *mut types::TAG_DATA)).settou_num
+        strt = (*(ptr as *mut TAG_DATA)).settou_num
     } else { strt = 0 as libc::c_int }
     /* もっとも長いものから順に試す */
     while strt <= end {
@@ -952,7 +949,7 @@ pub unsafe extern "C" fn calc_sm_words_similarity(mut smd: *mut libc::c_char,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn calc_distsim_from_bnst(mut ptr1: *mut types::BNST_DATA, mut ptr2: *mut types::BNST_DATA)
+pub unsafe extern "C" fn calc_distsim_from_bnst(mut ptr1: *mut BNST_DATA, mut ptr2: *mut BNST_DATA)
                                                 -> libc::c_int
 /*==================================================================*/
 {

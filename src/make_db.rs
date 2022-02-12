@@ -1,22 +1,23 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, main, ptr_wrapping_offset_from, register_tool)]
 
+use libc;
 
-use crate::ctools::{exit, realloc, stderr, stdin};
+use crate::{fgets, fprintf, free, sscanf, strcat, strchr, strcmp, strcpy, strdup, strlen};
+use crate::ctools::{exit, fputc, malloc, realloc, stderr, stdin};
 use crate::db::{db_close, db_put, db_write_open};
 use crate::structs::CDB_FILE;
 use crate::types::DBM_FILE;
 
 #[no_mangle]
 pub static mut OptEncoding: libc::c_int = 0;
+
 #[no_mangle]
 pub unsafe extern "C" fn content_process(mut content: *mut libc::c_char,
                                          mut pre_content: *mut *mut libc::c_char,
                                          mut pre_content_size: *mut libc::c_int,
                                          mut Type: libc::c_int,
                                          mut Separator: *mut libc::c_char)
- -> libc::c_int {
+                                         -> libc::c_int {
     let mut content_len: libc::c_int = strlen(content) as libc::c_int;
     if Type == 2 as libc::c_int {
         if *pre_content_size == 0 as libc::c_int {
@@ -74,8 +75,9 @@ pub unsafe extern "C" fn content_process(mut content: *mut libc::c_char,
     }
     panic!("Reached end of non-void function without returning");
 }
+
 unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
- -> libc::c_int {
+                 -> libc::c_int {
     let mut db: DBM_FILE = 0 as *mut CDB_FILE;
     let mut Type: libc::c_int = 0;
     let mut num: libc::c_int = 0;
@@ -92,29 +94,29 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
     if argc == 2 as libc::c_int {
         Type = 1 as libc::c_int
     } else if argc == 3 as libc::c_int &&
-                  strcmp(*argv.offset(2 as libc::c_int as isize),
-                         b"-append\x00" as *const u8 as *const libc::c_char)
-                      == 0 {
+        strcmp(*argv.offset(2 as libc::c_int as isize),
+               b"-append\x00" as *const u8 as *const libc::c_char)
+            == 0 {
         Type = 1 as libc::c_int
     } else if argc == 4 as libc::c_int &&
-                  strcmp(*argv.offset(2 as libc::c_int as isize),
-                         b"-append\x00" as *const u8 as *const libc::c_char)
-                      == 0 {
+        strcmp(*argv.offset(2 as libc::c_int as isize),
+               b"-append\x00" as *const u8 as *const libc::c_char)
+            == 0 {
         Type = 1 as libc::c_int;
         Separator = strdup(*argv.offset(3 as libc::c_int as isize))
     } else if argc == 3 as libc::c_int &&
-                  strcmp(*argv.offset(2 as libc::c_int as isize),
-                         b"-and\x00" as *const u8 as *const libc::c_char) == 0
-     {
+        strcmp(*argv.offset(2 as libc::c_int as isize),
+               b"-and\x00" as *const u8 as *const libc::c_char) == 0
+    {
         Type = 3 as libc::c_int
     } else if argc == 3 as libc::c_int &&
-                  strcmp(*argv.offset(2 as libc::c_int as isize),
-                         b"-or\x00" as *const u8 as *const libc::c_char) == 0
-     {
+        strcmp(*argv.offset(2 as libc::c_int as isize),
+               b"-or\x00" as *const u8 as *const libc::c_char) == 0
+    {
         Type = 4 as libc::c_int
     } else if argc == 3 as libc::c_int &&
-                  strcmp(*argv.offset(2 as libc::c_int as isize),
-                         b"-z\x00" as *const u8 as *const libc::c_char) == 0 {
+        strcmp(*argv.offset(2 as libc::c_int as isize),
+               b"-z\x00" as *const u8 as *const libc::c_char) == 0 {
         Type = 5 as libc::c_int
     } else {
         fprintf(stderr,
@@ -135,7 +137,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
     while !fgets(buffer, 6553600 as libc::c_int, stdin).is_null() {
         /* 行の長さチェック */
         if *buffer.offset((6553600 as libc::c_int - 1 as libc::c_int) as
-                              isize) as libc::c_int != '\n' as i32 {
+            isize) as libc::c_int != '\n' as i32 {
             fprintf(stderr,
                     b"Line %d is larger than %d bytes.\n\x00" as *const u8 as
                         *const libc::c_char, num, 6553600 as libc::c_int);
@@ -146,7 +148,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
         cp = strchr(buffer, ' ' as i32);
         if !cp.is_null() {
             if cp.wrapping_offset_from(buffer) as libc::c_long >=
-                   2048 as libc::c_int as libc::c_long {
+                2048 as libc::c_int as libc::c_long {
                 fprintf(stderr,
                         b"Key is too long (in %s).\n\x00" as *const u8 as
                             *const libc::c_char, buffer);
@@ -202,6 +204,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char)
     free(content as *mut libc::c_void);
     return 0 as libc::c_int;
 }
+
 #[main]
 pub fn main() {
     let mut args: Vec<*mut libc::c_char> = Vec::new();

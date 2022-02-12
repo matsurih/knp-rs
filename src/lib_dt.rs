@@ -1,12 +1,11 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
+use libc;
 
-use crate::ctools::{exit, malloc_data, stderr};
-use crate::structs::{_dtcond, CDB_FILE, DT};
+use crate::{fclose, fgets, fopen, fprintf, sscanf, strcmp, strncmp};
+use crate::ctools::{exit, malloc, malloc_data, stderr, strtok};
+use crate::structs::{_dtcond, CDB_FILE, DT, DTRULE};
 use crate::types::{DBM_FILE, DTCOND, FILE};
-
 
 #[no_mangle]
 pub static mut sm_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
@@ -26,17 +25,17 @@ pub static mut DTrule: [*mut DT; 44] = [0 as *const DT as *mut DT; 44];
 #[no_mangle]
 pub unsafe extern "C" fn trans_eq(mut eq: *mut libc::c_char) -> libc::c_int {
     if strcmp(eq, b"eq\x00" as *const u8 as *const libc::c_char) == 0 {
-        return 1 as libc::c_int
+        return 1 as libc::c_int;
     } else if strcmp(eq, b"ne\x00" as *const u8 as *const libc::c_char) == 0 {
-        return 2 as libc::c_int
+        return 2 as libc::c_int;
     } else if strcmp(eq, b"gt\x00" as *const u8 as *const libc::c_char) == 0 {
-        return 3 as libc::c_int
+        return 3 as libc::c_int;
     } else if strcmp(eq, b"ge\x00" as *const u8 as *const libc::c_char) == 0 {
-        return 4 as libc::c_int
+        return 4 as libc::c_int;
     } else if strcmp(eq, b"lt\x00" as *const u8 as *const libc::c_char) == 0 {
-        return 5 as libc::c_int
+        return 5 as libc::c_int;
     } else if strcmp(eq, b"le\x00" as *const u8 as *const libc::c_char) == 0 {
-        return 6 as libc::c_int
+        return 6 as libc::c_int;
     } else {
         fprintf(stderr, b";; Invalid DT equal (%s)\n\x00" as *const u8 as *const libc::c_char, eq);
         exit(1 as libc::c_int);
@@ -45,9 +44,9 @@ pub unsafe extern "C" fn trans_eq(mut eq: *mut libc::c_char) -> libc::c_int {
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn read_svm_str(mut buf: *mut libc::c_char,
-                                      mut rule: *mut DTRULE) -> libc::c_int 
- /*==================================================================*/
- {
+                                      mut rule: *mut DTRULE) -> libc::c_int
+/*==================================================================*/
+{
     let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut nc: *mut *mut DTCOND = 0 as *mut *mut DTCOND;
     nc = &mut (*rule).cond;
@@ -71,9 +70,9 @@ pub unsafe extern "C" fn read_svm_str(mut buf: *mut libc::c_char,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn read_dt_str(mut buf: *mut libc::c_char,
-                                     mut rule: *mut DTRULE) -> libc::c_int 
- /*==================================================================*/
- {
+                                     mut rule: *mut DTRULE) -> libc::c_int
+/*==================================================================*/
+{
     let mut class: [libc::c_char; 3] = [0; 3];
     let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut eq: [libc::c_char; 3] = [0; 3];
@@ -83,7 +82,7 @@ pub unsafe extern "C" fn read_dt_str(mut buf: *mut libc::c_char,
     if strncmp(class.as_mut_ptr(),
                b"OK\x00" as *const u8 as *const libc::c_char,
                2 as libc::c_int as libc::c_ulong) != 0 {
-        return 1 as libc::c_int
+        return 1 as libc::c_int;
     } else { (*rule).class = 1 as libc::c_int }
     nc = &mut (*rule).cond;
     token = strtok(buf, b" \x00" as *const u8 as *const libc::c_char);
@@ -107,9 +106,9 @@ pub unsafe extern "C" fn read_dt_str(mut buf: *mut libc::c_char,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn read_dt_file(mut dt: *mut DT,
-                                      mut filename: *mut libc::c_char) 
- /*==================================================================*/
- {
+                                      mut filename: *mut libc::c_char)
+/*==================================================================*/
+{
     let mut fp: *mut FILE = 0 as *mut FILE;
     let mut buf: [libc::c_char; 5120] = [0; 5120];
     (*dt).ContextRuleNum = 0 as libc::c_int;
@@ -130,9 +129,9 @@ pub unsafe extern "C" fn read_dt_file(mut dt: *mut DT,
     while !fgets(buf.as_mut_ptr(), 5120 as libc::c_int, fp).is_null() {
         if read_dt_str(buf.as_mut_ptr(),
                        &mut *(*dt).ContextRules.as_mut_ptr().offset((*dt).ContextRuleNum
-                                                                        as
-                                                                        isize))
-               == 0 as libc::c_int {
+                           as
+                           isize))
+            == 0 as libc::c_int {
             (*dt).ContextRuleNum += 1
         }
     }
@@ -143,38 +142,38 @@ pub unsafe extern "C" fn read_dt_file(mut dt: *mut DT,
 pub unsafe extern "C" fn dt_comp_elem(mut r: libc::c_float,
                                       mut d: libc::c_float,
                                       mut eq: libc::c_int,
-                                      mut flag: libc::c_int) -> libc::c_int 
- /*==================================================================*/
- {
+                                      mut flag: libc::c_int) -> libc::c_int
+/*==================================================================*/
+{
     /* flagがたっていれば、floatのまま評価する */
     if flag != 0 {
         if eq == 1 as libc::c_int {
-            return if d == r { 1 as libc::c_int } else { 0 as libc::c_int }
+            return if d == r { 1 as libc::c_int } else { 0 as libc::c_int };
         } else {
             if eq == 2 as libc::c_int {
                 return if d != r {
-                           1 as libc::c_int
-                       } else { 0 as libc::c_int }
+                    1 as libc::c_int
+                } else { 0 as libc::c_int };
             } else {
                 if eq == 3 as libc::c_int {
                     return if d > r {
-                               1 as libc::c_int
-                           } else { 0 as libc::c_int }
+                        1 as libc::c_int
+                    } else { 0 as libc::c_int };
                 } else {
                     if eq == 4 as libc::c_int {
                         return if d >= r {
-                                   1 as libc::c_int
-                               } else { 0 as libc::c_int }
+                            1 as libc::c_int
+                        } else { 0 as libc::c_int };
                     } else {
                         if eq == 5 as libc::c_int {
                             return if d < r {
-                                       1 as libc::c_int
-                                   } else { 0 as libc::c_int }
+                                1 as libc::c_int
+                            } else { 0 as libc::c_int };
                         } else {
                             if eq == 6 as libc::c_int {
                                 return if d <= r {
-                                           1 as libc::c_int
-                                       } else { 0 as libc::c_int }
+                                    1 as libc::c_int
+                                } else { 0 as libc::c_int };
                             }
                         }
                     }
@@ -184,33 +183,33 @@ pub unsafe extern "C" fn dt_comp_elem(mut r: libc::c_float,
     }
     if eq == 1 as libc::c_int {
         return if d as libc::c_int == r as libc::c_int {
-                   1 as libc::c_int
-               } else { 0 as libc::c_int }
+            1 as libc::c_int
+        } else { 0 as libc::c_int };
     } else {
         if eq == 2 as libc::c_int {
             return if d as libc::c_int != r as libc::c_int {
-                       1 as libc::c_int
-                   } else { 0 as libc::c_int }
+                1 as libc::c_int
+            } else { 0 as libc::c_int };
         } else {
             if eq == 3 as libc::c_int {
                 return if d as libc::c_int > r as libc::c_int {
-                           1 as libc::c_int
-                       } else { 0 as libc::c_int }
+                    1 as libc::c_int
+                } else { 0 as libc::c_int };
             } else {
                 if eq == 4 as libc::c_int {
                     return if d as libc::c_int >= r as libc::c_int {
-                               1 as libc::c_int
-                           } else { 0 as libc::c_int }
+                        1 as libc::c_int
+                    } else { 0 as libc::c_int };
                 } else {
                     if eq == 5 as libc::c_int {
                         return if (d as libc::c_int) < r as libc::c_int {
-                                   1 as libc::c_int
-                               } else { 0 as libc::c_int }
+                            1 as libc::c_int
+                        } else { 0 as libc::c_int };
                     } else {
                         if eq == 6 as libc::c_int {
                             return if d as libc::c_int <= r as libc::c_int {
-                                       1 as libc::c_int
-                                   } else { 0 as libc::c_int }
+                                1 as libc::c_int
+                            } else { 0 as libc::c_int };
                         }
                     }
                 }
@@ -221,12 +220,11 @@ pub unsafe extern "C" fn dt_comp_elem(mut r: libc::c_float,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn dt_classify(mut data: *mut libc::c_char,
-                                     mut pp: libc::c_int) -> libc::c_float 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn dt_classify(mut data: *mut libc::c_char, mut pp: libc::c_int) -> libc::c_float
+/*==================================================================*/
+{
     let mut dt: *mut DT = 0 as *mut DT; /* テスト用feature */
-    let mut d: DTRULE = DTRULE{class: 0, cf: 0., cond: 0 as *mut DTCOND,};
+    let mut d: DTRULE = DTRULE { class: 0, cf: 0., cond: 0 as *mut DTCOND };
     let mut rc: *mut DTCOND = 0 as *mut DTCOND;
     let mut dc: *mut DTCOND = 0 as *mut DTCOND;
     let mut i: libc::c_int = 0;
@@ -259,12 +257,12 @@ pub unsafe extern "C" fn dt_classify(mut data: *mut libc::c_char,
                                 1 as libc::c_int
                             } else { 0 as libc::c_int }) == 0 {
                 flag = 0 as libc::c_int;
-                break ;
+                break;
             } else { rc = (*rc).next }
         }
         /* すべての条件を満たしたとき */
         if flag != 0 {
-            return (*dt).ContextRules[i as usize].cf
+            return (*dt).ContextRules[i as usize].cf;
             /* dc = d.cond;
 	    while (dc) {
 		* 類似度を返す *
@@ -280,9 +278,9 @@ pub unsafe extern "C" fn dt_classify(mut data: *mut libc::c_char,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_dt() 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_dt()
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < 44 as libc::c_int {
@@ -292,7 +290,7 @@ pub unsafe extern "C" fn init_dt()
                             b"init_dt\x00" as *const u8 as *const libc::c_char
                                 as *mut libc::c_char) as *mut DT;
             read_dt_file(DTrule[i as usize], DTFile[i as usize]);
-            if i == 0 as libc::c_int { break ; }
+            if i == 0 as libc::c_int { break; }
         } else { DTrule[i as usize] = 0 as *mut DT }
         i += 1
     };

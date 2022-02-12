@@ -1,10 +1,9 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
 
+use libc;
 
+use crate::{Dpnd_matrix, fprintf};
 use crate::ctools::{check_feature, Language, Outfp, stderr};
-use crate::Dpnd_matrix;
 use crate::read_rule::{CurKoouRuleSize, KoouRuleArray};
 use crate::regexp::_regexpbnst_match;
 use crate::structs::{CDB_FILE, KoouRule};
@@ -21,7 +20,6 @@ pub static mut smp2smg_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 pub static mut sm2code_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
 #[no_mangle]
 pub static mut sm_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
-
 
 
 /*====================================================================
@@ -42,9 +40,9 @@ pub static mut Koou_dpnd_matrix: [[libc::c_int; 200]; 200] = [[0; 200]; 200];
 pub static mut koou_m_p: [libc::c_int; 200] = [0; 200];
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_koou(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_koou(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     i = 0 as libc::c_int;
@@ -62,9 +60,9 @@ pub unsafe extern "C" fn init_koou(mut sp: *mut SENTENCE_DATA)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn check_koou(mut sp: *mut SENTENCE_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                    -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0; /* 今のところ記述できない */
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -82,14 +80,14 @@ pub unsafe extern "C" fn check_koou(mut sp: *mut SENTENCE_DATA)
         r_ptr = KoouRuleArray.as_mut_ptr();
         while j < CurKoouRuleSize {
             if _regexpbnst_match((*r_ptr).start_pattern, b_ptr) !=
-                   -(1 as libc::c_int) &&
-                   (Language != 2 as libc::c_int ||
-                        Language == 2 as libc::c_int &&
-                            !check_feature((*(*sp).bnst_data.offset(i as
-                                                                        isize)).f,
-                                           b"P\x00" as *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char).is_null()) {
+                -(1 as libc::c_int) &&
+                (Language != 2 as libc::c_int ||
+                    Language == 2 as libc::c_int &&
+                        !check_feature((*(*sp).bnst_data.offset(i as
+                            isize)).f,
+                                       b"P\x00" as *const u8 as
+                                           *const libc::c_char as
+                                           *mut libc::c_char).is_null()) {
                 if OptDisplay == 3 as libc::c_int {
                     fprintf(stderr,
                             b"Start (%d) %d\n\x00" as *const u8 as
@@ -103,37 +101,37 @@ pub unsafe extern "C" fn check_koou(mut sp: *mut SENTENCE_DATA)
                         l = i;
                         while l < k {
                             if !check_feature((*(*sp).bnst_data.offset(l as
-                                                                           isize)).f,
+                                isize)).f,
                                               b"PU\x00" as *const u8 as
                                                   *const libc::c_char as
                                                   *mut libc::c_char).is_null()
-                               {
+                            {
                                 pu_flag = 1 as libc::c_int;
-                                break ;
+                                break;
                             } else { l += 1 }
                         }
                     } else { pu_flag = 0 as libc::c_int }
                     if _regexpbnst_match((*r_ptr).end_pattern, c_ptr) !=
-                           -(1 as libc::c_int) &&
-                           (Language != 2 as libc::c_int ||
-                                Language == 2 as libc::c_int && pu_flag == 0
-                                    &&
-                                    (!check_feature((*(*sp).bnst_data.offset(k
-                                                                                 as
-                                                                                 isize)).f,
-                                                    b"LC\x00" as *const u8 as
-                                                        *const libc::c_char as
-                                                        *mut libc::c_char).is_null()
-                                         ||
-                                         !check_feature((*(*sp).bnst_data.offset(k
-                                                                                     as
-                                                                                     isize)).f,
-                                                        b"NN\x00" as *const u8
-                                                            as
-                                                            *const libc::c_char
-                                                            as
-                                                            *mut libc::c_char).is_null()))
-                       {
+                        -(1 as libc::c_int) &&
+                        (Language != 2 as libc::c_int ||
+                            Language == 2 as libc::c_int && pu_flag == 0
+                                &&
+                                (!check_feature((*(*sp).bnst_data.offset(k
+                                    as
+                                    isize)).f,
+                                                b"LC\x00" as *const u8 as
+                                                    *const libc::c_char as
+                                                    *mut libc::c_char).is_null()
+                                    ||
+                                    !check_feature((*(*sp).bnst_data.offset(k
+                                        as
+                                        isize)).f,
+                                                   b"NN\x00" as *const u8
+                                                       as
+                                                       *const libc::c_char
+                                                       as
+                                                       *mut libc::c_char).is_null()))
+                    {
                         koou_m_p[i as usize] =
                             (0 as libc::c_int == 0) as libc::c_int;
                         flag = (0 as libc::c_int == 0) as libc::c_int;
@@ -147,21 +145,21 @@ pub unsafe extern "C" fn check_koou(mut sp: *mut SENTENCE_DATA)
                                         *const libc::c_char, k);
                         }
                     } else if !(*r_ptr).uke_pattern.is_null() &&
-                                  _regexpbnst_match((*r_ptr).uke_pattern,
-                                                    c_ptr) !=
-                                      -(1 as libc::c_int) &&
-                                  (Language != 2 as libc::c_int ||
-                                       Language == 2 as libc::c_int &&
-                                           pu_flag == 0 &&
-                                           !check_feature((*(*sp).bnst_data.offset(k
-                                                                                       as
-                                                                                       isize)).f,
-                                                          b"LC\x00" as
-                                                              *const u8 as
-                                                              *const libc::c_char
-                                                              as
-                                                              *mut libc::c_char).is_null())
-                     {
+                        _regexpbnst_match((*r_ptr).uke_pattern,
+                                          c_ptr) !=
+                            -(1 as libc::c_int) &&
+                        (Language != 2 as libc::c_int ||
+                            Language == 2 as libc::c_int &&
+                                pu_flag == 0 &&
+                                !check_feature((*(*sp).bnst_data.offset(k
+                                    as
+                                    isize)).f,
+                                               b"LC\x00" as
+                                                   *const u8 as
+                                                   *const libc::c_char
+                                                   as
+                                                   *mut libc::c_char).is_null())
+                    {
                         Koou_matrix[i as usize][k as usize] =
                             2 as libc::c_int;
                         Koou_dpnd_matrix[i as usize][k as usize] =
@@ -188,9 +186,9 @@ pub unsafe extern "C" fn check_koou(mut sp: *mut SENTENCE_DATA)
 #[no_mangle]
 pub unsafe extern "C" fn mask_for(mut sp: *mut SENTENCE_DATA,
                                   mut si: libc::c_int, mut start: libc::c_int,
-                                  mut end: libc::c_int) 
- /*==================================================================*/
- {
+                                  mut end: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     i = si + 1 as libc::c_int;
@@ -207,9 +205,9 @@ pub unsafe extern "C" fn mask_for(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn mask_back(mut si: libc::c_int,
-                                   mut start: libc::c_int) 
- /*==================================================================*/
- {
+                                   mut start: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     i = 0 as libc::c_int;
@@ -225,9 +223,9 @@ pub unsafe extern "C" fn mask_back(mut si: libc::c_int,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -238,39 +236,39 @@ pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
         i = 0 as libc::c_int;
         while i < (*sp).Bnst_num {
             if koou_m_p[i as usize] == (0 as libc::c_int == 0) as libc::c_int
-               {
+            {
                 f_start = -(1 as libc::c_int);
                 f_end = -(1 as libc::c_int);
                 j = i;
                 while j < (*sp).Bnst_num {
                     if Koou_matrix[i as usize][j as usize] > 0 as libc::c_int
-                       {
+                    {
                         (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             = Koou_dpnd_matrix[i as usize][j as usize];
                         if Koou_matrix[i as usize][j as usize] ==
-                               1 as libc::c_int {
+                            1 as libc::c_int {
                             f_end = j;
                             if f_start < 0 as libc::c_int { f_start = j }
                         }
                         if Koou_dpnd_matrix[i as usize][j as usize] ==
-                               'L' as i32 {
+                            'L' as i32 {
                             k = j + 1 as libc::c_int;
                             while k < (*sp).Bnst_num {
                                 (*Dpnd_matrix.as_mut_ptr().offset(j as
-                                                                      isize))[k
-                                                                                  as
-                                                                                  usize]
+                                    isize))[k
+                                    as
+                                    usize]
                                     = 0 as libc::c_int;
                                 k += 1
                             }
                             k = 0 as libc::c_int;
                             while k < i {
                                 (*Dpnd_matrix.as_mut_ptr().offset(k as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize]
+                                    isize))[j
+                                    as
+                                    usize]
                                     = 0 as libc::c_int;
                                 k += 1
                             }
@@ -279,18 +277,18 @@ pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
                                 l = 0 as libc::c_int;
                                 while l < i {
                                     (*Dpnd_matrix.as_mut_ptr().offset(l as
-                                                                          isize))[k
-                                                                                      as
-                                                                                      usize]
+                                        isize))[k
+                                        as
+                                        usize]
                                         = 0 as libc::c_int;
                                     l += 1
                                 }
                                 l = j + 1 as libc::c_int;
                                 while l < (*sp).Bnst_num {
                                     (*Dpnd_matrix.as_mut_ptr().offset(k as
-                                                                          isize))[l
-                                                                                      as
-                                                                                      usize]
+                                        isize))[l
+                                        as
+                                        usize]
                                         = 0 as libc::c_int;
                                     l += 1
                                 }
@@ -298,14 +296,14 @@ pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
                             }
                         }
                         if Koou_dpnd_matrix[i as usize][j as usize] ==
-                               'R' as i32 {
+                            'R' as i32 {
                             k = i + 1 as libc::c_int;
                             while k < (*sp).Bnst_num {
                                 if k != j {
                                     (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                                          isize))[k
-                                                                                      as
-                                                                                      usize]
+                                        isize))[k
+                                        as
+                                        usize]
                                         = 0 as libc::c_int
                                 }
                                 k += 1
@@ -313,9 +311,9 @@ pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
                             k = 0 as libc::c_int;
                             while k < i {
                                 (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[k
-                                                                                  as
-                                                                                  usize]
+                                    isize))[k
+                                    as
+                                    usize]
                                     = 0 as libc::c_int;
                                 k += 1
                             }
@@ -324,18 +322,18 @@ pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
                                 l = 0 as libc::c_int;
                                 while l < i {
                                     (*Dpnd_matrix.as_mut_ptr().offset(l as
-                                                                          isize))[k
-                                                                                      as
-                                                                                      usize]
+                                        isize))[k
+                                        as
+                                        usize]
                                         = 0 as libc::c_int;
                                     l += 1
                                 }
                                 l = j + 1 as libc::c_int;
                                 while l < (*sp).Bnst_num {
                                     (*Dpnd_matrix.as_mut_ptr().offset(k as
-                                                                          isize))[l
-                                                                                      as
-                                                                                      usize]
+                                        isize))[l
+                                        as
+                                        usize]
                                         = 0 as libc::c_int;
                                     l += 1
                                 }
@@ -352,20 +350,20 @@ pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
         i = 0 as libc::c_int;
         while i < (*sp).Bnst_num {
             if koou_m_p[i as usize] == (0 as libc::c_int == 0) as libc::c_int
-               {
+            {
                 /* i -> f_start .. f_end という呼応 */
                 f_start = -(1 as libc::c_int);
                 f_end = -(1 as libc::c_int);
                 j = i;
                 while j < (*sp).Bnst_num {
                     if Koou_matrix[i as usize][j as usize] > 0 as libc::c_int
-                       {
+                    {
                         (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             = Koou_dpnd_matrix[i as usize][j as usize];
                         if Koou_matrix[i as usize][j as usize] ==
-                               1 as libc::c_int {
+                            1 as libc::c_int {
                             /* 前部[0,i)が(i,f_start)に係るのをマスク */
                             /* end_pattern */
                             f_end = j;
@@ -376,8 +374,8 @@ pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
                         }
                     } else {
                         (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             = 0 as libc::c_int
                     } /* 内部(i,f_start)がf_end以降に係るのをマスク */
                     j += 1
@@ -391,9 +389,9 @@ pub unsafe extern "C" fn change_matrix(mut sp: *mut SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn koou(mut sp: *mut SENTENCE_DATA) -> libc::c_int 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn koou(mut sp: *mut SENTENCE_DATA) -> libc::c_int
+/*==================================================================*/
+{
     let mut flag: libc::c_int = 0;
     init_koou(sp);
     flag =

@@ -1,18 +1,16 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, ptr_wrapping_offset_from, register_tool)]
 
+use libc;
 
+use crate::{atoi, fprintf, match_matrix, Para_matrix, restrict_matrix, sscanf, strcmp, strlen, strncmp};
 use crate::ctools::{check_feature, Language, stderr};
-use crate::lib_print::print_matrix;
-use crate::quote::quote_data;
-use crate::{match_matrix, Para_matrix, restrict_matrix};
 use crate::feature::{feature_AND_match, string2feature_pattern};
+use crate::lib_print::print_matrix;
 use crate::para_relation::detect_para_relation;
+use crate::quote::quote_data;
 use crate::structs::CDB_FILE;
 use crate::tools::{OptDisplay, OptInput, OptParaFix};
 use crate::types::{BNST_DATA, DBM_FILE, FEATURE, PARA_DATA, Para_M_ptr, SENTENCE_DATA};
-
 
 #[no_mangle]
 pub static mut sm_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
@@ -37,36 +35,36 @@ pub static mut penalty_table: [libc::c_int; 200] = [0; 200];
 #[no_mangle]
 pub static mut norm: [libc::c_float; 50] =
     [1.00f64 as libc::c_float, 1.00f64 as libc::c_float,
-     1.59f64 as libc::c_float, 2.08f64 as libc::c_float,
-     2.52f64 as libc::c_float, 2.92f64 as libc::c_float,
-     3.30f64 as libc::c_float, 3.66f64 as libc::c_float,
-     4.00f64 as libc::c_float, 4.33f64 as libc::c_float,
-     4.64f64 as libc::c_float, 4.95f64 as libc::c_float,
-     5.24f64 as libc::c_float, 5.53f64 as libc::c_float,
-     5.81f64 as libc::c_float, 6.08f64 as libc::c_float,
-     6.35f64 as libc::c_float, 6.61f64 as libc::c_float,
-     6.87f64 as libc::c_float, 7.12f64 as libc::c_float,
-     7.37f64 as libc::c_float, 7.61f64 as libc::c_float,
-     7.85f64 as libc::c_float, 8.09f64 as libc::c_float,
-     8.32f64 as libc::c_float, 8.55f64 as libc::c_float,
-     8.78f64 as libc::c_float, 9.00f64 as libc::c_float,
-     9.22f64 as libc::c_float, 9.44f64 as libc::c_float,
-     9.65f64 as libc::c_float, 9.87f64 as libc::c_float,
-     10.08f64 as libc::c_float, 10.29f64 as libc::c_float,
-     10.50f64 as libc::c_float, 10.70f64 as libc::c_float,
-     10.90f64 as libc::c_float, 11.10f64 as libc::c_float,
-     11.30f64 as libc::c_float, 11.50f64 as libc::c_float,
-     11.70f64 as libc::c_float, 11.89f64 as libc::c_float,
-     12.08f64 as libc::c_float, 12.27f64 as libc::c_float,
-     12.46f64 as libc::c_float, 12.65f64 as libc::c_float,
-     12.84f64 as libc::c_float, 13.02f64 as libc::c_float,
-     13.21f64 as libc::c_float, 13.39f64 as libc::c_float];
+        1.59f64 as libc::c_float, 2.08f64 as libc::c_float,
+        2.52f64 as libc::c_float, 2.92f64 as libc::c_float,
+        3.30f64 as libc::c_float, 3.66f64 as libc::c_float,
+        4.00f64 as libc::c_float, 4.33f64 as libc::c_float,
+        4.64f64 as libc::c_float, 4.95f64 as libc::c_float,
+        5.24f64 as libc::c_float, 5.53f64 as libc::c_float,
+        5.81f64 as libc::c_float, 6.08f64 as libc::c_float,
+        6.35f64 as libc::c_float, 6.61f64 as libc::c_float,
+        6.87f64 as libc::c_float, 7.12f64 as libc::c_float,
+        7.37f64 as libc::c_float, 7.61f64 as libc::c_float,
+        7.85f64 as libc::c_float, 8.09f64 as libc::c_float,
+        8.32f64 as libc::c_float, 8.55f64 as libc::c_float,
+        8.78f64 as libc::c_float, 9.00f64 as libc::c_float,
+        9.22f64 as libc::c_float, 9.44f64 as libc::c_float,
+        9.65f64 as libc::c_float, 9.87f64 as libc::c_float,
+        10.08f64 as libc::c_float, 10.29f64 as libc::c_float,
+        10.50f64 as libc::c_float, 10.70f64 as libc::c_float,
+        10.90f64 as libc::c_float, 11.10f64 as libc::c_float,
+        11.30f64 as libc::c_float, 11.50f64 as libc::c_float,
+        11.70f64 as libc::c_float, 11.89f64 as libc::c_float,
+        12.08f64 as libc::c_float, 12.27f64 as libc::c_float,
+        12.46f64 as libc::c_float, 12.65f64 as libc::c_float,
+        12.84f64 as libc::c_float, 13.02f64 as libc::c_float,
+        13.21f64 as libc::c_float, 13.39f64 as libc::c_float];
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn mask_quote_scope(mut sp: *mut SENTENCE_DATA,
-                                          mut key_pos: libc::c_int) 
- /*==================================================================*/
- {
+                                          mut key_pos: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -83,8 +81,8 @@ pub unsafe extern "C" fn mask_quote_scope(mut sp: *mut SENTENCE_DATA,
                 j = start;
                 while j < end {
                     (*restrict_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                        isize))[j as
+                        usize]
                         = 0 as libc::c_int;
                     j += 1
                 }
@@ -96,8 +94,8 @@ pub unsafe extern "C" fn mask_quote_scope(mut sp: *mut SENTENCE_DATA,
                 j = end + 1 as libc::c_int;
                 while j < (*sp).Bnst_num {
                     (*restrict_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                        isize))[j as
+                        usize]
                         = 0 as libc::c_int;
                     j += 1
                 }
@@ -112,8 +110,8 @@ pub unsafe extern "C" fn mask_quote_scope(mut sp: *mut SENTENCE_DATA,
                 while j < (*sp).Bnst_num {
                     if i < start || end < j {
                         (*restrict_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[j as
-                                                                              usize]
+                            isize))[j as
+                            usize]
                             = 0 as libc::c_int
                     }
                     j += 1
@@ -132,9 +130,9 @@ pub unsafe extern "C" fn mask_quote_scope(mut sp: *mut SENTENCE_DATA,
                         j = l + 1 as libc::c_int;
                         while j <= end {
                             (*restrict_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize]
+                                isize))[j
+                                as
+                                usize]
                                 = 0 as libc::c_int;
                             j += 1
                         }
@@ -154,9 +152,9 @@ pub unsafe extern "C" fn mask_quote_scope(mut sp: *mut SENTENCE_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn bnst_match(mut sp: *mut SENTENCE_DATA,
                                     mut pos1: libc::c_int,
-                                    mut pos2: libc::c_int) -> libc::c_int 
- /*==================================================================*/
- {
+                                    mut pos2: libc::c_int) -> libc::c_int
+/*==================================================================*/
+{
     let mut flag1: libc::c_int = 0;
     let mut flag2: libc::c_int = 0;
     let mut cp1: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -180,7 +178,7 @@ pub unsafe extern "C" fn bnst_match(mut sp: *mut SENTENCE_DATA,
                       b"\xe4\xbf\x82\x00" as *const u8 as *const libc::c_char
                           as *mut libc::c_char);
     if cp1.is_null() || cp2.is_null() || strcmp(cp1, cp2) != 0 {
-        return 0 as libc::c_int
+        return 0 as libc::c_int;
     }
     flag1 =
         if !check_feature((*ptr1).f,
@@ -196,11 +194,11 @@ pub unsafe extern "C" fn bnst_match(mut sp: *mut SENTENCE_DATA,
                               *mut libc::c_char).is_null() {
             1 as libc::c_int
         } else { 0 as libc::c_int };
-    if flag1 != flag2 { return 0 as libc::c_int }
+    if flag1 != flag2 { return 0 as libc::c_int; }
     if !check_feature((*ptr1).f,
                       b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8 as
                           *const libc::c_char as *mut libc::c_char).is_null()
-       {
+    {
         cp1 =
             check_feature((*ptr1).f,
                           b"ID\x00" as *const u8 as *const libc::c_char as
@@ -210,7 +208,7 @@ pub unsafe extern "C" fn bnst_match(mut sp: *mut SENTENCE_DATA,
                           b"ID\x00" as *const u8 as *const libc::c_char as
                               *mut libc::c_char);
         if cp1.is_null() || cp2.is_null() || strcmp(cp1, cp2) != 0 {
-            return 0 as libc::c_int
+            return 0 as libc::c_int;
         }
     }
     flag1 =
@@ -227,7 +225,7 @@ pub unsafe extern "C" fn bnst_match(mut sp: *mut SENTENCE_DATA,
                               *mut libc::c_char).is_null() {
             1 as libc::c_int
         } else { 0 as libc::c_int };
-    if flag1 != flag2 { return 0 as libc::c_int }
+    if flag1 != flag2 { return 0 as libc::c_int; }
     return 1 as libc::c_int;
 }
 /*==================================================================*/
@@ -235,9 +233,9 @@ pub unsafe extern "C" fn bnst_match(mut sp: *mut SENTENCE_DATA,
 pub unsafe extern "C" fn calc_static_level_penalty(mut sp: *mut SENTENCE_DATA,
                                                    mut key_pos: libc::c_int,
                                                    mut pos: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                                   -> libc::c_int
+/*==================================================================*/
+{
     let mut minus_score: libc::c_int = 0 as libc::c_int;
     let mut level1: libc::c_int =
         (*(*sp).bnst_data.offset(key_pos as isize)).sp_level;
@@ -251,13 +249,13 @@ pub unsafe extern "C" fn calc_static_level_penalty(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn calc_dynamic_level_penalty(mut sp:
-                                                        *mut SENTENCE_DATA,
+                                                    *mut SENTENCE_DATA,
                                                     mut key_pos: libc::c_int,
                                                     mut pos1: libc::c_int,
                                                     mut pos2: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                                    -> libc::c_int
+/*==================================================================*/
+{
     return if (*(*sp).bnst_data.offset(pos1 as isize)).sp_level ==
         (*(*sp).bnst_data.offset(pos2 as isize)).sp_level &&
         bnst_match(sp, pos1, pos2) != 0 &&
@@ -281,11 +279,11 @@ pub unsafe extern "C" fn calc_dynamic_level_penalty(mut sp:
 #[no_mangle]
 pub unsafe extern "C" fn calc_starting_bonus_score(mut sp: *mut SENTENCE_DATA,
                                                    mut istart_pos:
-                                                       libc::c_int,
+                                                   libc::c_int,
                                                    mut p_ptr: *mut PARA_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                                   -> libc::c_int
+/*==================================================================*/
+{
     let mut b_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
     b_ptr =
         &mut *(*sp).bnst_data.offset(istart_pos as isize) as *mut BNST_DATA;
@@ -312,9 +310,9 @@ pub unsafe extern "C" fn calc_starting_bonus_score(mut sp: *mut SENTENCE_DATA,
 pub unsafe extern "C" fn calc_ending_bonus_score(mut sp: *mut SENTENCE_DATA,
                                                  mut jend_pos: libc::c_int,
                                                  mut p_ptr: *mut PARA_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                                 -> libc::c_int
+/*==================================================================*/
+{
     let mut b_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
     b_ptr = &mut *(*sp).bnst_data.offset(jend_pos as isize) as *mut BNST_DATA;
     return if (*p_ptr).type_0 == 3 as libc::c_int {
@@ -329,7 +327,7 @@ pub unsafe extern "C" fn calc_ending_bonus_score(mut sp: *mut SENTENCE_DATA,
                            b"\xef\xbc\xb4\xe5\x90\x8d\xe4\xb8\xa6\xe7\xb5\x82\xe7\x82\xb9\xe3\x80\x9c\xe3\x81\xa8\xe3\x80\x9c\xe3\x81\xa8\x00"
                                as *const u8 as *const libc::c_char as
                                *mut libc::c_char).is_null() {
-            return 2 as libc::c_int
+            return 2 as libc::c_int;
         }
         if !check_feature((*b_ptr).f,
                           b"\xef\xbc\xb4\xe5\x90\x8d\xe4\xb8\xa6\xe7\xb5\x82\xe7\x82\xb9\x00"
@@ -351,9 +349,9 @@ pub unsafe extern "C" fn calc_ending_bonus_score(mut sp: *mut SENTENCE_DATA,
 pub unsafe extern "C" fn dp_search_scope(mut sp: *mut SENTENCE_DATA,
                                          mut key_pos: libc::c_int,
                                          mut iend_pos: libc::c_int,
-                                         mut jend_pos: libc::c_int) 
- /*==================================================================*/
- {
+                                         mut jend_pos: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut current_max: libc::c_int = 0;
@@ -366,8 +364,8 @@ pub unsafe extern "C" fn dp_search_scope(mut sp: *mut SENTENCE_DATA,
         if j == jend_pos {
             score_matrix[iend_pos as usize][jend_pos as usize] =
                 (*match_matrix.as_mut_ptr().offset(iend_pos as
-                                                       isize))[jend_pos as
-                                                                   usize];
+                    isize))[jend_pos as
+                    usize];
             prepos_matrix[iend_pos as usize][jend_pos as usize] =
                 -(1 as libc::c_int);
             i = iend_pos - 1 as libc::c_int;
@@ -380,7 +378,7 @@ pub unsafe extern "C" fn dp_search_scope(mut sp: *mut SENTENCE_DATA,
             /* 最下行の処理 */
             score_sideway =
                 score_matrix[iend_pos as
-                                 usize][(j + 1 as libc::c_int) as usize] -
+                    usize][(j + 1 as libc::c_int) as usize] -
                     1 as libc::c_int - penalty_table[j as usize];
             score_matrix[iend_pos as usize][j as usize] = score_sideway;
             prepos_matrix[iend_pos as usize][j as usize] = iend_pos;
@@ -390,39 +388,39 @@ pub unsafe extern "C" fn dp_search_scope(mut sp: *mut SENTENCE_DATA,
                 score_upward =
                     if Language == 2 as libc::c_int {
                         ((*match_matrix.as_mut_ptr().offset(i as
-                                                                isize))[j as
-                                                                            usize])
+                            isize))[j as
+                            usize])
                             + maxsco_array[(i + 1 as libc::c_int) as usize]
                     } else {
                         ((*match_matrix.as_mut_ptr().offset(i as
-                                                                isize))[j as
-                                                                            usize]
-                             + maxsco_array[(i + 1 as libc::c_int) as usize])
+                            isize))[j as
+                            usize]
+                            + maxsco_array[(i + 1 as libc::c_int) as usize])
                             - calc_dynamic_level_penalty(sp, key_pos, i, j)
                     };
                 score_sideway =
                     if Language == 2 as libc::c_int {
                         (score_matrix[i as
-                                          usize][(j + 1 as libc::c_int) as
-                                                     usize]) -
+                            usize][(j + 1 as libc::c_int) as
+                            usize]) -
                             1 as libc::c_int
                     } else {
                         (score_matrix[i as
-                                          usize][(j + 1 as libc::c_int) as
-                                                     usize] -
-                             1 as libc::c_int) - penalty_table[j as usize]
+                            usize][(j + 1 as libc::c_int) as
+                            usize] -
+                            1 as libc::c_int) - penalty_table[j as usize]
                     };
                 if Language == 2 as libc::c_int &&
-                       (!check_feature((*(*sp).bnst_data.offset(j as
-                                                                    isize)).f,
-                                       b"CC\x00" as *const u8 as
+                    (!check_feature((*(*sp).bnst_data.offset(j as
+                        isize)).f,
+                                    b"CC\x00" as *const u8 as
+                                        *const libc::c_char as
+                                        *mut libc::c_char).is_null() ||
+                        !check_feature((*(*sp).bnst_data.offset(j as
+                            isize)).f,
+                                       b"PU\x00" as *const u8 as
                                            *const libc::c_char as
-                                           *mut libc::c_char).is_null() ||
-                            !check_feature((*(*sp).bnst_data.offset(j as
-                                                                        isize)).f,
-                                           b"PU\x00" as *const u8 as
-                                               *const libc::c_char as
-                                               *mut libc::c_char).is_null()) {
+                                           *mut libc::c_char).is_null()) {
                     /* 中国語で並列のキーが後部の先頭の場合の例外処理 */
                     score_matrix[i as usize][j as usize] = score_sideway;
                     prepos_matrix[i as usize][j as usize] = i
@@ -467,9 +465,9 @@ pub unsafe extern "C" fn dp_search_scope(mut sp: *mut SENTENCE_DATA,
 pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
                                             mut para_num: libc::c_int,
                                             mut ptr: *mut PARA_DATA,
-                                            mut jend_pos: libc::c_int) 
- /*==================================================================*/
- {
+                                            mut jend_pos: libc::c_int)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut flag: libc::c_int = 0;
@@ -492,37 +490,37 @@ pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
     i = iend_pos;
     while i >= 0 as libc::c_int {
         (*Para_matrix.as_mut_ptr().offset(para_num as
-                                              isize))[i as
-                                                          usize][jend_pos as
-                                                                     usize] =
+            isize))[i as
+            usize][jend_pos as
+            usize] =
             -(2147483647 as libc::c_int) as libc::c_double;
         i -= 1
     }
     /* 類似度が0なら中止 */
     if (*match_matrix.as_mut_ptr().offset(iend_pos as
-                                              isize))[jend_pos as usize] ==
-           0 as libc::c_int {
-        return
+        isize))[jend_pos as usize] ==
+        0 as libc::c_int {
+        return;
     }
     /* restrict_matrixで可能性がない場合は中止 */
     flag = 0 as libc::c_int;
     i = 0 as libc::c_int;
     while i <= iend_pos {
         if (*restrict_matrix.as_mut_ptr().offset(i as
-                                                     isize))[jend_pos as
-                                                                 usize] != 0 {
+            isize))[jend_pos as
+            usize] != 0 {
             flag = (0 as libc::c_int == 0) as libc::c_int;
-            break ;
+            break;
         } else { i += 1 }
     }
-    if flag == 0 as libc::c_int { return }
+    if flag == 0 as libc::c_int { return; }
     /* 「〜，それを」という並列は中止 */
     if key_pos + 1 as libc::c_int == jend_pos &&
-           !check_feature((*(*sp).bnst_data.offset(jend_pos as isize)).f,
-                          b"\xe6\x8c\x87\xe7\xa4\xba\xe8\xa9\x9e\x00" as
-                              *const u8 as *const libc::c_char as
-                              *mut libc::c_char).is_null() {
-        return
+        !check_feature((*(*sp).bnst_data.offset(jend_pos as isize)).f,
+                       b"\xe6\x8c\x87\xe7\xa4\xba\xe8\xa9\x9e\x00" as
+                           *const u8 as *const libc::c_char as
+                           *mut libc::c_char).is_null() {
+        return;
     }
     /* ルールによる制限(類似スコアの閾値を取得) */
     /* 条件がなければ閾値は0.0に */
@@ -532,17 +530,17 @@ pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
         /* 条件があれば，マッチするものの中で最低の閾値に */
         sim_threshold = 100.0f64 as libc::c_float;
         nth = 0 as libc::c_int;
-        loop  {
+        loop {
             fp = (*ptr).f_pattern.fp[nth as usize];
-            if fp.is_null() { break ; }
+            if fp.is_null() { break; }
             if feature_AND_match(fp,
                                  (*(*sp).bnst_data.offset(jend_pos as
-                                                              isize)).f,
+                                     isize)).f,
                                  (*sp).bnst_data.offset(key_pos as isize) as
                                      *mut libc::c_void,
                                  (*sp).bnst_data.offset(jend_pos as isize) as
                                      *mut libc::c_void) ==
-                   (0 as libc::c_int == 0) as libc::c_int {
+                (0 as libc::c_int == 0) as libc::c_int {
                 cp =
                     check_feature(fp,
                                   b"&ST\x00" as *const u8 as
@@ -559,7 +557,7 @@ pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
             }
             nth += 1
         }
-        if sim_threshold as libc::c_double == 100.0f64 { return }
+        if sim_threshold as libc::c_double == 100.0f64 { return; }
     }
     /*		    */
     /* DP MATCHING  */
@@ -571,41 +569,41 @@ pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
     while i >= 0 as libc::c_int {
         starting_bonus_score = calc_starting_bonus_score(sp, i, ptr);
         if Language == 2 as libc::c_int &&
-               starting_bonus_score != 0 as libc::c_int {
+            starting_bonus_score != 0 as libc::c_int {
             current_score = max_score + starting_bonus_score as libc::c_float
         } else {
             current_score =
                 if Language == 2 as libc::c_int {
                     (score_matrix[i as
-                                      usize][(key_pos + 2 as libc::c_int) as
-                                                 usize] as libc::c_float /
-                         norm[(jend_pos - i + 1 as libc::c_int) as usize] +
-                         starting_bonus_score as libc::c_float) +
+                        usize][(key_pos + 2 as libc::c_int) as
+                        usize] as libc::c_float /
+                        norm[(jend_pos - i + 1 as libc::c_int) as usize] +
+                        starting_bonus_score as libc::c_float) +
                         ending_bonus_score as libc::c_float
                 } else {
                     (score_matrix[i as
-                                      usize][(key_pos + 1 as libc::c_int) as
-                                                 usize] as libc::c_float /
-                         norm[(jend_pos - i + 1 as libc::c_int) as usize] +
-                         starting_bonus_score as libc::c_float) +
+                        usize][(key_pos + 1 as libc::c_int) as
+                        usize] as libc::c_float /
+                        norm[(jend_pos - i + 1 as libc::c_int) as usize] +
+                        starting_bonus_score as libc::c_float) +
                         ending_bonus_score as libc::c_float
                 }
         }
         if (*restrict_matrix.as_mut_ptr().offset(i as
-                                                     isize))[jend_pos as
-                                                                 usize] != 0
-               && max_score < current_score {
+            isize))[jend_pos as
+            usize] != 0
+            && max_score < current_score {
             max_score = current_score;
             pure_score =
                 if Language == 2 as libc::c_int {
                     (score_matrix[i as
-                                      usize][(key_pos + 2 as libc::c_int) as
-                                                 usize] as libc::c_float) /
+                        usize][(key_pos + 2 as libc::c_int) as
+                        usize] as libc::c_float) /
                         norm[(jend_pos - i + 1 as libc::c_int) as usize]
                 } else {
                     (score_matrix[i as
-                                      usize][(key_pos + 1 as libc::c_int) as
-                                                 usize] as libc::c_float) /
+                        usize][(key_pos + 1 as libc::c_int) as
+                        usize] as libc::c_float) /
                         norm[(jend_pos - i + 1 as libc::c_int) as usize]
                 };
             /* pure_score は末尾表現のボーナスを除いた値 */
@@ -613,20 +611,20 @@ pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
         }
         /* 確率的並列構造解析のために類似度を保存 */
         if (*restrict_matrix.as_mut_ptr().offset(i as
-                                                     isize))[jend_pos as
-                                                                 usize] != 0
-               && pure_score >= sim_threshold {
+            isize))[jend_pos as
+            usize] != 0
+            && pure_score >= sim_threshold {
             (*Para_matrix.as_mut_ptr().offset(para_num as
-                                                  isize))[i as
-                                                              usize][jend_pos
-                                                                         as
-                                                                         usize]
+                isize))[i as
+                usize][jend_pos
+                as
+                usize]
                 = current_score as libc::c_double
         }
         i -= 1
     }
     /* 類似度が0なら中止 01/07/12 */
-    if (max_score as libc::c_double) < 0.0f64 { return }
+    if (max_score as libc::c_double) < 0.0f64 { return; }
     /* ▼ (a...)(b)という並列は扱えない．括弧の制限などでこうならざる
        をえない場合は，並列とは認めないことにする (暫定的) */
     /* 「〜はもちろん」の扱いで話が変ってっきた？？？
@@ -643,15 +641,15 @@ pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
     */
     flag = 0 as libc::c_int;
     if sim_threshold <= pure_score &&
-           (*ptr).status as libc::c_int == 'x' as i32 {
+        (*ptr).status as libc::c_int == 'x' as i32 {
         (*ptr).status = 'n' as i32 as libc::c_char;
         flag = (0 as libc::c_int == 0) as libc::c_int
     } else if sim_threshold <= pure_score &&
-                  (*ptr).status as libc::c_int == 'n' as i32 &&
-                  (*ptr).max_score < max_score {
+        (*ptr).status as libc::c_int == 'n' as i32 &&
+        (*ptr).max_score < max_score {
         flag = (0 as libc::c_int == 0) as libc::c_int
     } else if (*ptr).status as libc::c_int == 'x' as i32 &&
-                  (*ptr).max_score < max_score {
+        (*ptr).max_score < max_score {
         flag = (0 as libc::c_int == 0) as libc::c_int
     }
     if flag == (0 as libc::c_int == 0) as libc::c_int {
@@ -659,15 +657,15 @@ pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
         (*ptr).pure_score = pure_score;
         (*ptr).max_path[0 as libc::c_int as usize] = max_pos;
         j = 0 as libc::c_int;
-        loop  {
+        loop {
             (*ptr).max_path[(j + 1 as libc::c_int) as usize] =
                 prepos_matrix[(*ptr).max_path[j as usize] as
-                                  usize][(j + key_pos + 1 as libc::c_int) as
-                                             usize];
+                    usize][(j + key_pos + 1 as libc::c_int) as
+                    usize];
             if (*ptr).max_path[(j + 1 as libc::c_int) as usize] ==
-                   -(1 as libc::c_int) {
+                -(1 as libc::c_int) {
                 (*ptr).jend_pos = j + key_pos + 1 as libc::c_int;
-                break ;
+                break;
             } else { j += 1 }
         }
     };
@@ -677,9 +675,9 @@ pub unsafe extern "C" fn _detect_para_scope(mut sp: *mut SENTENCE_DATA,
 pub unsafe extern "C" fn detect_para_scope(mut sp: *mut SENTENCE_DATA,
                                            mut para_num: libc::c_int,
                                            mut restrict_p: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                           -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -723,7 +721,7 @@ pub unsafe extern "C" fn detect_para_scope(mut sp: *mut SENTENCE_DATA,
     if OptInput & 1 as libc::c_int != 0 {
         _detect_para_scope(sp, para_num, para_ptr,
                            (*(*sp).bnst_data.offset(key_pos as
-                                                        isize)).dpnd_head);
+                               isize)).dpnd_head);
     } else {
         j = key_pos + 1 as libc::c_int;
         while j < (*sp).Bnst_num {
@@ -733,7 +731,7 @@ pub unsafe extern "C" fn detect_para_scope(mut sp: *mut SENTENCE_DATA,
     }
     if !((*para_ptr).status as libc::c_int == 'x' as i32) {
         if (*para_ptr).status as libc::c_int == 'n' as i32 &&
-               (*para_ptr).pure_score as libc::c_double >= 3.9f64 {
+            (*para_ptr).pure_score as libc::c_double >= 3.9f64 {
             (*para_ptr).status = 's' as i32 as libc::c_char
         }
     }
@@ -742,9 +740,9 @@ pub unsafe extern "C" fn detect_para_scope(mut sp: *mut SENTENCE_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn detect_all_para_scope(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn detect_all_para_scope(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     i = 0 as libc::c_int;
     while i < (*sp).Para_num {
@@ -755,9 +753,9 @@ pub unsafe extern "C" fn detect_all_para_scope(mut sp: *mut SENTENCE_DATA)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn check_para_key(mut sp: *mut SENTENCE_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                        -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut type_0: [libc::c_char; 16] = [0; 16];
@@ -769,25 +767,25 @@ pub unsafe extern "C" fn check_para_key(mut sp: *mut SENTENCE_DATA)
                           b"\xe4\xb8\xa6\xe3\x82\xad\x00" as *const u8 as
                               *const libc::c_char as *mut libc::c_char);
         if !cp.is_null() &&
-               (Language != 2 as libc::c_int ||
-                    Language == 2 as libc::c_int &&
-                        (!check_feature((*(*sp).bnst_data.offset((i +
-                                                                      1 as
-                                                                          libc::c_int)
-                                                                     as
-                                                                     isize)).f,
-                                        b"CC\x00" as *const u8 as
-                                            *const libc::c_char as
-                                            *mut libc::c_char).is_null() ||
-                             !check_feature((*(*sp).bnst_data.offset((i +
-                                                                          1 as
-                                                                              libc::c_int)
-                                                                         as
-                                                                         isize)).f,
-                                            b"PU\x00" as *const u8 as
-                                                *const libc::c_char as
-                                                *mut libc::c_char).is_null()))
-           {
+            (Language != 2 as libc::c_int ||
+                Language == 2 as libc::c_int &&
+                    (!check_feature((*(*sp).bnst_data.offset((i +
+                        1 as
+                            libc::c_int)
+                        as
+                        isize)).f,
+                                    b"CC\x00" as *const u8 as
+                                        *const libc::c_char as
+                                        *mut libc::c_char).is_null() ||
+                        !check_feature((*(*sp).bnst_data.offset((i +
+                            1 as
+                                libc::c_int)
+                            as
+                            isize)).f,
+                                       b"PU\x00" as *const u8 as
+                                           *const libc::c_char as
+                                           *mut libc::c_char).is_null()))
+        {
             (*(*sp).bnst_data.offset(i as isize)).para_num = (*sp).Para_num;
             (*(*sp).para_data.offset((*sp).Para_num as isize)).para_char =
                 ('a' as i32 + (*sp).Para_num) as libc::c_char;
@@ -803,21 +801,21 @@ pub unsafe extern "C" fn check_para_key(mut sp: *mut SENTENCE_DATA)
                        b"\xe5\x90\x8d\x00" as *const u8 as
                            *const libc::c_char,
                        strlen(b"\xe5\x90\x8d\x00" as *const u8 as
-                                  *const libc::c_char)) == 0 {
+                           *const libc::c_char)) == 0 {
                 (*(*sp).bnst_data.offset(i as isize)).para_key_type =
                     1 as libc::c_int as libc::c_char
             } else if strncmp(type_0.as_mut_ptr(),
                               b"\xe8\xbf\xb0\x00" as *const u8 as
                                   *const libc::c_char,
                               strlen(b"\xe8\xbf\xb0\x00" as *const u8 as
-                                         *const libc::c_char)) == 0 {
+                                  *const libc::c_char)) == 0 {
                 (*(*sp).bnst_data.offset(i as isize)).para_key_type =
                     2 as libc::c_int as libc::c_char
             } else if strncmp(type_0.as_mut_ptr(),
                               b"\xef\xbc\x9f\x00" as *const u8 as
                                   *const libc::c_char,
                               strlen(b"\xef\xbc\x9f\x00" as *const u8 as
-                                         *const libc::c_char)) == 0 {
+                                  *const libc::c_char)) == 0 {
                 (*(*sp).bnst_data.offset(i as isize)).para_key_type =
                     4 as libc::c_int as libc::c_char
             }
@@ -829,14 +827,14 @@ pub unsafe extern "C" fn check_para_key(mut sp: *mut SENTENCE_DATA)
                 (*(*sp).para_data.offset((*sp).Para_num as isize)).iend_pos =
                     i +
                         atoi(type_0.as_mut_ptr().offset(3 as libc::c_int as
-                                                            isize))
+                            isize))
             } else {
                 (*(*sp).para_data.offset((*sp).Para_num as isize)).iend_pos =
                     i
             }
             string2feature_pattern(&mut (*(*sp).para_data.offset((*sp).Para_num
-                                                                     as
-                                                                     isize)).f_pattern,
+                as
+                isize)).f_pattern,
                                    condition.as_mut_ptr());
             (*sp).Para_num += 1;
             if (*sp).Para_num >= 32 as libc::c_int {
@@ -855,7 +853,7 @@ pub unsafe extern "C" fn check_para_key(mut sp: *mut SENTENCE_DATA)
                         } else {
                             b"\x00" as *const u8 as *const libc::c_char
                         });
-                return -(1 as libc::c_int)
+                return -(1 as libc::c_int);
             }
         } else {
             (*(*sp).bnst_data.offset(i as isize)).para_num =
@@ -863,7 +861,7 @@ pub unsafe extern "C" fn check_para_key(mut sp: *mut SENTENCE_DATA)
         }
         i += 1
     }
-    if (*sp).Para_num == 0 as libc::c_int { return 0 as libc::c_int }
+    if (*sp).Para_num == 0 as libc::c_int { return 0 as libc::c_int; }
     i = 0 as libc::c_int;
     while i < (*sp).Bnst_num {
         cp =
@@ -898,9 +896,9 @@ pub unsafe extern "C" fn check_para_key(mut sp: *mut SENTENCE_DATA)
 #[no_mangle]
 pub unsafe extern "C" fn farthest_child(mut sp: *mut SENTENCE_DATA,
                                         mut b_ptr: *mut BNST_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                        -> libc::c_int
+/*==================================================================*/
+{
     /* 一番遠い子供の文節番号を返す
        (今のところこの関数は使っていない) */
     let mut i: libc::c_int = 0;
@@ -911,14 +909,14 @@ pub unsafe extern "C" fn farthest_child(mut sp: *mut SENTENCE_DATA,
         loop_ptr = (*loop_ptr).child[(i - 1 as libc::c_int) as usize]
     }
     return loop_ptr.wrapping_offset_from((*sp).bnst_data) as libc::c_long as
-               libc::c_int;
+        libc::c_int;
 }
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn para_recovery(mut sp: *mut SENTENCE_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                       -> libc::c_int
+/*==================================================================*/
+{
     /* 並列構造の情報の再現 */
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
@@ -927,7 +925,7 @@ pub unsafe extern "C" fn para_recovery(mut sp: *mut SENTENCE_DATA)
     let mut b_ptr: *mut BNST_DATA = 0 as *mut BNST_DATA;
     let mut cp: *mut libc::c_char = 0 as *mut libc::c_char;
     /* 並列構造がfixならば再現する必要がない */
-    if OptParaFix != 0 { return (0 as libc::c_int == 0) as libc::c_int }
+    if OptParaFix != 0 { return (0 as libc::c_int == 0) as libc::c_int; }
     (*sp).Para_num = 0 as libc::c_int;
     (*sp).Para_M_num = 0 as libc::c_int;
     i = 0 as libc::c_int;
@@ -949,7 +947,7 @@ pub unsafe extern "C" fn para_recovery(mut sp: *mut SENTENCE_DATA)
                         } else {
                             b"\x00" as *const u8 as *const libc::c_char
                         });
-                break ;
+                break;
             } else {
                 (*b_ptr).para_num = (*sp).Para_num;
                 (*(*sp).para_data.offset((*sp).Para_num as isize)).key_pos =
@@ -960,18 +958,18 @@ pub unsafe extern "C" fn para_recovery(mut sp: *mut SENTENCE_DATA)
                     i;
                 j = i - 1 as libc::c_int;
                 while j >= 0 as libc::c_int &&
-                          ((*(*sp).bnst_data.offset(j as isize)).dpnd_head < i
-                               ||
-                               (*(*sp).bnst_data.offset(j as isize)).dpnd_head
-                                   == i &&
-                                   (*(*sp).bnst_data.offset(j as
-                                                                isize)).dpnd_type
-                                       as libc::c_int != 'P' as i32) {
+                    ((*(*sp).bnst_data.offset(j as isize)).dpnd_head < i
+                        ||
+                        (*(*sp).bnst_data.offset(j as isize)).dpnd_head
+                            == i &&
+                            (*(*sp).bnst_data.offset(j as
+                                isize)).dpnd_type
+                                as libc::c_int != 'P' as i32) {
                     j -= 1
                 }
                 (*(*sp).para_data.offset((*sp).Para_num as
-                                             isize)).max_path[0 as libc::c_int
-                                                                  as usize] =
+                    isize)).max_path[0 as libc::c_int
+                    as usize] =
                     j + 1 as libc::c_int;
                 (*(*sp).para_data.offset((*sp).Para_num as isize)).status =
                     'n' as i32 as libc::c_char;
@@ -985,90 +983,90 @@ pub unsafe extern "C" fn para_recovery(mut sp: *mut SENTENCE_DATA)
                     if !cp.is_null() {
                         cp =
                             cp.offset(strlen(b"\xe4\xb8\xa6\xe3\x82\xad:\x00"
-                                                 as *const u8 as
-                                                 *const libc::c_char) as
-                                          isize);
+                                as *const u8 as
+                                *const libc::c_char) as
+                                isize);
                         if strncmp(cp,
                                    b"\xe5\x90\x8d\x00" as *const u8 as
                                        *const libc::c_char,
                                    strlen(b"\xe5\x90\x8d\x00" as *const u8 as
-                                              *const libc::c_char)) == 0 {
+                                       *const libc::c_char)) == 0 {
                             (*(*sp).para_data.offset((*sp).Para_num as
-                                                         isize)).type_0 =
+                                isize)).type_0 =
                                 1 as libc::c_int
                         } else if strncmp(cp,
                                           b"\xe8\xbf\xb0\x00" as *const u8 as
                                               *const libc::c_char,
                                           strlen(b"\xe8\xbf\xb0\x00" as
-                                                     *const u8 as
-                                                     *const libc::c_char)) ==
-                                      0 {
+                                              *const u8 as
+                                              *const libc::c_char)) ==
+                            0 {
                             (*(*sp).para_data.offset((*sp).Para_num as
-                                                         isize)).type_0 =
+                                isize)).type_0 =
                                 2 as libc::c_int
                         } else {
                             (*(*sp).para_data.offset((*sp).Para_num as
-                                                         isize)).type_0 =
+                                isize)).type_0 =
                                 4 as libc::c_int
                         }
                     } else {
                         (*(*sp).para_data.offset((*sp).Para_num as
-                                                     isize)).type_0 =
+                            isize)).type_0 =
                             0 as libc::c_int
                     }
                     dp_search_scope(sp,
                                     (*(*sp).para_data.offset((*sp).Para_num as
-                                                                 isize)).key_pos,
+                                        isize)).key_pos,
                                     (*(*sp).para_data.offset((*sp).Para_num as
-                                                                 isize)).iend_pos,
+                                        isize)).iend_pos,
                                     (*(*sp).para_data.offset((*sp).Para_num as
-                                                                 isize)).jend_pos);
+                                        isize)).jend_pos);
                     ending_bonus_score =
                         calc_ending_bonus_score(sp,
                                                 (*(*sp).para_data.offset((*sp).Para_num
-                                                                             as
-                                                                             isize)).jend_pos,
+                                                    as
+                                                    isize)).jend_pos,
                                                 &mut *(*sp).para_data.offset((*sp).Para_num
-                                                                                 as
-                                                                                 isize));
+                                                    as
+                                                    isize));
                     starting_bonus_score =
                         calc_starting_bonus_score(sp,
                                                   (*(*sp).para_data.offset((*sp).Para_num
-                                                                               as
-                                                                               isize)).max_path[0
-                                                                                                    as
-                                                                                                    libc::c_int
-                                                                                                    as
-                                                                                                    usize],
+                                                      as
+                                                      isize)).max_path[0
+                                                      as
+                                                      libc::c_int
+                                                      as
+                                                      usize],
                                                   &mut *(*sp).para_data.offset((*sp).Para_num
-                                                                                   as
-                                                                                   isize));
+                                                      as
+                                                      isize));
                     (*(*sp).para_data.offset((*sp).Para_num as
-                                                 isize)).max_score =
+                        isize)).max_score =
                         score_matrix[(*(*sp).para_data.offset((*sp).Para_num
-                                                                  as
-                                                                  isize)).max_path[0
-                                                                                       as
-                                                                                       libc::c_int
-                                                                                       as
-                                                                                       usize]
-                                         as
-                                         usize][((*(*sp).para_data.offset((*sp).Para_num
-                                                                              as
-                                                                              isize)).key_pos
-                                                     + 1 as libc::c_int) as
-                                                    usize] as libc::c_float /
+                            as
+                            isize)).max_path[0
+                            as
+                            libc::c_int
+                            as
+                            usize]
+                            as
+                            usize][((*(*sp).para_data.offset((*sp).Para_num
+                            as
+                            isize)).key_pos
+                            + 1 as libc::c_int) as
+                            usize] as libc::c_float /
                             norm[((*(*sp).para_data.offset((*sp).Para_num as
-                                                               isize)).jend_pos
-                                      -
-                                      (*(*sp).para_data.offset((*sp).Para_num
-                                                                   as
-                                                                   isize)).max_path[0
-                                                                                        as
-                                                                                        libc::c_int
-                                                                                        as
-                                                                                        usize]
-                                      + 1 as libc::c_int) as usize] +
+                                isize)).jend_pos
+                                -
+                                (*(*sp).para_data.offset((*sp).Para_num
+                                    as
+                                    isize)).max_path[0
+                                    as
+                                    libc::c_int
+                                    as
+                                    usize]
+                                + 1 as libc::c_int) as usize] +
                             starting_bonus_score as libc::c_float +
                             ending_bonus_score as libc::c_float
                 }

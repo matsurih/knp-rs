@@ -1,16 +1,15 @@
-#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case,
-         non_upper_case_globals, unused_assignments, unused_mut)]
-#![register_tool(c2rust)]
-#![feature(const_raw_ptr_to_usize_cast, extern_types, register_tool)]
+#![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
 
-use crate::{Chi_np_end_matrix, Chi_np_start_matrix, Chi_quote_end_matrix, Chi_quote_start_matrix, Dpnd_matrix, Mask_matrix, Para_matrix, Quote_matrix};
+use libc;
+
+use crate::{Chi_np_end_matrix, Chi_np_start_matrix, Chi_quote_end_matrix, Chi_quote_start_matrix, Dpnd_matrix, fprintf, Mask_matrix, Para_matrix, Quote_matrix};
+use crate::cky::exist_chi;
 use crate::ctools::{check_feature, Language, stderr};
 use crate::lib_print::print_bnst;
 use crate::para_revision::revise_para_kakari;
 use crate::structs::CDB_FILE;
 use crate::tools::{OptDisplay, OptParaFix};
 use crate::types::{DBM_FILE, PARA_MANAGER, SENTENCE_DATA};
-
 
 #[no_mangle]
 pub static mut sm_db: DBM_FILE = 0 as *const CDB_FILE as *mut CDB_FILE;
@@ -41,9 +40,9 @@ pub static mut D_found_array: [libc::c_int; 200] = [0; 200];
 #[no_mangle]
 pub unsafe extern "C" fn check_stop_extend(mut sp: *mut SENTENCE_DATA,
                                            mut num: libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                           -> libc::c_int
+/*==================================================================*/
+{
     return if !check_feature((*(*sp).bnst_data.offset(num as isize)).f,
                              b"\xe8\xaa\xad\xe7\x82\xb9\x00" as *const u8 as
                                  *const libc::c_char as *mut libc::c_char).is_null()
@@ -71,16 +70,16 @@ pub unsafe extern "C" fn check_stop_extend(mut sp: *mut SENTENCE_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn para_extend_p(mut sp: *mut SENTENCE_DATA,
                                        mut m_ptr: *mut PARA_MANAGER)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                       -> libc::c_int
+/*==================================================================*/
+{
     /* 並列構造前部を延長する基準 : 強並列 or 用言を含む */
     let mut i: libc::c_int = 0;
     if (*(*sp).para_data.offset((*m_ptr).para_data_num[0 as libc::c_int as
-                                                           usize] as
-                                    isize)).status as libc::c_int ==
-           's' as i32 {
-        return (0 as libc::c_int == 0) as libc::c_int
+        usize] as
+        isize)).status as libc::c_int ==
+        's' as i32 {
+        return (0 as libc::c_int == 0) as libc::c_int;
     }
     i = (*m_ptr).start[0 as libc::c_int as usize];
     while i <= (*m_ptr).end[0 as libc::c_int as usize] {
@@ -88,7 +87,7 @@ pub unsafe extern "C" fn para_extend_p(mut sp: *mut SENTENCE_DATA,
                           b"\xe7\x94\xa8\xe8\xa8\x80\x00" as *const u8 as
                               *const libc::c_char as
                               *mut libc::c_char).is_null() {
-            return (0 as libc::c_int == 0) as libc::c_int
+            return (0 as libc::c_int == 0) as libc::c_int;
         }
         i += 1
     }
@@ -97,19 +96,19 @@ pub unsafe extern "C" fn para_extend_p(mut sp: *mut SENTENCE_DATA,
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn parent_range(mut m_ptr: *mut PARA_MANAGER)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                      -> libc::c_int
+/*==================================================================*/
+{
     /* 親の並列構造がある場合の範囲延長の制限
        		先頭部分に含まれる場合 : 制限なし
 		それ以外に含まれる場合 : 直前のキーの位置 */
     let mut i: libc::c_int = 0;
-    if (*m_ptr).parent.is_null() { return 0 as libc::c_int }
+    if (*m_ptr).parent.is_null() { return 0 as libc::c_int; }
     i = (*(*m_ptr).parent).part_num - 1 as libc::c_int;
     while i > 0 as libc::c_int {
         if (*(*m_ptr).parent).start[i as usize] <=
-               (*m_ptr).start[0 as libc::c_int as usize] {
-            return (*(*m_ptr).parent).start[i as usize]
+            (*m_ptr).start[0 as libc::c_int as usize] {
+            return (*(*m_ptr).parent).start[i as usize];
         }
         i -= 1
     }
@@ -123,9 +122,9 @@ pub unsafe extern "C" fn _check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                                               mut extend_p: libc::c_int,
                                               mut limit: libc::c_int,
                                               mut s_p: *mut libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                              -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0; /* Iマークを埋める時の便宜 */
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -134,29 +133,32 @@ pub unsafe extern "C" fn _check_para_d_struct(mut sp: *mut SENTENCE_DATA,
     let mut hikousa_array: [libc::c_int; 200] = [0; 200];
     D_found_array[end as usize] = (0 as libc::c_int == 0) as libc::c_int;
     k = 0 as libc::c_int;
-    while k <= end { hikousa_array[k as usize] = 1 as libc::c_int; k += 1 }
+    while k <= end {
+        hikousa_array[k as usize] = 1 as libc::c_int;
+        k += 1
+    }
     /* 延長も調べるので,この初期化はstrからでなく0から */
     /* 並列構造内部の依存構造を調べる
        (各文節がもっとも近い文節にかかると仮定) */
     i = end - 1 as libc::c_int;
     while i >= str {
         if D_check_array[i as usize] == (0 as libc::c_int == 0) as libc::c_int
-           {
+        {
             D_found_array[i as usize] = (0 as libc::c_int == 0) as libc::c_int
         } else {
             found = 0 as libc::c_int;
             j = i + 1 as libc::c_int;
             while j <= end {
                 if (*Mask_matrix.as_mut_ptr().offset(i as isize))[j as usize]
-                       != 0 &&
-                       (*Quote_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
-                           != 0 &&
-                       (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                             isize))[j as
-                                                                         usize]
-                           != 0 && hikousa_array[j as usize] != 0 {
+                    != 0 &&
+                    (*Quote_matrix.as_mut_ptr().offset(i as
+                        isize))[j as
+                        usize]
+                        != 0 &&
+                    (*Dpnd_matrix.as_mut_ptr().offset(i as
+                        isize))[j as
+                        usize]
+                        != 0 && hikousa_array[j as usize] != 0 {
                     D_found_array[i as usize] =
                         (0 as libc::c_int == 0) as libc::c_int;
                     k = i + 1 as libc::c_int;
@@ -165,7 +167,7 @@ pub unsafe extern "C" fn _check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                         k += 1
                     }
                     found = (0 as libc::c_int == 0) as libc::c_int;
-                    break ;
+                    break;
                 } else { j += 1 }
             }
             if found == 0 as libc::c_int {
@@ -192,17 +194,17 @@ pub unsafe extern "C" fn _check_para_d_struct(mut sp: *mut SENTENCE_DATA,
     }
     /* 並列構造前部の延長可能範囲を調べる */
     if extend_p == (0 as libc::c_int == 0) as libc::c_int &&
-           success_p == (0 as libc::c_int == 0) as libc::c_int {
+        success_p == (0 as libc::c_int == 0) as libc::c_int {
         i = str - 1 as libc::c_int;
-        loop  {
+        loop {
             if i < limit ||
-                   check_stop_extend(sp, i) ==
-                       (0 as libc::c_int == 0) as libc::c_int {
+                check_stop_extend(sp, i) ==
+                    (0 as libc::c_int == 0) as libc::c_int {
                 *s_p = i + 1 as libc::c_int;
-                break ;
+                break;
             } else {
                 if D_check_array[i as usize] ==
-                       (0 as libc::c_int == 0) as libc::c_int {
+                    (0 as libc::c_int == 0) as libc::c_int {
                     D_found_array[i as usize] =
                         (0 as libc::c_int == 0) as libc::c_int
                 } else {
@@ -218,19 +220,19 @@ pub unsafe extern "C" fn _check_para_d_struct(mut sp: *mut SENTENCE_DATA,
 		       具体例) 950101071-030, 950101169-002, 950101074-019
 		    */
                         if (*Mask_matrix.as_mut_ptr().offset(i as
-                                                                 isize))[j as
-                                                                             usize]
-                               != 0 &&
-                               (*Quote_matrix.as_mut_ptr().offset(i as
-                                                                      isize))[j
-                                                                                  as
-                                                                                  usize]
-                                   != 0 &&
-                               (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                                     isize))[j
-                                                                                 as
-                                                                                 usize]
-                                   != 0 && hikousa_array[j as usize] != 0 {
+                            isize))[j as
+                            usize]
+                            != 0 &&
+                            (*Quote_matrix.as_mut_ptr().offset(i as
+                                isize))[j
+                                as
+                                usize]
+                                != 0 &&
+                            (*Dpnd_matrix.as_mut_ptr().offset(i as
+                                isize))[j
+                                as
+                                usize]
+                                != 0 && hikousa_array[j as usize] != 0 {
                             D_found_array[i as usize] =
                                 (0 as libc::c_int == 0) as libc::c_int;
                             k = i + 1 as libc::c_int;
@@ -239,13 +241,13 @@ pub unsafe extern "C" fn _check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                                 k += 1
                             }
                             found = (0 as libc::c_int == 0) as libc::c_int;
-                            break ;
+                            break;
                             /* 96/01/22までなかなった?? */
                         } else { j += 1 }
                     }
                     if found == 0 as libc::c_int {
                         *s_p = i + 1 as libc::c_int;
-                        break ;
+                        break;
                     }
                 }
                 i -= 1
@@ -259,9 +261,9 @@ pub unsafe extern "C" fn _check_para_d_struct(mut sp: *mut SENTENCE_DATA,
 pub unsafe extern "C" fn check_error_state(mut sp: *mut SENTENCE_DATA,
                                            mut m_ptr: *mut PARA_MANAGER,
                                            mut error: *mut libc::c_int)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                           -> libc::c_int
+/*==================================================================*/
+{
     /* エラー状態のチェック : 
 
            修正可能な場合 : 2つのだけの部分からなる並列構造
@@ -283,7 +285,7 @@ pub unsafe extern "C" fn check_error_state(mut sp: *mut SENTENCE_DATA,
                             b";; Cannot revise invalid kakari struct in para!!\n\x00"
                                 as *const u8 as *const libc::c_char);
                 }
-                return -(1 as libc::c_int)
+                return -(1 as libc::c_int);
             }
             i += 1
         }
@@ -299,7 +301,7 @@ pub unsafe extern "C" fn check_error_state(mut sp: *mut SENTENCE_DATA,
                             b";; Cannot revise invalid kakari struct in para!!\n\x00"
                                 as *const u8 as *const libc::c_char);
                 }
-                return -(1 as libc::c_int)
+                return -(1 as libc::c_int);
             }
             i += 1
         }
@@ -311,9 +313,9 @@ pub unsafe extern "C" fn check_error_state(mut sp: *mut SENTENCE_DATA,
 #[no_mangle]
 pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                                              mut m_ptr: *mut PARA_MANAGER)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                             -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -330,60 +332,60 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
     while i < (*m_ptr).child_num {
         /* 子供の再帰処理 */
         if check_para_d_struct(sp, (*m_ptr).child[i as usize]) ==
-               0 as libc::c_int {
+            0 as libc::c_int {
             if Language == 2 as libc::c_int {
                 if i == (*m_ptr).child_num - 1 as libc::c_int {
-                    return 0 as libc::c_int
+                    return 0 as libc::c_int;
                 }
-            } else { return 0 as libc::c_int }
+            } else { return 0 as libc::c_int; }
         }
         i += 1
     }
     if Language == 2 as libc::c_int {
         /* if the first word in a noun coordination is verb, then change it to be verb coordination */
         if (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as usize] as
-                                        isize)).para_key_type as libc::c_int
-               == 1 as libc::c_int {
+            isize)).para_key_type as libc::c_int
+            == 1 as libc::c_int {
             k = 0 as libc::c_int;
             while k < (*m_ptr).para_num {
                 if check_feature((*(*sp).bnst_data.offset((*m_ptr).start[k as
-                                                                             usize]
-                                                              as isize)).f,
+                    usize]
+                    as isize)).f,
                                  b"VV\x00" as *const u8 as *const libc::c_char
                                      as *mut libc::c_char).is_null() &&
-                       check_feature((*(*sp).bnst_data.offset((*m_ptr).start[k
-                                                                                 as
-                                                                                 usize]
-                                                                  as
-                                                                  isize)).f,
-                                     b"VA\x00" as *const u8 as
-                                         *const libc::c_char as
-                                         *mut libc::c_char).is_null() &&
-                       check_feature((*(*sp).bnst_data.offset((*m_ptr).start[k
-                                                                                 as
-                                                                                 usize]
-                                                                  as
-                                                                  isize)).f,
-                                     b"VC\x00" as *const u8 as
-                                         *const libc::c_char as
-                                         *mut libc::c_char).is_null() &&
-                       check_feature((*(*sp).bnst_data.offset((*m_ptr).start[k
-                                                                                 as
-                                                                                 usize]
-                                                                  as
-                                                                  isize)).f,
-                                     b"VE\x00" as *const u8 as
-                                         *const libc::c_char as
-                                         *mut libc::c_char).is_null() {
+                    check_feature((*(*sp).bnst_data.offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize)).f,
+                                  b"VA\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char).is_null() &&
+                    check_feature((*(*sp).bnst_data.offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize)).f,
+                                  b"VC\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char).is_null() &&
+                    check_feature((*(*sp).bnst_data.offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize)).f,
+                                  b"VE\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char).is_null() {
                     (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as
-                                                              usize] as
-                                                 isize)).para_key_type =
+                        usize] as
+                        isize)).para_key_type =
                         1 as libc::c_int as libc::c_char;
-                    break ;
+                    break;
                 } else {
                     (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as
-                                                              usize] as
-                                                 isize)).para_key_type =
+                        usize] as
+                        isize)).para_key_type =
                         2 as libc::c_int as libc::c_char;
                     k += 1
                 }
@@ -391,87 +393,87 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
         }
         /* if the last word in a noun coordination is not noun, then reduce the scope */
         if (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as usize] as
-                                        isize)).para_key_type as libc::c_int
-               == 1 as libc::c_int {
+            isize)).para_key_type as libc::c_int
+            == 1 as libc::c_int {
             k = (*m_ptr).end[((*m_ptr).part_num - 1 as libc::c_int) as usize];
             while k >=
-                      (*m_ptr).start[((*m_ptr).part_num - 1 as libc::c_int) as
-                                         usize] {
+                (*m_ptr).start[((*m_ptr).part_num - 1 as libc::c_int) as
+                    usize] {
                 if !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
                                   b"NN\x00" as *const u8 as
                                       *const libc::c_char as
                                       *mut libc::c_char).is_null() ||
-                       !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                      b"NR\x00" as *const u8 as
-                                          *const libc::c_char as
-                                          *mut libc::c_char).is_null() ||
-                       !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                      b"NT\x00" as *const u8 as
-                                          *const libc::c_char as
-                                          *mut libc::c_char).is_null() ||
-                       !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                      b"M\x00" as *const u8 as
-                                          *const libc::c_char as
-                                          *mut libc::c_char).is_null() ||
-                       !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                      b"PN\x00" as *const u8 as
-                                          *const libc::c_char as
-                                          *mut libc::c_char).is_null() {
+                    !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                   b"NR\x00" as *const u8 as
+                                       *const libc::c_char as
+                                       *mut libc::c_char).is_null() ||
+                    !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                   b"NT\x00" as *const u8 as
+                                       *const libc::c_char as
+                                       *mut libc::c_char).is_null() ||
+                    !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                   b"M\x00" as *const u8 as
+                                       *const libc::c_char as
+                                       *mut libc::c_char).is_null() ||
+                    !check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                   b"PN\x00" as *const u8 as
+                                       *const libc::c_char as
+                                       *mut libc::c_char).is_null() {
                     (*m_ptr).end[((*m_ptr).part_num - 1 as libc::c_int) as
-                                     usize] = k;
-                    break ;
+                        usize] = k;
+                    break;
                 } else { k -= 1 }
             }
         }
         /* if the first word in a noun coordination is verb or DEC, then reduce the scope */
         if (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as usize] as
-                                        isize)).para_key_type as libc::c_int
-               == 1 as libc::c_int {
+            isize)).para_key_type as libc::c_int
+            == 1 as libc::c_int {
             k = (*m_ptr).start[0 as libc::c_int as usize];
             while k <= (*m_ptr).end[0 as libc::c_int as usize] {
                 if check_feature((*(*sp).bnst_data.offset(k as isize)).f,
                                  b"VV\x00" as *const u8 as *const libc::c_char
                                      as *mut libc::c_char).is_null() &&
-                       check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                     b"VC\x00" as *const u8 as
-                                         *const libc::c_char as
-                                         *mut libc::c_char).is_null() &&
-                       check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                     b"VE\x00" as *const u8 as
-                                         *const libc::c_char as
-                                         *mut libc::c_char).is_null() &&
-                       check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                     b"VA\x00" as *const u8 as
-                                         *const libc::c_char as
-                                         *mut libc::c_char).is_null() &&
-                       check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                     b"P\x00" as *const u8 as
-                                         *const libc::c_char as
-                                         *mut libc::c_char).is_null() &&
-                       check_feature((*(*sp).bnst_data.offset(k as isize)).f,
-                                     b"DEC\x00" as *const u8 as
-                                         *const libc::c_char as
-                                         *mut libc::c_char).is_null() {
+                    check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                  b"VC\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char).is_null() &&
+                    check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                  b"VE\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char).is_null() &&
+                    check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                  b"VA\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char).is_null() &&
+                    check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                  b"P\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char).is_null() &&
+                    check_feature((*(*sp).bnst_data.offset(k as isize)).f,
+                                  b"DEC\x00" as *const u8 as
+                                      *const libc::c_char as
+                                      *mut libc::c_char).is_null() {
                     (*m_ptr).start[0 as libc::c_int as usize] = k;
-                    break ;
+                    break;
                 } else { k += 1 }
             }
         }
         /* if there is a verb in noun coordination, and there is no DEC, then reduce the coordination scope */
         if (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as usize] as
-                                        isize)).para_key_type as libc::c_int
-               == 1 as libc::c_int {
+            isize)).para_key_type as libc::c_int
+            == 1 as libc::c_int {
             k = 0 as libc::c_int;
             while k < (*m_ptr).part_num {
                 if exist_chi(sp, (*m_ptr).start[k as usize],
                              (*m_ptr).end[k as usize],
                              b"verb\x00" as *const u8 as *const libc::c_char)
-                       != -(1 as libc::c_int) &&
-                       exist_chi(sp, (*m_ptr).start[k as usize],
-                                 (*m_ptr).end[k as usize],
-                                 b"DEC\x00" as *const u8 as
-                                     *const libc::c_char) ==
-                           -(1 as libc::c_int) {
+                    != -(1 as libc::c_int) &&
+                    exist_chi(sp, (*m_ptr).start[k as usize],
+                              (*m_ptr).end[k as usize],
+                              b"DEC\x00" as *const u8 as
+                                  *const libc::c_char) ==
+                        -(1 as libc::c_int) {
                     if k == 0 as libc::c_int {
                         (*m_ptr).start[k as usize] =
                             exist_chi(sp, (*m_ptr).start[k as usize],
@@ -486,101 +488,101 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
         }
         /* if the first word in a noun coordination is DEG, then enlarge the scope */
         if (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as usize] as
-                                        isize)).para_key_type as libc::c_int
-               == 1 as libc::c_int {
+            isize)).para_key_type as libc::c_int
+            == 1 as libc::c_int {
             if !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
-                                                                          libc::c_int
-                                                                          as
-                                                                          usize]
-                                                           as isize)).f,
+                libc::c_int
+                as
+                usize]
+                as isize)).f,
                               b"DEG\x00" as *const u8 as *const libc::c_char
                                   as *mut libc::c_char).is_null() {
                 if (*Chi_np_start_matrix.as_mut_ptr().offset(((*m_ptr).start[0
-                                                                                 as
-                                                                                 libc::c_int
-                                                                                 as
-                                                                                 usize]
-                                                                  -
-                                                                  1 as
-                                                                      libc::c_int)
-                                                                 as
-                                                                 isize))[((*m_ptr).start[0
-                                                                                             as
-                                                                                             libc::c_int
-                                                                                             as
-                                                                                             usize]
-                                                                              -
-                                                                              1
-                                                                                  as
-                                                                                  libc::c_int)
-                                                                             as
-                                                                             usize]
-                       != -(1 as libc::c_int) {
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    -
+                    1 as
+                        libc::c_int)
+                    as
+                    isize))[((*m_ptr).start[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    -
+                    1
+                        as
+                        libc::c_int)
+                    as
+                    usize]
+                    != -(1 as libc::c_int) {
                     (*m_ptr).start[0 as libc::c_int as usize] =
                         (*Chi_np_start_matrix.as_mut_ptr().offset(((*m_ptr).start[0
-                                                                                      as
-                                                                                      libc::c_int
-                                                                                      as
-                                                                                      usize]
-                                                                       -
-                                                                       1 as
-                                                                           libc::c_int)
-                                                                      as
-                                                                      isize))[((*m_ptr).start[0
-                                                                                                  as
-                                                                                                  libc::c_int
-                                                                                                  as
-                                                                                                  usize]
-                                                                                   -
-                                                                                   1
-                                                                                       as
-                                                                                       libc::c_int)
-                                                                                  as
-                                                                                  usize]
+                            as
+                            libc::c_int
+                            as
+                            usize]
+                            -
+                            1 as
+                                libc::c_int)
+                            as
+                            isize))[((*m_ptr).start[0
+                            as
+                            libc::c_int
+                            as
+                            usize]
+                            -
+                            1
+                                as
+                                libc::c_int)
+                            as
+                            usize]
                 } else if !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0
-                                                                                     as
-                                                                                     libc::c_int
-                                                                                     as
-                                                                                     usize]
-                                                                      as
-                                                                      isize).offset(-(1
-                                                                                          as
-                                                                                          libc::c_int
-                                                                                          as
-                                                                                          isize))).f,
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    as
+                    isize).offset(-(1
+                    as
+                    libc::c_int
+                    as
+                    isize))).f,
                                          b"NN\x00" as *const u8 as
                                              *const libc::c_char as
                                              *mut libc::c_char).is_null() ||
-                              !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0
-                                                                                         as
-                                                                                         libc::c_int
-                                                                                         as
-                                                                                         usize]
-                                                                          as
-                                                                          isize).offset(-(1
-                                                                                              as
-                                                                                              libc::c_int
-                                                                                              as
-                                                                                              isize))).f,
-                                             b"NR\x00" as *const u8 as
-                                                 *const libc::c_char as
-                                                 *mut libc::c_char).is_null()
-                              ||
-                              !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0
-                                                                                         as
-                                                                                         libc::c_int
-                                                                                         as
-                                                                                         usize]
-                                                                          as
-                                                                          isize).offset(-(1
-                                                                                              as
-                                                                                              libc::c_int
-                                                                                              as
-                                                                                              isize))).f,
-                                             b"PN\x00" as *const u8 as
-                                                 *const libc::c_char as
-                                                 *mut libc::c_char).is_null()
-                 {
+                    !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0
+                        as
+                        libc::c_int
+                        as
+                        usize]
+                        as
+                        isize).offset(-(1
+                        as
+                        libc::c_int
+                        as
+                        isize))).f,
+                                   b"NR\x00" as *const u8 as
+                                       *const libc::c_char as
+                                       *mut libc::c_char).is_null()
+                    ||
+                    !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0
+                        as
+                        libc::c_int
+                        as
+                        usize]
+                        as
+                        isize).offset(-(1
+                        as
+                        libc::c_int
+                        as
+                        isize))).f,
+                                   b"PN\x00" as *const u8 as
+                                       *const libc::c_char as
+                                       *mut libc::c_char).is_null()
+                {
                     (*m_ptr).start[0 as libc::c_int as usize] -= 1
                 } else { (*m_ptr).start[0 as libc::c_int as usize] += 1 }
             }
@@ -589,279 +591,279 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
         while k < (*m_ptr).part_num {
             /* enlarge the coordination scope if there is a NR before the first NN of this coordination */
             if !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
-                                                                          libc::c_int
-                                                                          as
-                                                                          usize]
-                                                           as isize)).f,
+                libc::c_int
+                as
+                usize]
+                as isize)).f,
                               b"NN\x00" as *const u8 as *const libc::c_char as
                                   *mut libc::c_char).is_null() &&
-                   (*m_ptr).start[0 as libc::c_int as usize] !=
-                       0 as libc::c_int &&
-                   !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
-                                                                              libc::c_int
-                                                                              as
-                                                                              usize]
-                                                               as
-                                                               isize).offset(-(1
-                                                                                   as
-                                                                                   libc::c_int
-                                                                                   as
-                                                                                   isize))).f,
-                                  b"NR\x00" as *const u8 as
-                                      *const libc::c_char as
-                                      *mut libc::c_char).is_null() {
+                (*m_ptr).start[0 as libc::c_int as usize] !=
+                    0 as libc::c_int &&
+                !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
+                    libc::c_int
+                    as
+                    usize]
+                    as
+                    isize).offset(-(1
+                    as
+                    libc::c_int
+                    as
+                    isize))).f,
+                               b"NR\x00" as *const u8 as
+                                   *const libc::c_char as
+                                   *mut libc::c_char).is_null() {
                 (*m_ptr).start[0 as libc::c_int as usize] -= 1
             }
             // check if the scope of coordination conflict with the scope of baseNP
             if (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).start[k as
-                                                                            usize]
-                                                             as
-                                                             isize))[(*m_ptr).start[k
-                                                                                        as
-                                                                                        usize]
-                                                                         as
-                                                                         usize]
-                   != -(1 as libc::c_int) &&
-                   (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                as
-                                                                                usize]
-                                                                 as
-                                                                 isize))[(*m_ptr).start[k
-                                                                                            as
-                                                                                            usize]
-                                                                             as
-                                                                             usize]
-                       < (*m_ptr).start[k as usize] &&
-                   ((*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                               as
-                                                                               usize]
-                                                                as
-                                                                isize))[(*m_ptr).start[k
-                                                                                           as
-                                                                                           usize]
-                                                                            as
-                                                                            usize]
-                        != -(1 as libc::c_int) &&
-                        (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                   as
-                                                                                   usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).start[k
-                                                                                               as
-                                                                                               usize]
-                                                                                as
-                                                                                usize]
-                            >= (*m_ptr).start[k as usize] &&
-                        (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                   as
-                                                                                   usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).start[k
-                                                                                               as
-                                                                                               usize]
-                                                                                as
-                                                                                usize]
-                            <= (*m_ptr).end[k as usize]) {
+                usize]
+                as
+                isize))[(*m_ptr).start[k
+                as
+                usize]
+                as
+                usize]
+                != -(1 as libc::c_int) &&
+                (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    < (*m_ptr).start[k as usize] &&
+                ((*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    != -(1 as libc::c_int) &&
+                    (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        >= (*m_ptr).start[k as usize] &&
+                    (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        <= (*m_ptr).end[k as usize]) {
                 /* enlarge the coordination scope if it is the first conjunctive structure */
                 if k == 0 as libc::c_int {
                     (*m_ptr).start[k as usize] =
                         (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                     as
-                                                                                     usize]
-                                                                      as
-                                                                      isize))[(*m_ptr).start[k
-                                                                                                 as
-                                                                                                 usize]
-                                                                                  as
-                                                                                  usize]
+                            as
+                            usize]
+                            as
+                            isize))[(*m_ptr).start[k
+                            as
+                            usize]
+                            as
+                            usize]
                 }
             } else if (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                 as
-                                                                                 usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).end[k
-                                                                                             as
-                                                                                             usize]
-                                                                                as
-                                                                                usize]
-                          != -(1 as libc::c_int) &&
-                          (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                     as
-                                                                                     usize]
-                                                                        as
-                                                                        isize))[(*m_ptr).end[k
-                                                                                                 as
-                                                                                                 usize]
-                                                                                    as
-                                                                                    usize]
-                              >= (*m_ptr).start[k as usize] &&
-                          ((*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                    as
-                                                                                    usize]
-                                                                       as
-                                                                       isize))[(*m_ptr).end[k
-                                                                                                as
-                                                                                                usize]
-                                                                                   as
-                                                                                   usize]
-                               != -(1 as libc::c_int) &&
-                               (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                        as
-                                                                                        usize]
-                                                                           as
-                                                                           isize))[(*m_ptr).end[k
-                                                                                                    as
-                                                                                                    usize]
-                                                                                       as
-                                                                                       usize]
-                                   > (*m_ptr).end[k as usize]) {
+                as
+                usize]
+                as
+                isize))[(*m_ptr).end[k
+                as
+                usize]
+                as
+                usize]
+                != -(1 as libc::c_int) &&
+                (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    >= (*m_ptr).start[k as usize] &&
+                ((*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    != -(1 as libc::c_int) &&
+                    (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        > (*m_ptr).end[k as usize]) {
                 /* enlarge the coordination scope if it is the last conjunctive structure */
                 if k == (*m_ptr).part_num - 1 as libc::c_int {
                     (*m_ptr).end[k as usize] =
                         (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                 as
-                                                                                 usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).end[k
-                                                                                             as
-                                                                                             usize]
-                                                                                as
-                                                                                usize]
+                            as
+                            usize]
+                            as
+                            isize))[(*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            usize]
                 }
             }
             // check if the scope of coordination conflict with the scope of quote
             if (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                               as
-                                                                               usize]
-                                                                as
-                                                                isize))[(*m_ptr).start[k
-                                                                                           as
-                                                                                           usize]
-                                                                            as
-                                                                            usize]
-                   != -(1 as libc::c_int) &&
-                   (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                   as
-                                                                                   usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).start[k
-                                                                                               as
-                                                                                               usize]
-                                                                                as
-                                                                                usize]
-                       < (*m_ptr).start[k as usize] &&
-                   ((*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                  as
-                                                                                  usize]
-                                                                   as
-                                                                   isize))[(*m_ptr).start[k
-                                                                                              as
-                                                                                              usize]
-                                                                               as
-                                                                               usize]
-                        != -(1 as libc::c_int) &&
-                        (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                      as
-                                                                                      usize]
-                                                                       as
-                                                                       isize))[(*m_ptr).start[k
-                                                                                                  as
-                                                                                                  usize]
-                                                                                   as
-                                                                                   usize]
-                            >= (*m_ptr).start[k as usize] &&
-                        (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                      as
-                                                                                      usize]
-                                                                       as
-                                                                       isize))[(*m_ptr).start[k
-                                                                                                  as
-                                                                                                  usize]
-                                                                                   as
-                                                                                   usize]
-                            <= (*m_ptr).end[k as usize]) {
+                as
+                usize]
+                as
+                isize))[(*m_ptr).start[k
+                as
+                usize]
+                as
+                usize]
+                != -(1 as libc::c_int) &&
+                (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    < (*m_ptr).start[k as usize] &&
+                ((*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    != -(1 as libc::c_int) &&
+                    (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        >= (*m_ptr).start[k as usize] &&
+                    (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        <= (*m_ptr).end[k as usize]) {
                 /* enlarge the coordination scope if it is the first conjunctive structure */
                 if k == 0 as libc::c_int {
                     (*m_ptr).start[k as usize] =
                         (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                        as
-                                                                                        usize]
-                                                                         as
-                                                                         isize))[(*m_ptr).start[k
-                                                                                                    as
-                                                                                                    usize]
-                                                                                     as
-                                                                                     usize]
+                            as
+                            usize]
+                            as
+                            isize))[(*m_ptr).start[k
+                            as
+                            usize]
+                            as
+                            usize]
                 }
             } else if (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                    as
-                                                                                    usize]
-                                                                       as
-                                                                       isize))[(*m_ptr).end[k
-                                                                                                as
-                                                                                                usize]
-                                                                                   as
-                                                                                   usize]
-                          != -(1 as libc::c_int) &&
-                          (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                        as
-                                                                                        usize]
-                                                                           as
-                                                                           isize))[(*m_ptr).end[k
-                                                                                                    as
-                                                                                                    usize]
-                                                                                       as
-                                                                                       usize]
-                              >= (*m_ptr).start[k as usize] &&
-                          ((*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                       as
-                                                                                       usize]
-                                                                          as
-                                                                          isize))[(*m_ptr).end[k
-                                                                                                   as
-                                                                                                   usize]
-                                                                                      as
-                                                                                      usize]
-                               != -(1 as libc::c_int) &&
-                               (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                           as
-                                                                                           usize]
-                                                                              as
-                                                                              isize))[(*m_ptr).end[k
-                                                                                                       as
-                                                                                                       usize]
-                                                                                          as
-                                                                                          usize]
-                                   > (*m_ptr).end[k as usize]) {
+                as
+                usize]
+                as
+                isize))[(*m_ptr).end[k
+                as
+                usize]
+                as
+                usize]
+                != -(1 as libc::c_int) &&
+                (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    >= (*m_ptr).start[k as usize] &&
+                ((*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    != -(1 as libc::c_int) &&
+                    (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        > (*m_ptr).end[k as usize]) {
                 /* enlarge the coordination scope if it is the last conjunctive structure */
                 if k == (*m_ptr).part_num - 1 as libc::c_int {
                     (*m_ptr).end[k as usize] =
                         (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                    as
-                                                                                    usize]
-                                                                       as
-                                                                       isize))[(*m_ptr).end[k
-                                                                                                as
-                                                                                                usize]
-                                                                                   as
-                                                                                   usize]
+                            as
+                            usize]
+                            as
+                            isize))[(*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            usize]
                 }
             }
             k += 1
         }
         if (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as usize] as
-                                        isize)).para_key_type as libc::c_int
-               == 2 as libc::c_int {
+            isize)).para_key_type as libc::c_int
+            == 2 as libc::c_int {
             /* change the scope of verb coordination for Chinese, i.e. change [V][CC V] to be [V CC][V] */
             k = 0 as libc::c_int;
             while k < (*m_ptr).part_num - 1 as libc::c_int {
                 (*(*sp).bnst_data.offset((*m_ptr).start[(k + 1 as libc::c_int)
-                                                            as usize] as
-                                             isize)).para_num =
+                    as usize] as
+                    isize)).para_num =
                     (*(*sp).bnst_data.offset((*m_ptr).end[k as usize] as
-                                                 isize)).para_num;
+                        isize)).para_num;
                 (*(*sp).bnst_data.offset((*m_ptr).end[k as usize] as
-                                             isize)).para_num =
+                    isize)).para_num =
                     -(1 as libc::c_int);
                 (*m_ptr).end[k as usize] =
                     (*m_ptr).start[(k + 1 as libc::c_int) as usize];
@@ -904,7 +906,7 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
         k = 0 as libc::c_int;
         while k < (*m_ptr).part_num {
             if check_feature((*(*sp).bnst_data.offset((*m_ptr).end[k as usize]
-                                                          as isize)).f,
+                as isize)).f,
                              b"\xe4\xbd\x93\xe8\xa8\x80\x00" as *const u8 as
                                  *const libc::c_char as
                                  *mut libc::c_char).is_null() {
@@ -918,51 +920,51 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                 i = (*m_ptr).start[k as usize];
                 while i < (*m_ptr).end[k as usize] {
                     if !(i == (*m_ptr).end[k as usize] - 1 as libc::c_int &&
-                             (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                                   isize))[(*m_ptr).end[k
-                                                                                            as
-                                                                                            usize]
-                                                                               as
-                                                                               usize]
-                                 ==
-                                 (*Dpnd_matrix.as_mut_ptr().offset(((*m_ptr).end[((*m_ptr).part_num
-                                                                                      -
-                                                                                      1
-                                                                                          as
-                                                                                          libc::c_int)
-                                                                                     as
-                                                                                     usize]
-                                                                        -
-                                                                        1 as
-                                                                            libc::c_int)
-                                                                       as
-                                                                       isize))[(*m_ptr).end[((*m_ptr).part_num
-                                                                                                 -
-                                                                                                 1
-                                                                                                     as
-                                                                                                     libc::c_int)
-                                                                                                as
-                                                                                                usize]
-                                                                                   as
-                                                                                   usize])
-                       {
                         (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                              isize))[(*m_ptr).end[k
-                                                                                       as
-                                                                                       usize]
-                                                                          as
-                                                                          usize]
+                            isize))[(*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            usize]
+                            ==
+                            (*Dpnd_matrix.as_mut_ptr().offset(((*m_ptr).end[((*m_ptr).part_num
+                                -
+                                1
+                                    as
+                                    libc::c_int)
+                                as
+                                usize]
+                                -
+                                1 as
+                                    libc::c_int)
+                                as
+                                isize))[(*m_ptr).end[((*m_ptr).part_num
+                                -
+                                1
+                                    as
+                                    libc::c_int)
+                                as
+                                usize]
+                                as
+                                usize])
+                    {
+                        (*Dpnd_matrix.as_mut_ptr().offset(i as
+                            isize))[(*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            usize]
                             =
                             (*Dpnd_matrix.as_mut_ptr().offset(i as
-                                                                  isize))[(*m_ptr).end[((*m_ptr).part_num
-                                                                                            -
-                                                                                            1
-                                                                                                as
-                                                                                                libc::c_int)
-                                                                                           as
-                                                                                           usize]
-                                                                              as
-                                                                              usize]
+                                isize))[(*m_ptr).end[((*m_ptr).part_num
+                                -
+                                1
+                                    as
+                                    libc::c_int)
+                                as
+                                usize]
+                                as
+                                usize]
                     }
                     i += 1
                 }
@@ -977,12 +979,12 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
         if _check_para_d_struct(sp, (*m_ptr).start[k as usize],
                                 (*m_ptr).end[k as usize],
                                 (if k == 0 as libc::c_int {
-                                     para_extend_p(sp, m_ptr)
-                                 } else { 0 as libc::c_int }),
+                                    para_extend_p(sp, m_ptr)
+                                } else { 0 as libc::c_int }),
                                 (if k == 0 as libc::c_int {
-                                     parent_range(m_ptr)
-                                 } else { 0 as libc::c_int }), &mut start_pos)
-               == 0 as libc::c_int {
+                                    parent_range(m_ptr)
+                                } else { 0 as libc::c_int }), &mut start_pos)
+            == 0 as libc::c_int {
             invalid_flag = (0 as libc::c_int == 0) as libc::c_int;
             error_check[k as usize] = (0 as libc::c_int == 0) as libc::c_int
         } else {
@@ -1014,7 +1016,7 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
             if revised_p_num != -(1 as libc::c_int) {
                 revise_para_kakari(sp, revised_p_num,
                                    D_found_array.as_mut_ptr());
-                return 0 as libc::c_int
+                return 0 as libc::c_int;
             }
         } else {
             k = 0 as libc::c_int;
@@ -1023,53 +1025,53 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                 k += 1
             }
             's_661:
-                loop  {
-                    no_more_error = 0 as libc::c_int;
-                    no_more_error_here = 0 as libc::c_int;
-                    i =
-                        error_pos[0 as libc::c_int as usize] -
-                            1 as libc::c_int;
+            loop {
+                no_more_error = 0 as libc::c_int;
+                no_more_error_here = 0 as libc::c_int;
+                i =
+                    error_pos[0 as libc::c_int as usize] -
+                        1 as libc::c_int;
+                while D_found_array[i as usize] ==
+                    (0 as libc::c_int == 0) as libc::c_int &&
+                    start_pos <= i {
+                    i -= 1
+                }
+                error_pos[0 as libc::c_int as usize] = i;
+                if i == start_pos - 1 as libc::c_int {
+                    no_more_error = (0 as libc::c_int == 0) as libc::c_int
+                }
+                k = 1 as libc::c_int;
+                while k < (*m_ptr).part_num {
+                    i = error_pos[k as usize] - 1 as libc::c_int;
                     while D_found_array[i as usize] ==
-                              (0 as libc::c_int == 0) as libc::c_int &&
-                              start_pos <= i {
+                        (0 as libc::c_int == 0) as libc::c_int &&
+                        (*m_ptr).start[k as usize] <= i {
                         i -= 1
                     }
-                    error_pos[0 as libc::c_int as usize] = i;
-                    if i == start_pos - 1 as libc::c_int {
-                        no_more_error = (0 as libc::c_int == 0) as libc::c_int
+                    error_pos[k as usize] = i;
+                    if i == (*m_ptr).start[k as usize] - 1 as libc::c_int
+                    {
+                        no_more_error_here =
+                            (0 as libc::c_int == 0) as libc::c_int
                     }
-                    k = 1 as libc::c_int;
-                    while k < (*m_ptr).part_num {
-                        i = error_pos[k as usize] - 1 as libc::c_int;
-                        while D_found_array[i as usize] ==
-                                  (0 as libc::c_int == 0) as libc::c_int &&
-                                  (*m_ptr).start[k as usize] <= i {
-                            i -= 1
+                    /* エラーの対応がつかない(部分並列でない) */
+                    if no_more_error != no_more_error_here {
+                        revised_p_num =
+                            check_error_state(sp, m_ptr,
+                                              error_check.as_mut_ptr());
+                        if !(revised_p_num != -(1 as libc::c_int)) {
+                            break 's_661;
                         }
-                        error_pos[k as usize] = i;
-                        if i == (*m_ptr).start[k as usize] - 1 as libc::c_int
-                           {
-                            no_more_error_here =
-                                (0 as libc::c_int == 0) as libc::c_int
-                        }
-                        /* エラーの対応がつかない(部分並列でない) */
-                        if no_more_error != no_more_error_here {
-                            revised_p_num =
-                                check_error_state(sp, m_ptr,
-                                                  error_check.as_mut_ptr());
-                            if !(revised_p_num != -(1 as libc::c_int)) {
-                                break 's_661 ;
-                            }
-                            revise_para_kakari(sp, revised_p_num,
-                                               D_found_array.as_mut_ptr());
-                            return 0 as libc::c_int
-                        } else { k += 1 }
-                    }
-                    if no_more_error == (0 as libc::c_int == 0) as libc::c_int
-                       {
-                        break ;
-                    }
+                        revise_para_kakari(sp, revised_p_num,
+                                           D_found_array.as_mut_ptr());
+                        return 0 as libc::c_int;
+                    } else { k += 1 }
                 }
+                if no_more_error == (0 as libc::c_int == 0) as libc::c_int
+                {
+                    break;
+                }
+            }
         }
     }
     /* チェック済みの印 */
@@ -1107,19 +1109,19 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
             i += 1
         }
         if (*(*sp).para_data.offset((*m_ptr).para_data_num[0 as libc::c_int as
-                                                               usize] as
-                                        isize)).status as libc::c_int ==
-               's' as i32 {
+            usize] as
+            isize)).status as libc::c_int ==
+            's' as i32 {
             /* 強並列 ??? */
             i = 0 as libc::c_int;
             while i < (*m_ptr).start[0 as libc::c_int as usize] {
                 (*Mask_matrix.as_mut_ptr().offset(i as
-                                                      isize))[(*m_ptr).end[0
-                                                                               as
-                                                                               libc::c_int
-                                                                               as
-                                                                               usize]
-                                                                  as usize] =
+                    isize))[(*m_ptr).end[0
+                    as
+                    libc::c_int
+                    as
+                    usize]
+                    as usize] =
                     0 as libc::c_int;
                 i += 1
             }
@@ -1177,13 +1179,13 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
         k = 0 as libc::c_int;
         while k < (*m_ptr).part_num - 1 as libc::c_int {
             (*Mask_matrix.as_mut_ptr().offset((*m_ptr).end[k as usize] as
-                                                  isize))[(*m_ptr).end[(k +
-                                                                            1
-                                                                                as
-                                                                                libc::c_int)
-                                                                           as
-                                                                           usize]
-                                                              as usize] =
+                isize))[(*m_ptr).end[(k +
+                1
+                    as
+                    libc::c_int)
+                as
+                usize]
+                as usize] =
                 2 as libc::c_int;
             k += 1
             /*
@@ -1197,22 +1199,22 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                 while i <= (*m_ptr).end[k as usize] {
                     if D_found_array[i as usize] == 0 as libc::c_int {
                         (*Mask_matrix.as_mut_ptr().offset(i as
-                                                              isize))[(*m_ptr).end[k
-                                                                                       as
-                                                                                       usize]
-                                                                          as
-                                                                          usize]
+                            isize))[(*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            usize]
                             = 3 as libc::c_int;
                         (*Mask_matrix.as_mut_ptr().offset(i as
-                                                              isize))[(*m_ptr).end[((*m_ptr).part_num
-                                                                                        -
-                                                                                        1
-                                                                                            as
-                                                                                            libc::c_int)
-                                                                                       as
-                                                                                       usize]
-                                                                          as
-                                                                          usize]
+                            isize))[(*m_ptr).end[((*m_ptr).part_num
+                            -
+                            1
+                                as
+                                libc::c_int)
+                            as
+                            usize]
+                            as
+                            usize]
                             = 3 as libc::c_int
                     }
                     i += 1
@@ -1226,264 +1228,264 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
     if Language == 2 as libc::c_int {
         /* if the first word in a noun coordination is P, and the following word is not noun, then remove this coordination */
         if (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as usize] as
-                                        isize)).para_key_type as libc::c_int
-               == 1 as libc::c_int {
+            isize)).para_key_type as libc::c_int
+            == 1 as libc::c_int {
             if !check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
-                                                                          libc::c_int
-                                                                          as
-                                                                          usize]
-                                                           as isize)).f,
+                libc::c_int
+                as
+                usize]
+                as isize)).f,
                               b"P\x00" as *const u8 as *const libc::c_char as
                                   *mut libc::c_char).is_null() &&
-                   check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
-                                                                             libc::c_int
-                                                                             as
-                                                                             usize]
-                                                              as
-                                                              isize).offset(1
-                                                                                as
-                                                                                libc::c_int
-                                                                                as
-                                                                                isize)).f,
-                                 b"NN\x00" as *const u8 as *const libc::c_char
-                                     as *mut libc::c_char).is_null() &&
-                   check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
-                                                                             libc::c_int
-                                                                             as
-                                                                             usize]
-                                                              as
-                                                              isize).offset(1
-                                                                                as
-                                                                                libc::c_int
-                                                                                as
-                                                                                isize)).f,
-                                 b"NR\x00" as *const u8 as *const libc::c_char
-                                     as *mut libc::c_char).is_null() &&
-                   check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
-                                                                             libc::c_int
-                                                                             as
-                                                                             usize]
-                                                              as
-                                                              isize).offset(1
-                                                                                as
-                                                                                libc::c_int
-                                                                                as
-                                                                                isize)).f,
-                                 b"NT\x00" as *const u8 as *const libc::c_char
-                                     as *mut libc::c_char).is_null() &&
-                   check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
-                                                                             libc::c_int
-                                                                             as
-                                                                             usize]
-                                                              as
-                                                              isize).offset(1
-                                                                                as
-                                                                                libc::c_int
-                                                                                as
-                                                                                isize)).f,
-                                 b"PN\x00" as *const u8 as *const libc::c_char
-                                     as *mut libc::c_char).is_null() {
-                return 0 as libc::c_int
+                check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
+                    libc::c_int
+                    as
+                    usize]
+                    as
+                    isize).offset(1
+                    as
+                    libc::c_int
+                    as
+                    isize)).f,
+                              b"NN\x00" as *const u8 as *const libc::c_char
+                                  as *mut libc::c_char).is_null() &&
+                check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
+                    libc::c_int
+                    as
+                    usize]
+                    as
+                    isize).offset(1
+                    as
+                    libc::c_int
+                    as
+                    isize)).f,
+                              b"NR\x00" as *const u8 as *const libc::c_char
+                                  as *mut libc::c_char).is_null() &&
+                check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
+                    libc::c_int
+                    as
+                    usize]
+                    as
+                    isize).offset(1
+                    as
+                    libc::c_int
+                    as
+                    isize)).f,
+                              b"NT\x00" as *const u8 as *const libc::c_char
+                                  as *mut libc::c_char).is_null() &&
+                check_feature((*(*sp).bnst_data.offset((*m_ptr).start[0 as
+                    libc::c_int
+                    as
+                    usize]
+                    as
+                    isize).offset(1
+                    as
+                    libc::c_int
+                    as
+                    isize)).f,
+                              b"PN\x00" as *const u8 as *const libc::c_char
+                                  as *mut libc::c_char).is_null() {
+                return 0 as libc::c_int;
             }
         }
         k = 0 as libc::c_int;
         while k < (*m_ptr).part_num {
             // check if the scope of coordination conflict with the scope of baseNP
             if (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).start[k as
-                                                                            usize]
-                                                             as
-                                                             isize))[(*m_ptr).start[k
-                                                                                        as
-                                                                                        usize]
-                                                                         as
-                                                                         usize]
-                   != -(1 as libc::c_int) &&
-                   (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                as
-                                                                                usize]
-                                                                 as
-                                                                 isize))[(*m_ptr).start[k
-                                                                                            as
-                                                                                            usize]
-                                                                             as
-                                                                             usize]
-                       < (*m_ptr).start[k as usize] &&
-                   ((*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                               as
-                                                                               usize]
-                                                                as
-                                                                isize))[(*m_ptr).start[k
-                                                                                           as
-                                                                                           usize]
-                                                                            as
-                                                                            usize]
-                        != -(1 as libc::c_int) &&
-                        (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                   as
-                                                                                   usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).start[k
-                                                                                               as
-                                                                                               usize]
-                                                                                as
-                                                                                usize]
-                            >= (*m_ptr).start[k as usize] &&
-                        (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                   as
-                                                                                   usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).start[k
-                                                                                               as
-                                                                                               usize]
-                                                                                as
-                                                                                usize]
-                            <= (*m_ptr).end[k as usize]) {
-                return 0 as libc::c_int
+                usize]
+                as
+                isize))[(*m_ptr).start[k
+                as
+                usize]
+                as
+                usize]
+                != -(1 as libc::c_int) &&
+                (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    < (*m_ptr).start[k as usize] &&
+                ((*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    != -(1 as libc::c_int) &&
+                    (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        >= (*m_ptr).start[k as usize] &&
+                    (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        <= (*m_ptr).end[k as usize]) {
+                return 0 as libc::c_int;
             } else {
                 if (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).end[k as
-                                                                              usize]
-                                                                 as
-                                                                 isize))[(*m_ptr).end[k
-                                                                                          as
-                                                                                          usize]
-                                                                             as
-                                                                             usize]
-                       != -(1 as libc::c_int) &&
-                       (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                  as
-                                                                                  usize]
-                                                                     as
-                                                                     isize))[(*m_ptr).end[k
-                                                                                              as
-                                                                                              usize]
-                                                                                 as
-                                                                                 usize]
-                           >= (*m_ptr).start[k as usize] &&
-                       ((*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                 as
-                                                                                 usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).end[k
-                                                                                             as
-                                                                                             usize]
-                                                                                as
-                                                                                usize]
-                            != -(1 as libc::c_int) &&
-                            (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                     as
-                                                                                     usize]
-                                                                        as
-                                                                        isize))[(*m_ptr).end[k
-                                                                                                 as
-                                                                                                 usize]
-                                                                                    as
-                                                                                    usize]
-                                > (*m_ptr).end[k as usize]) {
-                    return 0 as libc::c_int
+                    usize]
+                    as
+                    isize))[(*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    != -(1 as libc::c_int) &&
+                    (*Chi_np_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        >= (*m_ptr).start[k as usize] &&
+                    ((*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        != -(1 as libc::c_int) &&
+                        (*Chi_np_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            isize))[(*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            usize]
+                            > (*m_ptr).end[k as usize]) {
+                    return 0 as libc::c_int;
                 }
             }
             // check if the scope of coordination conflict with the scope of quote
             if (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                               as
-                                                                               usize]
-                                                                as
-                                                                isize))[(*m_ptr).start[k
-                                                                                           as
-                                                                                           usize]
-                                                                            as
-                                                                            usize]
-                   != -(1 as libc::c_int) &&
-                   (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                   as
-                                                                                   usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).start[k
-                                                                                               as
-                                                                                               usize]
-                                                                                as
-                                                                                usize]
-                       < (*m_ptr).start[k as usize] &&
-                   ((*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                  as
-                                                                                  usize]
-                                                                   as
-                                                                   isize))[(*m_ptr).start[k
-                                                                                              as
-                                                                                              usize]
-                                                                               as
-                                                                               usize]
-                        != -(1 as libc::c_int) &&
-                        (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                      as
-                                                                                      usize]
-                                                                       as
-                                                                       isize))[(*m_ptr).start[k
-                                                                                                  as
-                                                                                                  usize]
-                                                                                   as
-                                                                                   usize]
-                            >= (*m_ptr).start[k as usize] &&
-                        (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
-                                                                                      as
-                                                                                      usize]
-                                                                       as
-                                                                       isize))[(*m_ptr).start[k
-                                                                                                  as
-                                                                                                  usize]
-                                                                                   as
-                                                                                   usize]
-                            <= (*m_ptr).end[k as usize]) {
-                return 0 as libc::c_int
+                as
+                usize]
+                as
+                isize))[(*m_ptr).start[k
+                as
+                usize]
+                as
+                usize]
+                != -(1 as libc::c_int) &&
+                (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    < (*m_ptr).start[k as usize] &&
+                ((*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).start[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    != -(1 as libc::c_int) &&
+                    (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        >= (*m_ptr).start[k as usize] &&
+                    (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).start[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        <= (*m_ptr).end[k as usize]) {
+                return 0 as libc::c_int;
             } else {
                 if (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                 as
-                                                                                 usize]
-                                                                    as
-                                                                    isize))[(*m_ptr).end[k
-                                                                                             as
-                                                                                             usize]
-                                                                                as
-                                                                                usize]
-                       != -(1 as libc::c_int) &&
-                       (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                     as
-                                                                                     usize]
-                                                                        as
-                                                                        isize))[(*m_ptr).end[k
-                                                                                                 as
-                                                                                                 usize]
-                                                                                    as
-                                                                                    usize]
-                           >= (*m_ptr).start[k as usize] &&
-                       ((*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                    as
-                                                                                    usize]
-                                                                       as
-                                                                       isize))[(*m_ptr).end[k
-                                                                                                as
-                                                                                                usize]
-                                                                                   as
-                                                                                   usize]
-                            != -(1 as libc::c_int) &&
-                            (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
-                                                                                        as
-                                                                                        usize]
-                                                                           as
-                                                                           isize))[(*m_ptr).end[k
-                                                                                                    as
-                                                                                                    usize]
-                                                                                       as
-                                                                                       usize]
-                                > (*m_ptr).end[k as usize]) {
-                    return 0 as libc::c_int
+                    as
+                    usize]
+                    as
+                    isize))[(*m_ptr).end[k
+                    as
+                    usize]
+                    as
+                    usize]
+                    != -(1 as libc::c_int) &&
+                    (*Chi_quote_start_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        >= (*m_ptr).start[k as usize] &&
+                    ((*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        isize))[(*m_ptr).end[k
+                        as
+                        usize]
+                        as
+                        usize]
+                        != -(1 as libc::c_int) &&
+                        (*Chi_quote_end_matrix.as_mut_ptr().offset((*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            isize))[(*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            usize]
+                            > (*m_ptr).end[k as usize]) {
+                    return 0 as libc::c_int;
                 }
             }
             k += 1
         }
         if (*(*sp).bnst_data.offset(((*m_ptr).end[0 as libc::c_int as usize] -
-                                         1 as libc::c_int) as
-                                        isize)).para_key_type as libc::c_int
-               == 2 as libc::c_int {
+            1 as libc::c_int) as
+            isize)).para_key_type as libc::c_int
+            == 2 as libc::c_int {
             if OptParaFix != 0 {
                 // for verb coordination, mask the outside area for the non-first conjunction
                 i = 0 as libc::c_int; // verb coordination
@@ -1492,11 +1494,11 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                         (*m_ptr).start[1 as libc::c_int as usize] +
                             1 as libc::c_int;
                     while j <=
-                              (*m_ptr).end[((*m_ptr).part_num -
-                                                1 as libc::c_int) as usize] {
+                        (*m_ptr).end[((*m_ptr).part_num -
+                            1 as libc::c_int) as usize] {
                         (*Mask_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             = 0 as libc::c_int;
                         j += 1
                     }
@@ -1506,15 +1508,15 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                     (*m_ptr).start[1 as libc::c_int as usize] +
                         1 as libc::c_int;
                 while i <=
-                          (*m_ptr).end[((*m_ptr).part_num - 1 as libc::c_int)
-                                           as usize] {
+                    (*m_ptr).end[((*m_ptr).part_num - 1 as libc::c_int)
+                        as usize] {
                     j =
                         (*m_ptr).end[((*m_ptr).part_num - 1 as libc::c_int) as
-                                         usize] + 1 as libc::c_int;
+                            usize] + 1 as libc::c_int;
                     while j < (*sp).Bnst_num {
                         (*Mask_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             = 0 as libc::c_int;
                         j += 1
                     }
@@ -1524,23 +1526,23 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
             k = 0 as libc::c_int;
             while k < (*m_ptr).part_num {
                 (*Mask_matrix.as_mut_ptr().offset((*m_ptr).start[k as usize]
-                                                      as
-                                                      isize))[(*m_ptr).end[k
-                                                                               as
-                                                                               usize]
-                                                                  as usize] =
+                    as
+                    isize))[(*m_ptr).end[k
+                    as
+                    usize]
+                    as usize] =
                     'V' as i32;
                 if k < (*m_ptr).part_num - 1 as libc::c_int {
                     i = (*m_ptr).start[k as usize] + 1 as libc::c_int;
                     while i <
-                              (*m_ptr).end[((*m_ptr).part_num -
-                                                2 as libc::c_int) as usize] {
+                        (*m_ptr).end[((*m_ptr).part_num -
+                            2 as libc::c_int) as usize] {
                         (*Mask_matrix.as_mut_ptr().offset(i as
-                                                              isize))[(*m_ptr).end[k
-                                                                                       as
-                                                                                       usize]
-                                                                          as
-                                                                          usize]
+                            isize))[(*m_ptr).end[k
+                            as
+                            usize]
+                            as
+                            usize]
                             = 0 as libc::c_int;
                         i += 1
                     }
@@ -1548,21 +1550,21 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                 k += 1
             }
         } else if (*(*sp).bnst_data.offset((*m_ptr).end[0 as libc::c_int as
-                                                            usize] as
-                                               isize)).para_key_type as
-                      libc::c_int == 1 as libc::c_int {
+            usize] as
+            isize)).para_key_type as
+            libc::c_int == 1 as libc::c_int {
             if OptParaFix != 0 {
                 // for noun coordination, mask the outside area for the non-last conjunction
                 i = 0 as libc::c_int; // noun coordination
                 while i < (*m_ptr).start[0 as libc::c_int as usize] {
                     j = (*m_ptr).start[0 as libc::c_int as usize];
                     while j <
-                              (*m_ptr).start[((*m_ptr).part_num -
-                                                  1 as libc::c_int) as usize]
-                          {
+                        (*m_ptr).start[((*m_ptr).part_num -
+                            1 as libc::c_int) as usize]
+                    {
                         (*Mask_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             = 0 as libc::c_int;
                         j += 1
                     }
@@ -1570,15 +1572,15 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
                 }
                 i = (*m_ptr).start[0 as libc::c_int as usize];
                 while i <
-                          (*m_ptr).start[((*m_ptr).part_num -
-                                              1 as libc::c_int) as usize] {
+                    (*m_ptr).start[((*m_ptr).part_num -
+                        1 as libc::c_int) as usize] {
                     j =
                         (*m_ptr).end[((*m_ptr).part_num - 1 as libc::c_int) as
-                                         usize] + 1 as libc::c_int;
+                            usize] + 1 as libc::c_int;
                     while j < (*sp).Bnst_num {
                         (*Mask_matrix.as_mut_ptr().offset(i as
-                                                              isize))[j as
-                                                                          usize]
+                            isize))[j as
+                            usize]
                             = 0 as libc::c_int;
                         j += 1
                     }
@@ -1588,22 +1590,22 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
             k = 0 as libc::c_int;
             while k < (*m_ptr).part_num {
                 (*Mask_matrix.as_mut_ptr().offset((*m_ptr).start[k as usize]
-                                                      as
-                                                      isize))[(*m_ptr).end[k
-                                                                               as
-                                                                               usize]
-                                                                  as usize] =
+                    as
+                    isize))[(*m_ptr).end[k
+                    as
+                    usize]
+                    as usize] =
                     'N' as i32;
                 if k > 0 as libc::c_int {
                     i = (*m_ptr).start[k as usize] + 1 as libc::c_int;
                     while i <
-                              (*m_ptr).end[((*m_ptr).part_num -
-                                                1 as libc::c_int) as usize] {
+                        (*m_ptr).end[((*m_ptr).part_num -
+                            1 as libc::c_int) as usize] {
                         (*Mask_matrix.as_mut_ptr().offset((*m_ptr).start[k as
-                                                                             usize]
-                                                              as
-                                                              isize))[i as
-                                                                          usize]
+                            usize]
+                            as
+                            isize))[i as
+                            usize]
                             = 0 as libc::c_int;
                         i += 1
                     }
@@ -1616,9 +1618,9 @@ pub unsafe extern "C" fn check_para_d_struct(mut sp: *mut SENTENCE_DATA,
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_mask_matrix(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_mask_matrix(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     i = 0 as libc::c_int;
@@ -1634,9 +1636,9 @@ pub unsafe extern "C" fn init_mask_matrix(mut sp: *mut SENTENCE_DATA)
 }
 /*==================================================================*/
 #[no_mangle]
-pub unsafe extern "C" fn init_para_matrix(mut sp: *mut SENTENCE_DATA) 
- /*==================================================================*/
- {
+pub unsafe extern "C" fn init_para_matrix(mut sp: *mut SENTENCE_DATA)
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     let mut j: libc::c_int = 0;
     let mut k: libc::c_int = 0;
@@ -1647,9 +1649,9 @@ pub unsafe extern "C" fn init_para_matrix(mut sp: *mut SENTENCE_DATA)
             j = 0 as libc::c_int;
             while j < (*sp).Bnst_num {
                 (*Para_matrix.as_mut_ptr().offset(k as
-                                                      isize))[i as
-                                                                  usize][j as
-                                                                             usize]
+                    isize))[i as
+                    usize][j as
+                    usize]
                     = -(1 as libc::c_int) as libc::c_double;
                 j += 1
             }
@@ -1661,9 +1663,9 @@ pub unsafe extern "C" fn init_para_matrix(mut sp: *mut SENTENCE_DATA)
 /*==================================================================*/
 #[no_mangle]
 pub unsafe extern "C" fn check_dpnd_in_para(mut sp: *mut SENTENCE_DATA)
- -> libc::c_int 
- /*==================================================================*/
- {
+                                            -> libc::c_int
+/*==================================================================*/
+{
     let mut i: libc::c_int = 0;
     /* 初期化 */
     init_mask_matrix(sp);
@@ -1678,13 +1680,13 @@ pub unsafe extern "C" fn check_dpnd_in_para(mut sp: *mut SENTENCE_DATA)
         if (*(*sp).para_manager.offset(i as isize)).parent.is_null() {
             if check_para_d_struct(sp,
                                    &mut *(*sp).para_manager.offset(i as
-                                                                       isize))
-                   == 0 as libc::c_int {
+                                       isize))
+                == 0 as libc::c_int {
                 if Language == 2 as libc::c_int {
                     if i == (*sp).Para_M_num - 1 as libc::c_int {
-                        return 0 as libc::c_int
+                        return 0 as libc::c_int;
                     }
-                } else { return 0 as libc::c_int }
+                } else { return 0 as libc::c_int; }
             }
         }
         i += 1
